@@ -1,0 +1,224 @@
+{
+  "$id": "https://raw.githubusercontent.com/BX-Team/Riven/master/schema/v1/release.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Release",
+  "description": "`releases/<version>.json` — a self-contained release manifest.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "files": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ReleaseFile"
+      }
+    },
+    "format": {
+      "const": 1
+    },
+    "groups": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Group"
+      }
+    },
+    "id": {
+      "type": "string"
+    },
+    "java": {
+      "$ref": "#/$defs/Java"
+    },
+    "loader": {
+      "$ref": "#/$defs/Loader"
+    },
+    "minecraft": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "format",
+    "id",
+    "name",
+    "version",
+    "minecraft",
+    "loader",
+    "java"
+  ],
+  "$defs": {
+    "Group": {
+      "type": "object",
+      "properties": {
+        "default": {
+          "type": "boolean",
+          "default": false
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "Hashes": {
+      "description": "Hashes a source provided; the strongest present one is verified.",
+      "type": "object",
+      "properties": {
+        "sha1": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha512": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "Java": {
+      "type": "object",
+      "properties": {
+        "jvm_args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "major": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "memory": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Memory"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "major"
+      ]
+    },
+    "Loader": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/LoaderKind"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "version"
+      ]
+    },
+    "LoaderKind": {
+      "type": "string",
+      "enum": [
+        "fabric",
+        "quilt",
+        "forge",
+        "neoforge"
+      ]
+    },
+    "Memory": {
+      "type": "object",
+      "properties": {
+        "min": {
+          "type": "string"
+        },
+        "recommended": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "min",
+        "recommended"
+      ]
+    },
+    "PackPath": {
+      "description": "Relative POSIX path: no leading `/`, `\\`, `:`, empty, `.` or `..` components.",
+      "type": "string",
+      "minLength": 1
+    },
+    "ReleaseFile": {
+      "type": "object",
+      "properties": {
+        "group": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hashes": {
+          "$ref": "#/$defs/Hashes"
+        },
+        "path": {
+          "$ref": "#/$defs/PackPath"
+        },
+        "preserve": {
+          "type": "boolean"
+        },
+        "side": {
+          "$ref": "#/$defs/Side"
+        },
+        "size": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "urls": {
+          "description": "Mirrors in order; relative ones resolve against the manifest URL.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "path",
+        "size",
+        "hashes",
+        "urls",
+        "side"
+      ]
+    },
+    "Side": {
+      "type": "string",
+      "enum": [
+        "client",
+        "server",
+        "both"
+      ]
+    }
+  }
+}
