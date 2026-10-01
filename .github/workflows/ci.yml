@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
+
+jobs:
+  format:
+    name: Formatting
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check Rust formatting
+        run: cargo fmt --all --check
+
+  check:
+    name: Lint & test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-latest
+          - name: windows
+            os: windows-latest
+          - name: macos
+            os: macos-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          key: check-${{ matrix.name }}
+
+      - name: Lint with clippy (gui + cli)
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Lint with clippy (cli only)
+        run: cargo clippy --workspace --all-targets --locked --no-default-features --features cli -- -D warnings
+
+      - name: Run the tests
+        run: cargo test --workspace --locked
+
+  build-cli:
+    name: Build riven-cli (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-latest
+            target: aarch64-apple-darwin
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          key: build-cli-${{ matrix.target }}
+
+      - name: Build the release binary
+        run: cargo build --release --locked --no-default-features --features cli
+
+      - name: Smoke-test the binary
+        shell: bash
+        run: ./target/release/riven --version
+
+      - name: Upload the binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: riven-cli-${{ matrix.target }}
+          path: |
+            target/release/riven
+            target/release/riven.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  gate:
+    name: CI
+    if: always()
+    needs: [format, check, build-cli]
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Fail if any required job did not succeed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          printf 'upstream results: %s\n' "$RESULTS"
+          case "$RESULTS" in
+            *failure*|*cancelled*|*skipped*) exit 1 ;;
+          esac
