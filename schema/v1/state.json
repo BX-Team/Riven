@@ -1,0 +1,81 @@
+{
+  "$id": "https://raw.githubusercontent.com/BX-Team/Riven/master/schema/v1/state.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "State",
+  "description": "`.riven/state.json` — what riven installed into an instance.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "etag": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "files": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/StateFile"
+      },
+      "default": {}
+    },
+    "format": {
+      "const": 1
+    },
+    "groups": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "boolean"
+      },
+      "default": {}
+    },
+    "key": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "side": {
+      "$ref": "#/$defs/InstallSide"
+    },
+    "source": {
+      "description": "Channel pointer URL.",
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "format",
+    "source",
+    "side",
+    "version"
+  ],
+  "$defs": {
+    "InstallSide": {
+      "description": "The side an instance is installed as.",
+      "type": "string",
+      "enum": [
+        "client",
+        "server"
+      ]
+    },
+    "StateFile": {
+      "type": "object",
+      "properties": {
+        "preserve": {
+          "type": "boolean"
+        },
+        "sha512": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sha512"
+      ]
+    }
+  }
+}

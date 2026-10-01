@@ -1,0 +1,171 @@
+{
+  "$schema": "https://raw.githubusercontent.com/BX-Team/Riven/master/schema/v1/project.json",
+  "format": 1,
+  "name": "VideCraft: Create",
+  "id": "videcraft-create",
+  "version": "1.4.0",
+  "authors": [
+    "BX Team"
+  ],
+  "description": "Модовый сервер VideCraft",
+  "icon": "icon.png",
+  "minecraft": "1.21.1",
+  "loader": {
+    "type": "neoforge",
+    "version": "21.1.77"
+  },
+  "java": {
+    "major": 21,
+    "memory": {
+      "min": "4G",
+      "recommended": "8G"
+    }
+  },
+  "groups": [
+    {
+      "id": "shaders",
+      "name": "Шейдеры",
+      "description": "Iris + Complementary",
+      "default": false
+    },
+    {
+      "id": "velocity",
+      "name": "Velocity forwarding",
+      "default": false
+    }
+  ],
+  "files": {
+    "preserve": [
+      "options.txt",
+      "config/xaero/**"
+    ],
+    "ignore": [
+      "**/*.bak"
+    ]
+  },
+  "content": [
+    {
+      "id": "create",
+      "kind": "mod",
+      "name": "create",
+      "source": {
+        "type": "modrinth",
+        "project": "AANobbMI",
+        "version": "Yp8wLY1P"
+      },
+      "file": {
+        "path": "mods/create.jar",
+        "size": 1024,
+        "hashes": {
+          "sha512": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sha1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "url": "https://cdn.modrinth.com/mods/create.jar"
+      },
+      "side": "both",
+      "group": null,
+      "update": "follow",
+      "reason": "explicit",
+      "requires": [
+        "flywheel",
+        "ponder"
+      ]
+    },
+    {
+      "id": "flywheel",
+      "kind": "mod",
+      "name": "flywheel",
+      "source": {
+        "type": "modrinth",
+        "project": "AANobbMI",
+        "version": "Yp8wLY1P"
+      },
+      "file": {
+        "path": "mods/flywheel.jar",
+        "size": 1024,
+        "hashes": {
+          "sha512": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sha1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "url": "https://cdn.modrinth.com/mods/flywheel.jar"
+      },
+      "side": "both",
+      "group": null,
+      "update": "follow",
+      "reason": "explicit",
+      "requires": []
+    },
+    {
+      "id": "jei",
+      "kind": "mod",
+      "name": "jei",
+      "source": {
+        "type": "github",
+        "repo": "mezz/JustEnoughItems",
+        "tag": "19.21.0",
+        "asset": "jei-*.jar"
+      },
+      "file": {
+        "path": "mods/jei.jar",
+        "size": 1024,
+        "hashes": {
+          "sha1": "cccccccccccccccccccccccccccccccccccccccc"
+        },
+        "url": "https://github.com/mezz/JustEnoughItems/releases/download/19.21.0/jei.jar"
+      },
+      "side": "client",
+      "group": "shaders",
+      "update": "pinned",
+      "reason": "dependency",
+      "requires": []
+    },
+    {
+      "id": "ponder",
+      "kind": "mod",
+      "name": "ponder",
+      "source": {
+        "type": "modrinth",
+        "project": "AANobbMI",
+        "version": "Yp8wLY1P"
+      },
+      "file": {
+        "path": "mods/ponder.jar",
+        "size": 1024,
+        "hashes": {
+          "sha512": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sha1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "url": "https://cdn.modrinth.com/mods/ponder.jar"
+      },
+      "side": "both",
+      "group": null,
+      "update": "follow",
+      "reason": "explicit",
+      "requires": []
+    },
+    {
+      "id": "sodium",
+      "kind": "mod",
+      "name": "sodium",
+      "source": {
+        "type": "modrinth",
+        "project": "AANobbMI",
+        "version": "Yp8wLY1P"
+      },
+      "file": {
+        "path": "mods/sodium.jar",
+        "size": 1024,
+        "hashes": {
+          "sha512": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sha1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "url": "https://cdn.modrinth.com/mods/sodium.jar"
+      },
+      "side": "both",
+      "group": null,
+      "update": "follow",
+      "reason": "explicit",
+      "requires": []
+    }
+  ]
+}
