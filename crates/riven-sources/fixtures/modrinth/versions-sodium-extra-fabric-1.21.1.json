@@ -1,0 +1,138 @@
+[
+  {
+    "game_versions": [
+      "1.21.1"
+    ],
+    "loaders": [
+      "fabric"
+    ],
+    "environment": "client_only",
+    "id": "YEWu6red",
+    "project_id": "PtjYWJkn",
+    "author_id": "QXAY01zS",
+    "featured": true,
+    "name": "[Fabric] Sodium Extra 0.9.4 - Minecraft 1.21.1",
+    "version_number": "mc1.21.1-0.9.4+fabric",
+    "changelog": null,
+    "changelog_url": null,
+    "date_published": "2026-09-16T02:17:34.868883Z",
+    "downloads": 103152,
+    "version_type": "release",
+    "status": "listed",
+    "requested_status": null,
+    "files": [
+      {
+        "id": "1kxNugbF",
+        "hashes": {
+          "sha1": "628487b330c9589d26cada5c4a51ac457af80a1f",
+          "sha512": "824b06ddaa7ab697ff252ee47c6278725fc2ed6eeaaa027c32c0ee8bbb9ab416c23dfdd3c89a2ca7f4618cb106ef55694a6163cd09abc248219d14e9eca3d7d3"
+        },
+        "url": "https://cdn.modrinth.com/data/PtjYWJkn/versions/YEWu6red/sodium-extra-fabric-0.9.4%2Bmc1.21.1.jar",
+        "filename": "sodium-extra-fabric-0.9.4+mc1.21.1.jar",
+        "primary": true,
+        "size": 472019,
+        "file_type": null
+      },
+      {
+        "id": "ymdouzJn",
+        "hashes": {
+          "sha1": "16d4e93269cfefe1c8bc7f215d8dbc252381903e",
+          "sha512": "59bd450fc90ed8de50ff425b583eccab3486920b7056bf67ec8cc197141972590ddc2f2a97a6c4d8f4c97f402f594d6b2766ac1c20b552e659751e2ce0bcf36e"
+        },
+        "url": "https://cdn.modrinth.com/data/PtjYWJkn/versions/YEWu6red/sodium-extra-fabric-0.9.4%2Bmc1.21.1-dev-shadow.jar",
+        "filename": "sodium-extra-fabric-0.9.4+mc1.21.1-dev-shadow.jar",
+        "primary": false,
+        "size": 470574,
+        "file_type": null
+      }
+    ],
+    "dependencies": [
+      {
+        "version_id": null,
+        "project_id": "EE4vxUHj",
+        "file_name": null,
+        "dependency_type": "optional"
+      },
+      {
+        "version_id": null,
+        "project_id": "YL57xq9U",
+        "file_name": null,
+        "dependency_type": "optional"
+      },
+      {
+        "version_id": null,
+        "project_id": "Bh37bMuy",
+        "file_name": null,
+        "dependency_type": "optional"
+      },
+      {
+        "version_id": null,
+        "project_id": "AANobbMI",
+        "file_name": null,
+        "dependency_type": "required"
+      }
+    ]
+  },
+  {
+    "game_versions": [
+      "1.21.1"
+    ],
+    "loaders": [
+      "fabric"
+    ],
+    "environment": "client_only",
+    "id": "M9kVcb0e",
+    "project_id": "PtjYWJkn",
+    "author_id": "QXAY01zS",
+    "featured": false,
+    "name": "[Fabric] Sodium Extra 0.9.3 for Minecraft 1.21.1",
+    "version_number": "mc1.21.1-0.9.3+fabric",
+    "changelog": null,
+    "changelog_url": null,
+    "date_published": "2026-07-10T02:17:59.950496Z",
+    "downloads": 768112,
+    "version_type": "release",
+    "status": "listed",
+    "requested_status": null,
+    "files": [
+      {
+        "id": "2M1FSMXl",
+        "hashes": {
+          "sha1": "330bfdc64bb48098f9d5faa8a5b752ebef4da926",
+          "sha512": "35b2a1e1e055c8eea0f36e2022943862dc2c0c9d4ffc3c2c169175a89f4f7497bd9de4da1aed7e63f183292cbf00ed5cb539d87e493d601eb74b606d56731b0a"
+        },
+        "url": "https://cdn.modrinth.com/data/PtjYWJkn/versions/M9kVcb0e/sodium-extra-fabric-0.9.3%2Bmc1.21.1.jar",
+        "filename": "sodium-extra-fabric-0.9.3+mc1.21.1.jar",
+        "primary": true,
+        "size": 469925,
+        "file_type": null
+      }
+    ],
+    "dependencies": [
+      {
+        "version_id": null,
+        "project_id": "EE4vxUHj",
+        "file_name": null,
+        "dependency_type": "optional"
+      },
+      {
+        "version_id": null,
+        "project_id": "YL57xq9U",
+        "file_name": null,
+        "dependency_type": "optional"
+      },
+      {
+        "version_id": null,
+        "project_id": "AANobbMI",
+        "file_name": null,
+        "dependency_type": "required"
+      },
+      {
+        "version_id": null,
+        "project_id": "Bh37bMuy",
+        "file_name": null,
+        "dependency_type": "optional"
+      }
+    ]
+  }
+]
