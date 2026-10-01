@@ -1,0 +1,44 @@
+[workspace]
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+authors = ["BX Team"]
+edition = "2024"
+license = "GPL-3.0-or-later"
+homepage = "https://github.com/BX-Team/Riven"
+repository = "https://github.com/BX-Team/Riven"
+
+[package]
+name = "riven"
+description = "Riven Launcher — Minecraft launcher and modpack toolkit"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
+
+[lib]
+name = "riven_lib"
+crate-type = ["rlib"]
+
+[features]
+default = ["gui", "cli"]
+gui = []
+cli = ["dep:clap"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"], optional = true }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Console"] }
