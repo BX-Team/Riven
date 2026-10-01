@@ -1,0 +1,417 @@
+{
+  "$id": "https://raw.githubusercontent.com/BX-Team/Riven/master/schema/v1/project.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Project",
+  "description": "`riven.json` — the pack project in the author's repository.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "authors": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "content": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Entry"
+      }
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "files": {
+      "$ref": "#/$defs/FileRules",
+      "default": {
+        "ignore": [],
+        "preserve": []
+      }
+    },
+    "format": {
+      "const": 1
+    },
+    "groups": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Group"
+      }
+    },
+    "icon": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PackPath"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "id": {
+      "type": "string"
+    },
+    "java": {
+      "$ref": "#/$defs/Java"
+    },
+    "loader": {
+      "$ref": "#/$defs/Loader"
+    },
+    "minecraft": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "format",
+    "name",
+    "id",
+    "version",
+    "minecraft",
+    "loader",
+    "java"
+  ],
+  "$defs": {
+    "Entry": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/EntryFile"
+        },
+        "group": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/Kind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "reason": {
+          "$ref": "#/$defs/Reason"
+        },
+        "requires": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "side": {
+          "$ref": "#/$defs/Side"
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        },
+        "update": {
+          "$ref": "#/$defs/UpdatePolicy"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "source",
+        "file",
+        "side",
+        "update",
+        "reason"
+      ]
+    },
+    "EntryFile": {
+      "type": "object",
+      "properties": {
+        "hashes": {
+          "$ref": "#/$defs/Hashes"
+        },
+        "path": {
+          "$ref": "#/$defs/PackPath"
+        },
+        "size": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "size",
+        "hashes"
+      ]
+    },
+    "FileRules": {
+      "type": "object",
+      "properties": {
+        "ignore": {
+          "description": "Globs under `overrides/` left out of releases.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "preserve": {
+          "description": "Globs the installer never overwrites once the user changed them.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "Group": {
+      "type": "object",
+      "properties": {
+        "default": {
+          "type": "boolean",
+          "default": false
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "Hashes": {
+      "description": "Hashes a source provided; the strongest present one is verified.",
+      "type": "object",
+      "properties": {
+        "sha1": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha512": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "Java": {
+      "type": "object",
+      "properties": {
+        "jvm_args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "major": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "memory": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Memory"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "major"
+      ]
+    },
+    "Kind": {
+      "type": "string",
+      "enum": [
+        "mod",
+        "resourcepack",
+        "shaderpack",
+        "datapack",
+        "file"
+      ]
+    },
+    "Loader": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/LoaderKind"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "version"
+      ]
+    },
+    "LoaderKind": {
+      "type": "string",
+      "enum": [
+        "fabric",
+        "quilt",
+        "forge",
+        "neoforge"
+      ]
+    },
+    "Memory": {
+      "type": "object",
+      "properties": {
+        "min": {
+          "type": "string"
+        },
+        "recommended": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "min",
+        "recommended"
+      ]
+    },
+    "PackPath": {
+      "description": "Relative POSIX path: no leading `/`, `\\`, `:`, empty, `.` or `..` components.",
+      "type": "string",
+      "minLength": 1
+    },
+    "Reason": {
+      "type": "string",
+      "enum": [
+        "explicit",
+        "dependency"
+      ]
+    },
+    "Side": {
+      "type": "string",
+      "enum": [
+        "client",
+        "server",
+        "both"
+      ]
+    },
+    "Source": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "project": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "modrinth"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "project",
+            "version"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "asset": {
+              "type": "string"
+            },
+            "repo": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "github"
+            }
+          },
+          "required": [
+            "type",
+            "repo",
+            "tag",
+            "asset"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "url"
+            },
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "url"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "path": {
+              "$ref": "#/$defs/PackPath"
+            },
+            "type": {
+              "type": "string",
+              "const": "local"
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ]
+        }
+      ]
+    },
+    "UpdatePolicy": {
+      "type": "string",
+      "enum": [
+        "follow",
+        "pinned"
+      ]
+    }
+  }
+}

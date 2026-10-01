@@ -1,0 +1,31 @@
+{
+  "$id": "https://raw.githubusercontent.com/BX-Team/Riven/master/schema/v1/channel.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Channel",
+  "description": "`channels/<name>.json` — the tiny pointer polled on every launch.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "format": {
+      "const": 1
+    },
+    "manifest": {
+      "description": "Manifest URL, relative to the pointer.",
+      "type": "string"
+    },
+    "sha512": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "format",
+    "version",
+    "manifest",
+    "sha512"
+  ]
+}
