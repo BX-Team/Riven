@@ -53,12 +53,25 @@ crate-type = ["rlib"]
 [features]
 default = ["gui", "cli"]
 gui = []
-cli = ["dep:clap"]
+cli = ["dep:clap", "dep:indicatif", "dep:console"]
 
 [dependencies]
+anyhow = "1"
 clap = { version = "4", features = ["derive"], optional = true }
+console = { version = "0.16", optional = true }
+futures-util.workspace = true
+indicatif = { version = "0.18", optional = true }
+reqwest.workspace = true
+riven-format.workspace = true
+riven-resolve.workspace = true
+riven-sources.workspace = true
+riven-sync.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+url.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_System_Console"] }
