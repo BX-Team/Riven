@@ -98,8 +98,14 @@ impl fmt::Display for Problem {
                 f,
                 "`{entry}` requires `{dep}` {req}, but `{provider}` provides {found}"
             ),
+            Problem::Incompatible { entry, other, dep } if dep == other => {
+                write!(f, "`{entry}` is incompatible with `{other}`")
+            }
             Problem::Incompatible { entry, other, dep } => {
-                write!(f, "`{entry}` is incompatible with `{dep}` from `{other}`")
+                write!(
+                    f,
+                    "`{entry}` is incompatible with `{dep}`, shipped by `{other}`"
+                )
             }
             Problem::Duplicate { id, entries } => {
                 write!(f, "mod `{id}` is shipped by {}", entries.join(", "))

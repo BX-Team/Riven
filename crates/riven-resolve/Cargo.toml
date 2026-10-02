@@ -8,8 +8,12 @@ repository.workspace = true
 
 [dependencies]
 riven-format.workspace = true
+riven-sources.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 toml = { version = "1", default-features = false, features = ["std", "serde", "parse"] }
 zip.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

@@ -1,4 +1,5 @@
 mod cache;
+mod game;
 mod http;
 pub mod modrinth;
 
@@ -7,10 +8,21 @@ use std::future::Future;
 use riven_format::{Hashes, Kind, LoaderKind, Side, SourceKind};
 
 pub use cache::Cache;
+pub use game::GameMeta;
 pub use http::{Error, client};
 pub use modrinth::Modrinth;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// The loader's name as platforms and `riven.json` spell it.
+pub fn loader_name(loader: LoaderKind) -> &'static str {
+    match loader {
+        LoaderKind::Fabric => "fabric",
+        LoaderKind::Quilt => "quilt",
+        LoaderKind::Forge => "forge",
+        LoaderKind::NeoForge => "neoforge",
+    }
+}
 
 /// What content is being looked for: game version, loader and content kind.
 #[derive(Debug, Clone, PartialEq, Eq)]
