@@ -7,3 +7,14 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+dirs.workspace = true
+futures-util.workspace = true
+hex.workspace = true
+reqwest.workspace = true
+riven-format.workspace = true
+sha1.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
