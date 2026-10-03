@@ -15,8 +15,11 @@ riven-format = { path = "crates/riven-format" }
 riven-resolve = { path = "crates/riven-resolve" }
 riven-sources = { path = "crates/riven-sources" }
 riven-sync = { path = "crates/riven-sync" }
+base64 = "0.23"
 dirs = "7"
+ed25519-dalek = "3"
 futures-util = "0.3"
+getrandom = "0.4"
 hex = "0.4"
 reqwest = { version = "0.13", features = ["json", "stream", "gzip"] }
 schemars = "1"
