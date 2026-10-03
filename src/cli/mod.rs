@@ -87,6 +87,13 @@ enum Command {
     Why { id: String },
     /// Check dependencies, conflicts and loader mismatches.
     Check,
+    /// Create `riven.json` from an existing modpack archive.
+    Import {
+        #[arg(value_enum)]
+        format: ImportFormat,
+        /// Path or URL of the archive.
+        source: String,
+    },
     /// Bump the pack version.
     Bump {
         /// `major`, `minor`, `patch` or an explicit version.
@@ -112,6 +119,11 @@ enum GroupCommand {
     Rm { id: String },
     /// Put an entry into a group, or `none` to take it out.
     Set { entry: String, group: String },
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum ImportFormat {
+    Mrpack,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -186,6 +198,7 @@ async fn dispatch(command: Command, out: &Output) -> anyhow::Result<ExitCode> {
         Command::List { tree, outdated } => author::list(out, tree, outdated).await,
         Command::Why { id } => author::why(out, &id),
         Command::Check => author::check(out).await,
+        Command::Import { format, source } => author::import(out, format, &source).await,
         Command::Bump { to } => author::bump(out, &to),
     }
 }

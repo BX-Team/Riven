@@ -1,14 +1,20 @@
+use futures_util::future::try_join_all;
 use riven_format::{Hashes, Kind, LoaderKind, SourceKind};
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 use url::Url;
 
-use crate::http::get_json;
+use std::collections::HashMap;
+
+use crate::http::{get_json, post_json};
 use crate::{
     Cache, Channel, Dependency, DependencyKind, Hit, ProjectInfo, Result, Source, Support, Target,
     Version, VersionFile,
 };
 
 pub const API: &str = "https://api.modrinth.com/v2";
+/// Ids per batch request, keeping URLs well under server limits.
+const BATCH: usize = 100;
 
 /// Modrinth API v2 client.
 #[derive(Debug, Clone)]
@@ -40,8 +46,54 @@ impl Modrinth {
         url.into()
     }
 
-    async fn get<T: serde::de::DeserializeOwned>(&self, url: &str) -> Result<T> {
+    async fn get<T: DeserializeOwned>(&self, url: &str) -> Result<T> {
         get_json(&self.http, self.cache.as_ref(), url).await
+    }
+
+    /// GETs `path?ids=[…]` in parallel batches and concatenates the replies.
+    async fn get_batched<T: DeserializeOwned>(&self, path: &str, ids: &[String]) -> Result<Vec<T>> {
+        let pages = try_join_all(ids.chunks(BATCH).map(|chunk| {
+            let url = self.url(path, &[("ids", json(chunk))]);
+            async move { self.get::<Vec<T>>(&url).await }
+        }))
+        .await?;
+        Ok(pages.into_iter().flatten().collect())
+    }
+
+    /// POSTs `body` once per batch of `hashes`, in parallel, merging the hash-keyed replies.
+    async fn post_hashes<H: serde::Serialize + Sync>(
+        &self,
+        path: &str,
+        hashes: &[H],
+        body: serde_json::Value,
+    ) -> Result<HashMap<String, ApiVersion>> {
+        let url = self.url(path, &[]);
+        let pages = try_join_all(hashes.chunks(BATCH).map(|chunk| {
+            let mut body = body.clone();
+            body["hashes"] = serde_json::json!(chunk);
+            let url = &url;
+            async move {
+                post_json::<HashMap<String, ApiVersion>>(
+                    &self.http,
+                    self.cache.as_ref(),
+                    url,
+                    &body,
+                )
+                .await
+            }
+        }))
+        .await?;
+        Ok(pages.into_iter().flatten().collect())
+    }
+
+    /// Versions owning files with the given sha512 hashes; unknown hashes are absent.
+    pub async fn versions_by_sha512(&self, hashes: &[String]) -> Result<HashMap<String, Version>> {
+        let body = serde_json::json!({ "algorithm": "sha512" });
+        let found = self.post_hashes("version_files", hashes, body).await?;
+        Ok(found
+            .into_iter()
+            .map(|(hash, v)| (hash, v.into()))
+            .collect())
     }
 
     pub(crate) fn search_url(&self, query: &str, target: &Target, limit: u32) -> String {
@@ -128,6 +180,43 @@ impl Source for Modrinth {
     async fn version(&self, id: &str) -> Result<Version> {
         let version: ApiVersion = self.get(&self.url(&format!("version/{id}"), &[])).await?;
         Ok(version.into())
+    }
+
+    async fn projects(&self, ids: &[String]) -> Result<Vec<ProjectInfo>> {
+        let found: Vec<ApiProject> = self.get_batched("projects", ids).await?;
+        Ok(found.into_iter().map(ProjectInfo::from).collect())
+    }
+
+    async fn versions(&self, ids: &[String]) -> Result<Vec<Version>> {
+        let found: Vec<ApiVersion> = self.get_batched("versions", ids).await?;
+        Ok(found.into_iter().map(Version::from).collect())
+    }
+
+    async fn latest(
+        &self,
+        current: &[Version],
+        target: &Target,
+    ) -> Result<HashMap<String, Version>> {
+        let by_hash: HashMap<&str, &str> = current
+            .iter()
+            .filter_map(|v| Some((v.primary_file()?.hashes.sha512.as_deref()?, v.id.as_str())))
+            .collect();
+        let mut hashes: Vec<&str> = by_hash.keys().copied().collect();
+        hashes.sort_unstable();
+        let mut body = serde_json::json!({
+            "algorithm": "sha512",
+            "game_versions": [target.minecraft],
+        });
+        if let Some(loaders) = loaders(target) {
+            body["loaders"] = serde_json::json!(loaders);
+        }
+        let found = self
+            .post_hashes("version_files/update", &hashes, body)
+            .await?;
+        Ok(found
+            .into_iter()
+            .filter_map(|(hash, v)| Some((by_hash.get(hash.as_str())?.to_string(), v.into())))
+            .collect())
     }
 }
 
@@ -405,6 +494,52 @@ mod tests {
         assert!(sodium[0].loaders.contains(&"neoforge".to_owned()));
 
         assert!(modrinth.resolve("uncached", &fabric).await.is_err());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn batch_update_maps_newest_back_to_current_versions() {
+        let dir = tempdir("modrinth-latest");
+        let probe = Modrinth {
+            base: "http://127.0.0.1:9/v2".into(),
+            ..Modrinth::new(crate::client())
+        };
+        let modrinth = offline(
+            &dir,
+            &[(
+                probe.url("versions", &[("ids", json(&["5EEI3Guz"]))]),
+                "versions-ids-sodium.json",
+            )],
+        );
+        let current = modrinth.versions(&["5EEI3Guz".into()]).await.unwrap();
+        assert_eq!(current.len(), 1);
+
+        let neoforge = target(LoaderKind::NeoForge);
+        let hash = current[0]
+            .primary_file()
+            .unwrap()
+            .hashes
+            .sha512
+            .clone()
+            .unwrap();
+        let body = serde_json::json!({
+            "hashes": [hash],
+            "algorithm": "sha512",
+            "game_versions": ["1.21.1"],
+            "loaders": ["neoforge"],
+        });
+        let key = format!("POST {}\n{body}", probe.url("version_files/update", &[]));
+        modrinth
+            .cache
+            .as_ref()
+            .unwrap()
+            .put(&key, &fixture("update-sodium-neoforge-1.21.1.json"));
+
+        let newest = modrinth.latest(&current, &neoforge).await.unwrap();
+        let next = &newest["5EEI3Guz"];
+        assert_eq!(next.id, "uMOpc5uV");
+        assert_eq!(next.project, current[0].project);
+        assert!(next.published > current[0].published);
         let _ = std::fs::remove_dir_all(dir);
     }
 

@@ -3,8 +3,8 @@ use std::fmt;
 
 use riven_format::{InstallSide, LoaderKind, Side};
 
-use crate::meta::{DepKind, JarMeta, ModDep};
-use crate::version::{ModVersion, VersionReq};
+use crate::meta::{DepKind, JarMeta, ModDep, ModMeta, Platform};
+use crate::version::ModVersion;
 
 /// The game the pack targets, from `riven.json`.
 #[derive(Debug, Clone)]
@@ -116,14 +116,56 @@ impl fmt::Display for Problem {
 
 struct Provider<'a> {
     version: ModVersion,
+    /// Versions the loader also accepts for this id (NeoForge's version support matrix).
+    also: Vec<ModVersion>,
     entry: &'a str,
+}
+
+/// Which mod platforms load in this pack.
+struct Platforms {
+    loader: LoaderKind,
+    /// Sinytra Connector loads Fabric mods on NeoForge.
+    connector: bool,
+}
+
+impl Platforms {
+    fn new(env: &Env, installed: &[Installed<'_>]) -> Self {
+        // Connector ships as a wrapper jar with the real mod in jar-in-jar.
+        let connector = env.loader == LoaderKind::NeoForge
+            && installed.iter().any(|i| {
+                i.meta
+                    .mods_for(LoaderKind::NeoForge)
+                    .iter()
+                    .any(|m| m.id == "connector")
+            });
+        Self {
+            loader: env.loader,
+            connector,
+        }
+    }
+
+    fn runs(&self, platform: Platform) -> bool {
+        platform.runs_on(self.loader) || (self.connector && platform == Platform::Fabric)
+    }
+
+    fn top<'m>(&self, meta: &'m JarMeta) -> impl Iterator<Item = &'m ModMeta> {
+        meta.mods.iter().filter(move |m| self.runs(m.platform))
+    }
+
+    fn all<'m>(&self, meta: &'m JarMeta, out: &mut Vec<&'m ModMeta>) {
+        out.extend(self.top(meta));
+        for nested in &meta.nested {
+            self.all(nested, out);
+        }
+    }
 }
 
 /// Checks dependencies, incompatibilities and duplicates of a pack, offline.
 pub fn check(env: &Env, installed: &[Installed<'_>]) -> Vec<Problem> {
+    let platforms = Platforms::new(env, installed);
     let mut problems = Vec::new();
     for item in installed {
-        if item.meta.wrong_loader(env.loader) {
+        if !item.meta.mods.is_empty() && platforms.top(item.meta).next().is_none() {
             problems.push(Problem::WrongLoader {
                 entry: item.entry.to_owned(),
             });
@@ -132,12 +174,7 @@ pub fn check(env: &Env, installed: &[Installed<'_>]) -> Vec<Problem> {
 
     let mut owners: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
     for item in installed {
-        for m in item
-            .meta
-            .mods
-            .iter()
-            .filter(|m| m.platform.runs_on(env.loader))
-        {
+        for m in platforms.top(item.meta) {
             let list = owners.entry(&m.id).or_default();
             if !list.contains(&item.entry) {
                 list.push(item.entry);
@@ -155,14 +192,9 @@ pub fn check(env: &Env, installed: &[Installed<'_>]) -> Vec<Problem> {
 
     for side in [InstallSide::Client, InstallSide::Server] {
         let present: Vec<&Installed> = installed.iter().filter(|i| i.side.includes(side)).collect();
-        let providers = providers(env, &present);
+        let providers = providers(env, &platforms, &present);
         for item in &present {
-            for m in item
-                .meta
-                .mods
-                .iter()
-                .filter(|m| m.platform.runs_on(env.loader))
-            {
+            for m in platforms.top(item.meta) {
                 for dep in m.deps.iter().filter(|d| d.side.includes(side)) {
                     if let Some(problem) = check_dep(item.entry, dep, side, &providers)
                         && !problems.contains(&problem)
@@ -176,7 +208,20 @@ pub fn check(env: &Env, installed: &[Installed<'_>]) -> Vec<Problem> {
     problems
 }
 
-fn providers<'a>(env: &Env, present: &[&'a Installed<'a>]) -> BTreeMap<String, Provider<'a>> {
+/// Older versions FML also accepts when a range misses the running one (`VersionSupportMatrix`).
+fn neoforge_support_matrix(minecraft: &ModVersion) -> &'static [(&'static str, &'static str)] {
+    match minecraft.as_str() {
+        "1.21.1" => &[("minecraft", "1.21"), ("neoforge", "21.0.166")],
+        "1.21.8" => &[("minecraft", "1.21.7"), ("neoforge", "21.7.26-beta")],
+        _ => &[],
+    }
+}
+
+fn providers<'a>(
+    env: &Env,
+    platforms: &Platforms,
+    present: &[&'a Installed<'a>],
+) -> BTreeMap<String, Provider<'a>> {
     let mut map: BTreeMap<String, Provider> = BTreeMap::new();
     let mut offer = |id: &str, version: &ModVersion, entry: &'a str| {
         let better = map.get(id).is_none_or(|p| *version > p.version);
@@ -185,6 +230,7 @@ fn providers<'a>(env: &Env, present: &[&'a Installed<'a>]) -> BTreeMap<String, P
                 id.to_owned(),
                 Provider {
                     version: version.clone(),
+                    also: vec![],
                     entry,
                 },
             );
@@ -204,10 +250,20 @@ fn providers<'a>(env: &Env, present: &[&'a Installed<'a>]) -> BTreeMap<String, P
     }
 
     for item in present {
-        for m in item.meta.mods_for(env.loader) {
+        let mut mods = Vec::new();
+        platforms.all(item.meta, &mut mods);
+        for m in mods {
             offer(&m.id, &m.version, item.entry);
             for alias in &m.provides {
                 offer(alias, &m.version, item.entry);
+            }
+        }
+    }
+
+    if env.loader == LoaderKind::NeoForge {
+        for (id, version) in neoforge_support_matrix(&env.minecraft) {
+            if let Some(p) = map.get_mut(*id) {
+                p.also.push(ModVersion::parse(version));
             }
         }
     }
@@ -226,9 +282,10 @@ fn check_dep(
     providers: &BTreeMap<String, Provider<'_>>,
 ) -> Option<Problem> {
     let provider = providers.get(&dep.id);
-    let matches = |req: &VersionReq, p: &Provider| req.matches(&p.version);
+    let accepts =
+        |p: &Provider| dep.req.matches(&p.version) || p.also.iter().any(|v| dep.req.matches(v));
     match (dep.kind, provider) {
-        (DepKind::Required, None) if !builtin(&dep.id) && !quilt_fabric_loader(dep, providers) => {
+        (DepKind::Required, None) if !builtin(&dep.id) && !fabric_loader_alias(dep, providers) => {
             Some(Problem::Missing {
                 entry: entry.to_owned(),
                 dep: dep.id.clone(),
@@ -237,7 +294,7 @@ fn check_dep(
             })
         }
         (DepKind::Required | DepKind::Optional, Some(p)) if p.entry != entry => {
-            (!matches(&dep.req, p)).then(|| Problem::Mismatch {
+            (!accepts(p)).then(|| Problem::Mismatch {
                 entry: entry.to_owned(),
                 dep: dep.id.clone(),
                 req: dep.req.to_string(),
@@ -245,7 +302,7 @@ fn check_dep(
                 provider: p.entry.to_owned(),
             })
         }
-        (DepKind::Incompatible, Some(p)) if p.entry != entry && matches(&dep.req, p) => {
+        (DepKind::Incompatible, Some(p)) if p.entry != entry && dep.req.matches(&p.version) => {
             Some(Problem::Incompatible {
                 entry: entry.to_owned(),
                 other: p.entry.to_owned(),
@@ -256,9 +313,10 @@ fn check_dep(
     }
 }
 
-/// Quilt Loader satisfies `fabricloader` for Fabric mods, under its own version scheme.
-fn quilt_fabric_loader(dep: &ModDep, providers: &BTreeMap<String, Provider<'_>>) -> bool {
-    dep.id == "fabricloader" && providers.contains_key("quilt_loader")
+/// Quilt Loader and Sinytra Connector satisfy `fabricloader` under their own version schemes.
+fn fabric_loader_alias(dep: &ModDep, providers: &BTreeMap<String, Provider<'_>>) -> bool {
+    dep.id == "fabricloader"
+        && (providers.contains_key("quilt_loader") || providers.contains_key("connector"))
 }
 
 #[cfg(test)]
@@ -460,5 +518,76 @@ mod tests {
             id: "jei".into(),
             entries: vec!["jei".into(), "jei-fork".into()],
         }));
+    }
+
+    #[test]
+    fn neoforge_support_matrix_accepts_previous_versions() {
+        let env = Env {
+            loader_version: ModVersion::parse("21.1.233"),
+            ..env()
+        };
+        let lodestone = mod_jar(
+            "lodestone",
+            "1.8.2",
+            &[
+                dep("minecraft", "required", "[1.21,1.21.1)", "BOTH"),
+                dep("neoforge", "required", "[21.0.0-beta,21.1.227)", "BOTH"),
+            ],
+        );
+        let pack = [Installed {
+            entry: "lodestone",
+            side: Side::Both,
+            meta: &lodestone,
+        }];
+        assert_eq!(check(&env, &pack), []);
+
+        let newer = Env {
+            minecraft: ModVersion::parse("1.21.4"),
+            ..env
+        };
+        assert!(!check(&newer, &pack).is_empty());
+    }
+
+    #[test]
+    fn connector_loads_fabric_mods_on_neoforge() {
+        let fabric = meta(&jar(&[(
+            "fabric.mod.json",
+            br#"{"schemaVersion":1,"id":"inventory-blur","version":"1.0.1",
+                "depends":{"fabricloader":">=0.15","fabric-api":"*"}}"#,
+        )]));
+        let ffapi = meta(&neoforge_jar(
+            "fabric_api",
+            "0.115",
+            "provides = [\"fabric-api\"]\n",
+        ));
+        let inner = neoforge_jar("connector", "2.0.0-beta.14", "");
+        let connector = meta(&jar(&[
+            (
+                "META-INF/jarjar/metadata.json",
+                br#"{"jars":[{"path":"META-INF/jarjar/connector-mod.jar"}]}"#,
+            ),
+            ("META-INF/jarjar/connector-mod.jar", &inner),
+        ]));
+        let mut pack = vec![
+            Installed {
+                entry: "inventory-blur",
+                side: Side::Client,
+                meta: &fabric,
+            },
+            Installed {
+                entry: "forgified-fabric-api",
+                side: Side::Both,
+                meta: &ffapi,
+            },
+        ];
+        assert!(check(&env(), &pack).contains(&Problem::WrongLoader {
+            entry: "inventory-blur".into()
+        }));
+        pack.push(Installed {
+            entry: "connector",
+            side: Side::Both,
+            meta: &connector,
+        });
+        assert_eq!(check(&env(), &pack), []);
     }
 }

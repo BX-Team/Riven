@@ -119,6 +119,7 @@ fn read_jar(bytes: &[u8], depth: usize) -> Result<JarMeta, MetaError> {
     }
     let jar_version = read("META-INF/MANIFEST.MF")
         .and_then(|raw| manifest_value(&text(&raw), "Implementation-Version"));
+    let mut has_neoforge_toml = false;
     for (file, platform) in [
         ("META-INF/neoforge.mods.toml", Some(Platform::NeoForge)),
         ("META-INF/mods.toml", None),
@@ -126,7 +127,13 @@ fn read_jar(bytes: &[u8], depth: usize) -> Result<JarMeta, MetaError> {
         if let Some(raw) = read(file) {
             let mods = mods_toml(&text(&raw), platform, jar_version.as_deref())
                 .map_err(|e| parse_err(file, e))?;
-            meta.mods.extend(mods);
+            // NeoForge 20.5+ reads only neoforge.mods.toml; a legacy mods.toml beside it targets older versions.
+            let legacy = has_neoforge_toml;
+            meta.mods.extend(
+                mods.into_iter()
+                    .filter(|m| !(legacy && m.platform == Platform::NeoForge)),
+            );
+            has_neoforge_toml |= platform == Some(Platform::NeoForge);
         }
     }
     if let Some(raw) = read("META-INF/jarjar/metadata.json") {
@@ -393,7 +400,7 @@ fn mods_toml(
         #[serde(default)]
         mods: Vec<TomlMod>,
         #[serde(default)]
-        dependencies: BTreeMap<String, Vec<TomlDep>>,
+        dependencies: BTreeMap<String, toml::Value>,
     }
     #[derive(Deserialize)]
     #[serde(rename_all = "camelCase")]
@@ -415,11 +422,16 @@ fn mods_toml(
         side: Option<String>,
     }
 
-    let mut doc: ModsToml = toml::from_str(input).map_err(|e| e.to_string())?;
+    let doc: ModsToml = toml::from_str(input).map_err(|e| e.to_string())?;
+    // FML only reads arrays of tables; dotted ids like `dependencies.1.21-1.10` nest and are skipped.
+    let mut dependencies: BTreeMap<String, Vec<TomlDep>> = doc
+        .dependencies
+        .into_iter()
+        .filter_map(|(id, value)| Some((id, value.try_into().ok()?)))
+        .collect();
     // NeoForge 20.x still shipped `mods.toml`; its mods depend on `neoforge`.
     let platform = platform.unwrap_or_else(|| {
-        let on_neoforge = doc
-            .dependencies
+        let on_neoforge = dependencies
             .values()
             .flatten()
             .any(|d| d.mod_id == "neoforge");
@@ -437,8 +449,7 @@ fn mods_toml(
                 Some("${file.jarVersion}") | None => jar_version.unwrap_or("0").to_owned(),
                 Some(v) => v.to_owned(),
             };
-            let deps = doc
-                .dependencies
+            let deps = dependencies
                 .remove(&m.mod_id)
                 .unwrap_or_default()
                 .into_iter()
@@ -623,6 +634,34 @@ version="${file.jarVersion}"
             (jei.deps[1].kind, jei.deps[1].side),
             (DepKind::Optional, Side::Client)
         );
+    }
+
+    #[test]
+    fn dotted_dependency_keys_are_skipped() {
+        let toml = "modLoader=\"javafml\"\nloaderVersion=\"[1,)\"\n[[mods]]\nmodId=\"modelfix\"\nversion=\"1\"\n[[dependencies.modelfix]]\nmodId=\"neoforge\"\ntype=\"required\"\nversionRange=\"[21,)\"\n[[dependencies.1.21-1.10]]\nmodId=\"minecraft\"\ntype=\"required\"\n";
+        let meta =
+            JarMeta::read(&jar(&[("META-INF/neoforge.mods.toml", toml.as_bytes())])).unwrap();
+        assert_eq!(meta.mods[0].deps.len(), 1);
+    }
+
+    #[test]
+    fn neoforge_mods_toml_shadows_legacy_one() {
+        let legacy = "modLoader=\"javafml\"\nloaderVersion=\"[1,)\"\n[[mods]]\nmodId=\"create_sa\"\nversion=\"2.1.3\"\n[[dependencies.create_sa]]\nmodId=\"neoforge\"\ntype=\"required\"\nversionRange=\"[20.4.223,)\"\n[[dependencies.create_sa]]\nmodId=\"minecraft\"\ntype=\"required\"\nversionRange=\"[1.20.4]\"\n";
+        let modern = legacy
+            .replace("[20.4.223,)", "[21.1.65,)")
+            .replace("[1.20.4]", "[1.21.1]");
+        let meta = JarMeta::read(&jar(&[
+            ("META-INF/mods.toml", legacy.as_bytes()),
+            ("META-INF/neoforge.mods.toml", modern.as_bytes()),
+        ]))
+        .unwrap();
+        assert_eq!(meta.mods.len(), 1);
+        let minecraft = meta.mods[0]
+            .deps
+            .iter()
+            .find(|d| d.id == "minecraft")
+            .unwrap();
+        assert!(minecraft.req.matches(&v("1.21.1")));
     }
 
     #[test]
