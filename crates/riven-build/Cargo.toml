@@ -7,6 +7,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+futures-util.workspace = true
 riven-format.workspace = true
 riven-sources.workspace = true
 serde.workspace = true
@@ -16,3 +17,8 @@ zip.workspace = true
 hex.workspace = true
 sha1.workspace = true
 sha2.workspace = true
+url.workspace = true
+toml = { version = "1", default-features = false, features = ["std", "serde", "parse"] }
+
+[dev-dependencies]
+tokio.workspace = true

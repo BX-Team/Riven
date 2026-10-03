@@ -1,6 +1,8 @@
 mod cache;
 mod game;
+pub mod github;
 mod http;
+mod identify;
 pub mod modrinth;
 
 use std::collections::HashMap;
@@ -10,7 +12,9 @@ use riven_format::{Hashes, Kind, LoaderKind, Side, SourceKind};
 
 pub use cache::Cache;
 pub use game::GameMeta;
+pub use github::GitHub;
 pub use http::{Error, client};
+pub use identify::{Known, Matched, identify};
 pub use modrinth::Modrinth;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

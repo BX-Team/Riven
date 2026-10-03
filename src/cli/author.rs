@@ -1,17 +1,24 @@
 use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use anyhow::{Context, bail};
+use anyhow::{Context, anyhow, bail};
 use console::style;
 use futures_util::{StreamExt, stream};
-use riven_format::{FileRules, Group, Java, Kind, Loader, Project, Reason, Side, UpdatePolicy};
-use riven_resolve::{AddOptions, Env, Installed, JarFetcher, JarMeta, ModVersion, Planner};
-use riven_sources::{Modrinth, Source, Target};
+use riven_format::{
+    Entry, FileRules, Group, Java, Kind, Loader, PackPath, Project, Reason, Side,
+    Source as EntrySource, SourceKind, UpdatePolicy,
+};
+use riven_resolve::{
+    AddOptions, Downloader, Env, Installed, JarFetcher, JarMeta, ModVersion, Planner, carry_over,
+    direct_entry, github_update, rehome,
+};
+use riven_sources::{Known, Modrinth, Source, Target};
 use serde_json::json;
 
 use super::output::{Output, file_name, side_label};
 use super::project::{PROJECT_FILE, StoreJars, Workspace, game_meta, write_atomic};
-use super::{GroupCommand, ImportFormat, SourceArg, parse_loader};
+use super::{GroupCommand, SourceArg, parse_loader};
 
 const PARALLEL_DOWNLOADS: usize = 8;
 
@@ -98,7 +105,7 @@ fn slugify(name: &str) -> String {
     }
 }
 
-fn ensure_gitignore(dir: &std::path::Path) -> anyhow::Result<()> {
+pub(super) fn ensure_gitignore(dir: &std::path::Path) -> anyhow::Result<()> {
     let path = dir.join(".gitignore");
     let existing = std::fs::read_to_string(&path).unwrap_or_default();
     let missing: Vec<&str> = [".riven/", "dist/"]
@@ -119,16 +126,6 @@ fn ensure_gitignore(dir: &std::path::Path) -> anyhow::Result<()> {
     std::fs::write(&path, contents).with_context(|| format!("cannot write {}", path.display()))
 }
 
-fn require_modrinth(source: SourceArg) -> anyhow::Result<()> {
-    let name = match source {
-        SourceArg::Modrinth => return Ok(()),
-        SourceArg::Github => "GitHub",
-        SourceArg::Url => "URL",
-        SourceArg::Local => "local",
-    };
-    bail!("{name} sources are not supported yet; only Modrinth for now")
-}
-
 /// Turns a slug, id, Modrinth URL or search query into a project id and an optional version.
 async fn find_project(
     modrinth: &Modrinth,
@@ -144,7 +141,7 @@ async fn find_project(
             .unwrap_or_default();
         return match segments.as_slice() {
             [_, slug] => Ok(((*slug).to_owned(), None)),
-            [_, slug, "version", version, ..] => {
+            [_, slug, "version", version, ..] | ["data", slug, "versions", version, ..] => {
                 Ok(((*slug).to_owned(), Some((*version).to_owned())))
             }
             _ => bail!("`{query}` is not a Modrinth project or version URL"),
@@ -183,34 +180,221 @@ async fn find_project(
     }
 }
 
-pub async fn add(
-    out: &Output,
-    query: &str,
-    source: SourceArg,
-    side: Option<Side>,
-    group: Option<String>,
-    pin: bool,
-) -> anyhow::Result<ExitCode> {
-    require_modrinth(source)?;
+/// `riven add` flags besides the query.
+pub struct AddArgs {
+    pub source: Option<SourceArg>,
+    pub asset: Option<String>,
+    pub side: Option<Side>,
+    pub group: Option<String>,
+    pub pin: bool,
+}
+
+/// Where an `add` query points.
+enum Origin {
+    Modrinth,
+    GitHub {
+        repo: String,
+        tag: Option<String>,
+        asset: Option<String>,
+    },
+    Url(String),
+    Local(PathBuf),
+}
+
+fn origin(query: &str, source: Option<SourceArg>) -> anyhow::Result<Origin> {
+    let web = url::Url::parse(query)
+        .ok()
+        .filter(|u| matches!(u.scheme(), "http" | "https"));
+    let host = web.as_ref().and_then(|u| u.host_str()).unwrap_or_default();
+    Ok(match source {
+        Some(SourceArg::Modrinth) => Origin::Modrinth,
+        Some(SourceArg::Github) => github_origin(query)?,
+        Some(SourceArg::Url) => match web {
+            Some(_) => Origin::Url(query.to_owned()),
+            None => bail!("`{query}` is not an http(s) URL"),
+        },
+        Some(SourceArg::Local) => Origin::Local(query.into()),
+        None if host == "github.com" || host == "www.github.com" => github_origin(query)?,
+        None if host.ends_with("modrinth.com") => Origin::Modrinth,
+        None if web.is_some() => Origin::Url(query.to_owned()),
+        None if Path::new(query).is_file() => Origin::Local(query.into()),
+        None => Origin::Modrinth,
+    })
+}
+
+/// Parses `owner/repo` or a GitHub repository, release or release asset URL.
+fn github_origin(query: &str) -> anyhow::Result<Origin> {
+    let path = match url::Url::parse(query) {
+        Ok(url) => url.path().to_owned(),
+        Err(_) => query.to_owned(),
+    };
+    let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+    let (owner, repo, rest) = match segments.as_slice() {
+        [owner, repo, rest @ ..] => (*owner, repo.trim_end_matches(".git"), rest),
+        _ => bail!("`{query}` is not a GitHub repository (owner/name or a github.com URL)"),
+    };
+    let decode = |s: &str| {
+        percent_encoding::percent_decode_str(s)
+            .decode_utf8_lossy()
+            .into_owned()
+    };
+    let (tag, asset) = match rest {
+        [] | ["releases"] | ["releases", "latest"] => (None, None),
+        ["releases", "tag", tag] => (Some(decode(tag)), None),
+        ["releases", "download", tag, asset] => (Some(decode(tag)), Some(decode(asset))),
+        _ => bail!("`{query}` is not a GitHub repository, release or release asset URL"),
+    };
+    Ok(Origin::GitHub {
+        repo: format!("{owner}/{repo}"),
+        tag,
+        asset,
+    })
+}
+
+/// The decoded last path segment of `url`, used as the installed file name.
+fn url_file_name(url: &str) -> anyhow::Result<String> {
+    let parsed = url::Url::parse(url).with_context(|| format!("`{url}` is not a URL"))?;
+    parsed
+        .path_segments()
+        .and_then(|mut s| s.next_back())
+        .filter(|s| !s.is_empty())
+        .map(|s| {
+            percent_encoding::percent_decode_str(s)
+                .decode_utf8_lossy()
+                .into_owned()
+        })
+        .with_context(|| format!("`{url}` does not end in a file name"))
+}
+
+/// The pack path of a local file; files outside the repository are copied into `local/`.
+fn local_path(ws: &Workspace, file: &Path) -> anyhow::Result<PackPath> {
+    let file =
+        std::fs::canonicalize(file).with_context(|| format!("cannot find {}", file.display()))?;
+    if !file.is_file() {
+        bail!("{} is not a file", file.display());
+    }
+    let root = std::fs::canonicalize(&ws.dir)
+        .with_context(|| format!("cannot read {}", ws.dir.display()))?;
+    let relative = match file.strip_prefix(&root) {
+        Ok(relative) => relative.to_owned(),
+        Err(_) => {
+            let name = file.file_name().context("the file has no name")?;
+            let target = ws.dir.join("local").join(name);
+            if target.exists() {
+                if std::fs::read(&target)? != std::fs::read(&file)? {
+                    bail!("{} already exists with other contents", target.display());
+                }
+            } else {
+                std::fs::create_dir_all(ws.dir.join("local"))?;
+                std::fs::copy(&file, &target)
+                    .with_context(|| format!("cannot copy into {}", target.display()))?;
+            }
+            Path::new("local").join(name)
+        }
+    };
+    let parts: Vec<String> = relative
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+        .collect();
+    if !matches!(
+        parts.first().map(String::as_str),
+        Some("local" | "overrides")
+    ) {
+        bail!(
+            "keep local files under local/ or overrides/ (got {})",
+            relative.display()
+        );
+    }
+    Ok(PackPath::new(parts.join("/"))?)
+}
+
+/// Builds the entry for a GitHub, URL or local origin.
+async fn direct_add(
+    ws: &Workspace,
+    jars: &StoreJars,
+    origin: Origin,
+    asset: Option<String>,
+) -> anyhow::Result<Entry> {
+    let pack = &ws.project;
+    Ok(match origin {
+        Origin::GitHub {
+            repo,
+            tag,
+            asset: exact,
+        } => {
+            let pattern = asset.or_else(|| {
+                let tag = tag.as_deref().unwrap_or_default();
+                exact.map(|name| riven_resolve::asset_pattern(&name, tag, &pack.minecraft))
+            });
+            riven_resolve::github_entry(
+                &ws.github(),
+                jars,
+                pack,
+                &repo,
+                tag.as_deref(),
+                pattern.as_deref(),
+            )
+            .await?
+        }
+        Origin::Url(url) => {
+            let name = url_file_name(&url)?;
+            let file = jars
+                .download(&url)
+                .await
+                .map_err(|e| anyhow!("cannot download {url}: {e}"))?;
+            let source = EntrySource::Url { url: url.clone() };
+            direct_entry(pack, source, &name, &file, Some(url))?
+        }
+        Origin::Local(path) => {
+            let path = local_path(ws, &path)?;
+            let bytes = std::fs::read(ws.dir.join(path.as_str()))
+                .with_context(|| format!("cannot read {path}"))?;
+            let file = jars.keep(bytes, path.as_str()).map_err(|e| anyhow!(e))?;
+            let name = path.file_name().to_owned();
+            direct_entry(pack, EntrySource::Local { path }, &name, &file, None)?
+        }
+        Origin::Modrinth => unreachable!("Modrinth projects go through the planner"),
+    })
+}
+
+pub async fn add(out: &Output, query: &str, args: AddArgs) -> anyhow::Result<ExitCode> {
     let mut ws = Workspace::find()?;
-    if let Some(group) = &group
+    if let Some(group) = &args.group
         && !ws.project.groups.iter().any(|g| &g.id == group)
     {
         bail!("no group `{group}`; create it with `riven group add {group} --name …`");
     }
+    let origin = origin(query, args.source)?;
+    if args.asset.is_some() && !matches!(origin, Origin::GitHub { .. }) {
+        bail!("--asset only applies to GitHub sources");
+    }
     let modrinth = ws.modrinth();
-    let jars = StoreJars::new()?;
+    let jars = ws.jars()?;
     let spinner = out.spinner(format!("Resolving `{query}`"));
-    let (project_id, version) = find_project(&modrinth, &ws.project, query).await?;
-    let options = AddOptions {
-        version,
-        side,
-        group,
-        pin,
+    let plan = if let Origin::Modrinth = origin {
+        let (project_id, version) = find_project(&modrinth, &ws.project, query).await?;
+        let options = AddOptions {
+            version,
+            side: args.side,
+            group: args.group,
+            pin: args.pin,
+        };
+        Planner::new(&modrinth, &jars, &ws.project)
+            .add(&project_id, &options)
+            .await
+    } else {
+        let mut entry = direct_add(&ws, &jars, origin, args.asset).await?;
+        if let Some(side) = args.side {
+            entry.side = side;
+        }
+        entry.group = args.group;
+        if args.pin {
+            entry.update = UpdatePolicy::Pinned;
+        }
+        Planner::new(&modrinth, &jars, &ws.project)
+            .add_entry(entry)
+            .await
     };
-    let plan = Planner::new(&modrinth, &jars, &ws.project)
-        .add(&project_id, &options)
-        .await;
     spinner.finish_and_clear();
     let plan = plan?;
 
@@ -232,7 +416,7 @@ pub async fn add(
 pub async fn remove(out: &Output, id: &str, keep_deps: bool) -> anyhow::Result<ExitCode> {
     let mut ws = Workspace::find()?;
     let modrinth = ws.modrinth();
-    let jars = StoreJars::new()?;
+    let jars = ws.jars()?;
     let plan = Planner::new(&modrinth, &jars, &ws.project).remove(id, keep_deps)?;
     out.plan(&plan);
     plan.apply(&mut ws.project);
@@ -241,14 +425,149 @@ pub async fn remove(out: &Output, id: &str, keep_deps: bool) -> anyhow::Result<E
     Ok(ExitCode::SUCCESS)
 }
 
-pub async fn update(out: &Output, ids: &[String], dry_run: bool) -> anyhow::Result<ExitCode> {
-    let mut ws = Workspace::find()?;
+/// Updates the planner cannot find itself: GitHub releases, changed local files, `--url`.
+async fn direct_updates(
+    ws: &Workspace,
+    jars: &StoreJars,
+    ids: &[String],
+    url: Option<&str>,
+) -> anyhow::Result<(Vec<(Entry, Entry)>, Vec<String>)> {
+    let pack = &ws.project;
+    let github = ws.github();
+    let mut updates = Vec::new();
+    let mut notes = Vec::new();
+    for entry in &pack.content {
+        if !ids.is_empty() && !ids.contains(&entry.id) {
+            continue;
+        }
+        if let Some(url) = url {
+            if !matches!(entry.source, EntrySource::Url { .. }) {
+                bail!(
+                    "`{}` is not a URL entry; --url only repoints URL sources",
+                    entry.id
+                );
+            }
+            let file = jars
+                .download(url)
+                .await
+                .map_err(|e| anyhow!("cannot download {url}: {e}"))?;
+            let source = EntrySource::Url {
+                url: url.to_owned(),
+            };
+            let new = direct_entry(pack, source, &url_file_name(url)?, &file, Some(url.into()))?;
+            updates.push((entry.clone(), carry_over(entry, new)));
+            continue;
+        }
+        if entry.update == UpdatePolicy::Pinned {
+            continue;
+        }
+        match &entry.source {
+            EntrySource::GitHub { .. } => {
+                if let Some(new) = github_update(&github, jars, pack, entry).await? {
+                    updates.push((entry.clone(), new));
+                }
+            }
+            EntrySource::Local { path } => {
+                let bytes = std::fs::read(ws.dir.join(path.as_str()))
+                    .with_context(|| format!("cannot read {path} for `{}`", entry.id))?;
+                let file = jars.keep(bytes, path.as_str()).map_err(|e| anyhow!(e))?;
+                if file.hashes.sha512 != entry.file.hashes.sha512 {
+                    let name = entry.file.path.file_name();
+                    let new = direct_entry(pack, entry.source.clone(), name, &file, None)?;
+                    updates.push((entry.clone(), carry_over(entry, new)));
+                }
+            }
+            EntrySource::Url { .. } if !ids.is_empty() => notes.push(format!(
+                "`{}` is a URL source; repoint it with `riven update {} --url <url>`",
+                entry.id, entry.id
+            )),
+            _ => {}
+        }
+    }
+    Ok((updates, notes))
+}
+
+fn source_name(kind: SourceKind) -> &'static str {
+    match kind {
+        SourceKind::Modrinth => "Modrinth",
+        SourceKind::GitHub => "GitHub",
+        SourceKind::Url => "URL",
+        SourceKind::Local => "local",
+    }
+}
+
+/// Entries whose exact file Modrinth also hosts, recorded as Modrinth entries instead.
+async fn migrations(
+    ws: &Workspace,
+    modrinth: &Modrinth,
+    ids: &[String],
+) -> anyhow::Result<Vec<(Entry, Entry)>> {
+    let candidates: Vec<&Entry> = ws
+        .project
+        .content
+        .iter()
+        .filter(|e| ids.is_empty() || ids.contains(&e.id))
+        .filter(|e| e.source.kind() != SourceKind::Modrinth)
+        .collect();
+    if candidates.is_empty() {
+        return Ok(vec![]);
+    }
+    let known: Vec<Known> = candidates
+        .iter()
+        .map(|e| Known {
+            sha512: e.file.hashes.sha512.clone(),
+            sha1: e.file.hashes.sha1.clone(),
+        })
+        .collect();
+    let matched = riven_sources::identify(modrinth, &known).await?;
+    Ok(candidates
+        .into_iter()
+        .zip(matched)
+        .filter_map(|(entry, m)| Some((entry.clone(), rehome(entry, &m?))))
+        .collect())
+}
+
+/// Plans updates of every kind of source.
+async fn plan_updates(
+    ws: &Workspace,
+    ids: &[String],
+    url: Option<&str>,
+) -> anyhow::Result<riven_resolve::Plan> {
     let modrinth = ws.modrinth();
-    let jars = StoreJars::new()?;
-    let spinner = out.spinner("Checking for updates");
-    let plan = Planner::new(&modrinth, &jars, &ws.project)
+    let jars = ws.jars()?;
+    let (mut direct, mut notes) = direct_updates(ws, &jars, ids, url).await?;
+    if url.is_none() {
+        let moved = migrations(ws, &modrinth, ids).await?;
+        for (old, new) in &moved {
+            notes.push(format!(
+                "`{}` moves from {} to Modrinth (same file)",
+                new.id,
+                source_name(old.source.kind())
+            ));
+        }
+        direct.retain(|(old, _)| !moved.iter().any(|(m, _)| m.id == old.id));
+        direct.extend(moved);
+    }
+    let mut plan = Planner::new(&modrinth, &jars, &ws.project)
+        .with_updates(direct)
         .update(ids)
-        .await;
+        .await?;
+    plan.notes.extend(notes);
+    Ok(plan)
+}
+
+pub async fn update(
+    out: &Output,
+    ids: &[String],
+    dry_run: bool,
+    url: Option<&str>,
+) -> anyhow::Result<ExitCode> {
+    if url.is_some() && ids.len() != 1 {
+        bail!("--url repoints one entry: riven update <id> --url <url>");
+    }
+    let mut ws = Workspace::find()?;
+    let spinner = out.spinner("Checking for updates");
+    let plan = plan_updates(&ws, ids, url).await;
     spinner.finish_and_clear();
     let plan = plan?;
 
@@ -373,10 +692,8 @@ pub async fn list(out: &Output, tree: bool, outdated: bool) -> anyhow::Result<Ex
     let ws = Workspace::find()?;
     let project = &ws.project;
     if outdated {
-        let modrinth = ws.modrinth();
-        let jars = StoreJars::new()?;
         let spinner = out.spinner("Checking for updates");
-        let plan = Planner::new(&modrinth, &jars, project).update(&[]).await;
+        let plan = plan_updates(&ws, &[], None).await;
         spinner.finish_and_clear();
         let plan = plan?;
         let rows: Vec<_> = plan
@@ -557,7 +874,7 @@ pub async fn check(out: &Output) -> anyhow::Result<ExitCode> {
     let project = &ws.project;
     let issues: Vec<String> = project.validate().iter().map(ToString::to_string).collect();
 
-    let jars = StoreJars::new()?;
+    let jars = ws.jars()?;
     let spinner = out.spinner("Reading jar metadata");
     let mods: Vec<&riven_format::Entry> = project
         .content
@@ -568,7 +885,7 @@ pub async fn check(out: &Output) -> anyhow::Result<ExitCode> {
         .map(|entry| {
             let jars = &jars;
             async move {
-                let meta = match jars.jar(&entry.file).await {
+                let meta = match jars.jar(entry).await {
                     Ok(bytes) => JarMeta::read(&bytes).map_err(|e| e.to_string()),
                     Err(e) => Err(e),
                 };
@@ -659,103 +976,5 @@ pub fn bump(out: &Output, to: &str) -> anyhow::Result<ExitCode> {
     out.emit(json!({ "from": old, "to": new }), || {
         out.success(&format!("{old} → {new}"));
     });
-    Ok(ExitCode::SUCCESS)
-}
-
-pub async fn import(out: &Output, format: ImportFormat, source: &str) -> anyhow::Result<ExitCode> {
-    let ImportFormat::Mrpack = format;
-    let dir = std::env::current_dir().context("cannot read the current directory")?;
-    if dir.join(PROJECT_FILE).exists() {
-        bail!("{PROJECT_FILE} already exists here");
-    }
-
-    let spinner = out.spinner(format!("Reading {source}"));
-    let bytes = if source.starts_with("http://") || source.starts_with("https://") {
-        let response = riven_sources::client()
-            .get(source)
-            .send()
-            .await
-            .and_then(reqwest::Response::error_for_status)
-            .with_context(|| format!("cannot download {source}"))?;
-        response.bytes().await?.to_vec()
-    } else {
-        std::fs::read(source).with_context(|| format!("cannot read {source}"))?
-    };
-    let pack = riven_build::mrpack::Mrpack::read(&bytes)?;
-
-    spinner.set_message("Matching files on Modrinth");
-    let cache = riven_sources::Cache::new(
-        dir.join(".riven").join("cache"),
-        std::time::Duration::from_secs(300),
-    );
-    let modrinth = Modrinth::new(riven_sources::client()).with_cache(cache.clone());
-    let versions = modrinth.versions_by_sha512(&pack.sha512s()).await?;
-    let mut ids: Vec<String> = versions.values().map(|v| v.project.clone()).collect();
-    ids.sort();
-    ids.dedup();
-    let projects = modrinth
-        .projects(&ids)
-        .await?
-        .into_iter()
-        .map(|p| (p.id.clone(), p))
-        .collect();
-    let java = game_meta(Some(cache)).java_major(pack.minecraft()?).await?;
-    spinner.finish_and_clear();
-    let riven_build::mrpack::Imported { project, unmatched } =
-        pack.to_project(&versions, &projects, java)?;
-
-    for file in &pack.overrides {
-        let target = dir
-            .join("overrides")
-            .join(file.scope.dir())
-            .join(file.path.as_str());
-        if target.exists() {
-            bail!("{} already exists", target.display());
-        }
-        let parent = target.parent().expect("override path has a parent");
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("cannot create {}", parent.display()))?;
-        std::fs::write(&target, &file.bytes)
-            .with_context(|| format!("cannot write {}", target.display()))?;
-    }
-    write_atomic(&dir.join(PROJECT_FILE), &riven_format::to_string(&project))?;
-    ensure_gitignore(&dir)?;
-
-    let by_url: Vec<&str> = project
-        .content
-        .iter()
-        .filter(|e| matches!(e.source, riven_format::Source::Url { .. }))
-        .map(|e| e.id.as_str())
-        .collect();
-    out.emit(
-        json!({
-            "project": project,
-            "overrides": pack.overrides.len(),
-            "not_on_modrinth": by_url,
-            "unmatched_embedded": unmatched.iter().map(|p| p.as_str()).collect::<Vec<_>>(),
-        }),
-        || {
-            if !unmatched.is_empty() {
-                out.warn(&format!(
-                    "{} embedded files are not on Modrinth and were skipped; add them with `riven add <url>`:",
-                    unmatched.len()
-                ));
-                for path in &unmatched {
-                    eprintln!("  {path}");
-                }
-            }
-            for id in &by_url {
-                out.note(&format!("`{id}` is not on Modrinth; kept as a URL source"));
-            }
-            out.success(&format!(
-                "Imported `{}` {}: {} entries ({} from Modrinth), {} override files",
-                project.name,
-                project.version,
-                project.content.len(),
-                project.content.len() - by_url.len(),
-                pack.overrides.len()
-            ));
-        },
-    );
     Ok(ExitCode::SUCCESS)
 }

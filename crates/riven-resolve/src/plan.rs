@@ -15,9 +15,9 @@ const METADATA_ROUNDS: usize = 5;
 /// Candidate jars downloaded at most to find a version a parent accepts.
 const MAX_CANDIDATES: usize = 12;
 
-/// Provides jar bytes for an entry file, e.g. through the content store.
+/// Provides the file bytes of an entry, e.g. through the content store or the pack repository.
 pub trait JarFetcher: Sync {
-    fn jar(&self, file: &EntryFile) -> impl Future<Output = Result<Vec<u8>, String>> + Send;
+    fn jar(&self, entry: &Entry) -> impl Future<Output = Result<Vec<u8>, String>> + Send;
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -50,6 +50,30 @@ pub enum ResolveError {
     },
     #[error("no entry `{0}` in the pack")]
     UnknownEntry(String),
+    #[error("`{name}` is not a safe file name: {source}")]
+    BadFileName {
+        name: String,
+        source: riven_format::PathError,
+    },
+    #[error("cannot tell what `{0}` is: expected a mod jar or a resource, shader or data pack zip")]
+    UnknownFileType(String),
+    #[error("cannot download {url}: {message}")]
+    Download { url: String, message: String },
+    #[error("no release of `{repo}` has an asset for Minecraft {minecraft} on {loader}")]
+    NoRelease {
+        repo: String,
+        minecraft: String,
+        loader: String,
+    },
+    #[error(
+        "release `{tag}` of `{repo}` has several candidate assets ({}); pick one with `--asset`",
+        assets.join(", ")
+    )]
+    AmbiguousAsset {
+        repo: String,
+        tag: String,
+        assets: Vec<String>,
+    },
 }
 
 /// Per-request choices for `riven add`.
@@ -94,13 +118,43 @@ impl Plan {
     }
 }
 
-fn kind_dir(kind: Kind) -> &'static str {
+pub(crate) fn kind_dir(kind: Kind) -> &'static str {
     match kind {
         Kind::Mod => "mods",
         Kind::ResourcePack => "resourcepacks",
         Kind::ShaderPack => "shaderpacks",
         Kind::DataPack => "datapacks",
         Kind::File => "files",
+    }
+}
+
+/// The game a pack targets, as the checker sees it.
+pub(crate) fn pack_env(pack: &Project) -> Env {
+    Env {
+        minecraft: ModVersion::parse(&pack.minecraft),
+        loader: pack.loader.kind,
+        loader_version: ModVersion::parse(&pack.loader.version),
+        java: pack.java.major,
+    }
+}
+
+/// Whether two sources point at the same origin, so adding one again is a duplicate.
+fn same_origin(a: &EntrySource, b: &EntrySource) -> bool {
+    match (a, b) {
+        (EntrySource::Modrinth { project: x, .. }, EntrySource::Modrinth { project: y, .. }) => {
+            x == y
+        }
+        (
+            EntrySource::GitHub {
+                repo: x, asset: p, ..
+            },
+            EntrySource::GitHub {
+                repo: y, asset: q, ..
+            },
+        ) => x.eq_ignore_ascii_case(y) && p == q,
+        (EntrySource::Url { url: x }, EntrySource::Url { url: y }) => x == y,
+        (EntrySource::Local { path: x }, EntrySource::Local { path: y }) => x == y,
+        _ => false,
     }
 }
 
@@ -164,12 +218,7 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
     }
 
     fn env(&self) -> Env {
-        Env {
-            minecraft: ModVersion::parse(&self.pack.minecraft),
-            loader: self.pack.loader.kind,
-            loader_version: ModVersion::parse(&self.pack.loader.version),
-            java: self.pack.java.major,
-        }
+        pack_env(self.pack)
     }
 
     /// The pack's content as it would be after the plan so far.
@@ -327,6 +376,32 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
         Ok(self.finalize().await)
     }
 
+    /// Plans adding a ready entry (GitHub, URL, local) and the projects its jar requires.
+    pub async fn add_entry(mut self, mut entry: Entry) -> Result<Plan, ResolveError> {
+        if let Some(existing) = self
+            .pack
+            .content
+            .iter()
+            .find(|e| same_origin(&e.source, &entry.source) || e.file.path == entry.file.path)
+        {
+            return Err(ResolveError::AlreadyPresent {
+                project: entry.file.path.file_name().to_owned(),
+                id: existing.id.clone(),
+            });
+        }
+        entry.id = self.fresh_id(&entry.id);
+        self.plan.add.push(entry);
+        self.metadata_rounds().await?;
+        self.link_requires().await;
+        Ok(self.finalize().await)
+    }
+
+    /// Updates found outside the source (GitHub, URL, local), planned along with [`Self::update`].
+    pub fn with_updates(mut self, updates: Vec<(Entry, Entry)>) -> Self {
+        self.plan.update.extend(updates);
+        self
+    }
+
     /// Plans updating `ids` (all `follow` entries when empty) to their newest versions.
     pub async fn update(mut self, ids: &[String]) -> Result<Plan, ResolveError> {
         for id in ids {
@@ -340,15 +415,15 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
             if !ids.is_empty() && !ids.contains(&entry.id) {
                 continue;
             }
-            let EntrySource::Modrinth { version, .. } = &entry.source else {
-                continue;
-            };
             if entry.update == UpdatePolicy::Pinned {
                 if !ids.is_empty() {
                     self.plan.notes.push(format!("`{}` is pinned", entry.id));
                 }
                 continue;
             }
+            let EntrySource::Modrinth { version, .. } = &entry.source else {
+                continue;
+            };
             candidates.push((entry, version.as_str()));
         }
 
@@ -542,7 +617,7 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
         if let Some(meta) = self.metas.get(&key) {
             return meta.clone();
         }
-        let meta = match self.jars.jar(&entry.file).await {
+        let meta = match self.jars.jar(entry).await {
             Ok(bytes) => match JarMeta::read(&bytes) {
                 Ok(meta) => Some(meta),
                 Err(e) => {
@@ -936,8 +1011,8 @@ mod tests {
     }
 
     impl JarFetcher for Fake {
-        async fn jar(&self, file: &EntryFile) -> Result<Vec<u8>, String> {
-            let url = file.url.as_ref().ok_or("no url")?;
+        async fn jar(&self, entry: &Entry) -> Result<Vec<u8>, String> {
+            let url = entry.file.url.as_ref().ok_or("no url")?;
             self.jars
                 .get(url)
                 .cloned()

@@ -38,6 +38,17 @@ impl Modrinth {
         self
     }
 
+    #[cfg(test)]
+    pub(crate) fn with_base(mut self, base: &str) -> Self {
+        self.base = base.into();
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn api_url(&self, path: &str, query: &[(&str, String)]) -> String {
+        self.url(path, query)
+    }
+
     fn url(&self, path: &str, query: &[(&str, String)]) -> String {
         let mut url = Url::parse(&format!("{}/{path}", self.base)).expect("valid Modrinth url");
         if !query.is_empty() {
@@ -88,7 +99,19 @@ impl Modrinth {
 
     /// Versions owning files with the given sha512 hashes; unknown hashes are absent.
     pub async fn versions_by_sha512(&self, hashes: &[String]) -> Result<HashMap<String, Version>> {
-        let body = serde_json::json!({ "algorithm": "sha512" });
+        self.versions_by_hash("sha512", hashes).await
+    }
+
+    /// Versions owning files with the given `sha1` or `sha512` hashes, keyed by hash.
+    pub async fn versions_by_hash(
+        &self,
+        algorithm: &str,
+        hashes: &[String],
+    ) -> Result<HashMap<String, Version>> {
+        if hashes.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let body = serde_json::json!({ "algorithm": algorithm });
         let found = self.post_hashes("version_files", hashes, body).await?;
         Ok(found
             .into_iter()
