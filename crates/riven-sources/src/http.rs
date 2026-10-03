@@ -72,3 +72,47 @@ pub(crate) async fn get_json<T: DeserializeOwned>(
     }
     Ok(value)
 }
+
+/// POSTs a JSON body and parses the JSON reply, caching by URL and body.
+pub(crate) async fn post_json<T: DeserializeOwned>(
+    http: &reqwest::Client,
+    cache: Option<&Cache>,
+    url: &str,
+    body: &serde_json::Value,
+) -> Result<T, Error> {
+    let body = body.to_string();
+    let key = format!("POST {url}\n{body}");
+    let parse = |text: &str| {
+        serde_json::from_str(text).map_err(|source| Error::Json {
+            url: url.to_owned(),
+            source,
+        })
+    };
+    if let Some(text) = cache.and_then(|c| c.get(&key)) {
+        return parse(&text);
+    }
+    tracing::debug!("POST {url}");
+    let http_err = |source| Error::Http {
+        url: url.to_owned(),
+        source,
+    };
+    let response = http
+        .post(url)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .body(body)
+        .send()
+        .await
+        .map_err(http_err)?;
+    if !response.status().is_success() {
+        return Err(Error::Status {
+            url: url.to_owned(),
+            status: response.status(),
+        });
+    }
+    let text = response.text().await.map_err(http_err)?;
+    let value = parse(&text)?;
+    if let Some(cache) = cache {
+        cache.put(&key, &text);
+    }
+    Ok(value)
+}
