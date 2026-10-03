@@ -1,0 +1,38 @@
+{
+  "a8cd69cbfd5c4022a44a61087d95c77c1ba2688e8e269fdbb5eab771c6834171ae5b6fb2c5cb5f38d23b52c636d0a1a28755337098035babcbeafaee21ce00cd": {
+    "game_versions": [
+      "1.21.1"
+    ],
+    "loaders": [
+      "neoforge"
+    ],
+    "environment": "client_only",
+    "id": "uMOpc5uV",
+    "project_id": "AANobbMI",
+    "author_id": "TEZXhE2U",
+    "featured": false,
+    "name": "Sodium 0.8.13 for NeoForge 1.21.1",
+    "version_number": "mc1.21.1-0.8.13-neoforge",
+    "changelog_url": null,
+    "date_published": "2026-08-28T20:55:02.593669Z",
+    "downloads": 951446,
+    "version_type": "release",
+    "status": "listed",
+    "requested_status": null,
+    "files": [
+      {
+        "id": "itaN5aOm",
+        "hashes": {
+          "sha1": "1757289be21ed18db5b0d90703fa3db1b2de5693",
+          "sha512": "4f537696af95411e9daf15795fb5fcbc49913d488a96fa912fa8f1d7db408710995e8a1461190f3cd0f8217bf9e35e9539176592428ed587ca2d7aa84450a390"
+        },
+        "url": "https://cdn.modrinth.com/data/AANobbMI/versions/uMOpc5uV/sodium-neoforge-0.8.13%2Bmc1.21.1.jar",
+        "filename": "sodium-neoforge-0.8.13+mc1.21.1.jar",
+        "primary": true,
+        "size": 1292934,
+        "file_type": null
+      }
+    ],
+    "dependencies": []
+  }
+}

@@ -334,12 +334,13 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
                 return Err(ResolveError::UnknownEntry(id.clone()));
             }
         }
-        let mut pending = Vec::new();
-        for entry in &self.pack.content {
+        let pack = self.pack;
+        let mut candidates = Vec::new();
+        for entry in &pack.content {
             if !ids.is_empty() && !ids.contains(&entry.id) {
                 continue;
             }
-            let EntrySource::Modrinth { project, version } = &entry.source else {
+            let EntrySource::Modrinth { version, .. } = &entry.source else {
                 continue;
             };
             if entry.update == UpdatePolicy::Pinned {
@@ -348,18 +349,66 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
                 }
                 continue;
             }
-            let current = self.source.version(version).await?;
-            let info = self.source.project(project).await?;
-            let newer: Vec<Version> = self
-                .compatible_versions(&info, entry.kind)
-                .await?
-                .into_iter()
-                .filter(|v| v.published > current.published)
+            candidates.push((entry, version.as_str()));
+        }
+
+        let version_ids: Vec<String> = candidates.iter().map(|(_, v)| v.to_string()).collect();
+        let current: HashMap<String, Version> = self
+            .source
+            .versions(&version_ids)
+            .await?
+            .into_iter()
+            .map(|v| (v.id.clone(), v))
+            .collect();
+        let mut kinds: Vec<Kind> = Vec::new();
+        for (entry, _) in &candidates {
+            if !kinds.contains(&entry.kind) {
+                kinds.push(entry.kind);
+            }
+        }
+        let mut newest = HashMap::new();
+        for kind in kinds {
+            let of_kind: Vec<Version> = candidates
+                .iter()
+                .filter(|(e, _)| e.kind == kind)
+                .filter_map(|(_, v)| current.get(*v).cloned())
                 .collect();
-            let Some(next) = self.choose(&newer) else {
+            newest.extend(self.source.latest(&of_kind, &self.target(kind)).await?);
+        }
+
+        let mut updates = Vec::new();
+        for (entry, version) in candidates {
+            let Some(current) = current.get(version) else {
+                self.plan.notes.push(format!(
+                    "`{}`: version {version} is no longer available",
+                    entry.id
+                ));
                 continue;
             };
-            let mut new = self.build_entry(entry.id.clone(), &info, &next, entry.kind)?;
+            let Some(next) = newest.get(version) else {
+                continue;
+            };
+            if next.project == current.project && next.published > current.published {
+                updates.push((entry, next.clone()));
+            }
+        }
+        let mut project_ids: Vec<String> = updates.iter().map(|(_, v)| v.project.clone()).collect();
+        project_ids.sort();
+        project_ids.dedup();
+        let infos: HashMap<String, ProjectInfo> = self
+            .source
+            .projects(&project_ids)
+            .await?
+            .into_iter()
+            .map(|p| (p.id.clone(), p))
+            .collect();
+
+        let mut pending = Vec::new();
+        for (entry, next) in updates {
+            let info = infos
+                .get(&next.project)
+                .ok_or_else(|| riven_sources::Error::NotFound(next.project.clone()))?;
+            let mut new = self.build_entry(entry.id.clone(), info, &next, entry.kind)?;
             new.side = entry.side;
             new.group = entry.group.clone();
             new.update = entry.update;

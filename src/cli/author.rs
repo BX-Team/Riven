@@ -11,7 +11,7 @@ use serde_json::json;
 
 use super::output::{Output, file_name, side_label};
 use super::project::{PROJECT_FILE, StoreJars, Workspace, game_meta, write_atomic};
-use super::{GroupCommand, SourceArg, parse_loader};
+use super::{GroupCommand, ImportFormat, SourceArg, parse_loader};
 
 const PARALLEL_DOWNLOADS: usize = 8;
 
@@ -659,5 +659,103 @@ pub fn bump(out: &Output, to: &str) -> anyhow::Result<ExitCode> {
     out.emit(json!({ "from": old, "to": new }), || {
         out.success(&format!("{old} → {new}"));
     });
+    Ok(ExitCode::SUCCESS)
+}
+
+pub async fn import(out: &Output, format: ImportFormat, source: &str) -> anyhow::Result<ExitCode> {
+    let ImportFormat::Mrpack = format;
+    let dir = std::env::current_dir().context("cannot read the current directory")?;
+    if dir.join(PROJECT_FILE).exists() {
+        bail!("{PROJECT_FILE} already exists here");
+    }
+
+    let spinner = out.spinner(format!("Reading {source}"));
+    let bytes = if source.starts_with("http://") || source.starts_with("https://") {
+        let response = riven_sources::client()
+            .get(source)
+            .send()
+            .await
+            .and_then(reqwest::Response::error_for_status)
+            .with_context(|| format!("cannot download {source}"))?;
+        response.bytes().await?.to_vec()
+    } else {
+        std::fs::read(source).with_context(|| format!("cannot read {source}"))?
+    };
+    let pack = riven_build::mrpack::Mrpack::read(&bytes)?;
+
+    spinner.set_message("Matching files on Modrinth");
+    let cache = riven_sources::Cache::new(
+        dir.join(".riven").join("cache"),
+        std::time::Duration::from_secs(300),
+    );
+    let modrinth = Modrinth::new(riven_sources::client()).with_cache(cache.clone());
+    let versions = modrinth.versions_by_sha512(&pack.sha512s()).await?;
+    let mut ids: Vec<String> = versions.values().map(|v| v.project.clone()).collect();
+    ids.sort();
+    ids.dedup();
+    let projects = modrinth
+        .projects(&ids)
+        .await?
+        .into_iter()
+        .map(|p| (p.id.clone(), p))
+        .collect();
+    let java = game_meta(Some(cache)).java_major(pack.minecraft()?).await?;
+    spinner.finish_and_clear();
+    let riven_build::mrpack::Imported { project, unmatched } =
+        pack.to_project(&versions, &projects, java)?;
+
+    for file in &pack.overrides {
+        let target = dir
+            .join("overrides")
+            .join(file.scope.dir())
+            .join(file.path.as_str());
+        if target.exists() {
+            bail!("{} already exists", target.display());
+        }
+        let parent = target.parent().expect("override path has a parent");
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("cannot create {}", parent.display()))?;
+        std::fs::write(&target, &file.bytes)
+            .with_context(|| format!("cannot write {}", target.display()))?;
+    }
+    write_atomic(&dir.join(PROJECT_FILE), &riven_format::to_string(&project))?;
+    ensure_gitignore(&dir)?;
+
+    let by_url: Vec<&str> = project
+        .content
+        .iter()
+        .filter(|e| matches!(e.source, riven_format::Source::Url { .. }))
+        .map(|e| e.id.as_str())
+        .collect();
+    out.emit(
+        json!({
+            "project": project,
+            "overrides": pack.overrides.len(),
+            "not_on_modrinth": by_url,
+            "unmatched_embedded": unmatched.iter().map(|p| p.as_str()).collect::<Vec<_>>(),
+        }),
+        || {
+            if !unmatched.is_empty() {
+                out.warn(&format!(
+                    "{} embedded files are not on Modrinth and were skipped; add them with `riven add <url>`:",
+                    unmatched.len()
+                ));
+                for path in &unmatched {
+                    eprintln!("  {path}");
+                }
+            }
+            for id in &by_url {
+                out.note(&format!("`{id}` is not on Modrinth; kept as a URL source"));
+            }
+            out.success(&format!(
+                "Imported `{}` {}: {} entries ({} from Modrinth), {} override files",
+                project.name,
+                project.version,
+                project.content.len(),
+                project.content.len() - by_url.len(),
+                pack.overrides.len()
+            ));
+        },
+    );
     Ok(ExitCode::SUCCESS)
 }

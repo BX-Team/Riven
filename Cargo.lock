@@ -1334,6 +1334,7 @@ dependencies = [
  "futures-util",
  "indicatif",
  "reqwest",
+ "riven-build",
  "riven-format",
  "riven-resolve",
  "riven-sources",
@@ -1350,6 +1351,17 @@ dependencies = [
 [[package]]
 name = "riven-build"
 version = "0.1.0"
+dependencies = [
+ "hex",
+ "riven-format",
+ "riven-sources",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2",
+ "thiserror",
+ "zip",
+]
 
 [[package]]
 name = "riven-format"
@@ -1383,6 +1395,7 @@ dependencies = [
 name = "riven-sources"
 version = "0.1.0"
 dependencies = [
+ "futures-util",
  "reqwest",
  "riven-format",
  "serde",

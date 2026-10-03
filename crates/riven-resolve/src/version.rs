@@ -6,6 +6,8 @@ use std::fmt;
 pub struct ModVersion {
     raw: String,
     parts: Vec<Part>,
+    /// Parts before the first `-`; Maven and semver rank them above the rest.
+    main: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -18,6 +20,7 @@ impl ModVersion {
     pub fn parse(raw: &str) -> Self {
         let core = raw.split('+').next().unwrap_or(raw).trim();
         let mut parts = Vec::new();
+        let mut main = None;
         let mut current = String::new();
         let flush = |current: &mut String, parts: &mut Vec<Part>| {
             if current.is_empty() {
@@ -33,6 +36,9 @@ impl ModVersion {
         for c in core.chars() {
             if matches!(c, '.' | '-' | '_') {
                 flush(&mut current, &mut parts);
+                if c == '-' && main.is_none() {
+                    main = Some(parts.len());
+                }
             } else {
                 if current
                     .chars()
@@ -47,6 +53,7 @@ impl ModVersion {
         flush(&mut current, &mut parts);
         Self {
             raw: raw.to_owned(),
+            main: main.unwrap_or(parts.len()),
             parts,
         }
     }
@@ -74,6 +81,7 @@ impl ModVersion {
             .join(".");
         Self {
             raw,
+            main: parts.len(),
             parts: parts.into_iter().map(Part::Num).collect(),
         }
     }
@@ -111,11 +119,15 @@ fn compare_parts(a: Option<&Part>, b: Option<&Part>) -> Ordering {
 
 impl Ord for ModVersion {
     fn cmp(&self, other: &Self) -> Ordering {
-        let len = self.parts.len().max(other.parts.len());
-        (0..len)
-            .map(|i| compare_parts(self.parts.get(i), other.parts.get(i)))
-            .find(|o| o.is_ne())
-            .unwrap_or(Ordering::Equal)
+        let compare = |a: &[Part], b: &[Part]| {
+            (0..a.len().max(b.len()))
+                .map(|i| compare_parts(a.get(i), b.get(i)))
+                .find(|o| o.is_ne())
+                .unwrap_or(Ordering::Equal)
+        };
+        let (main, rest) = self.parts.split_at(self.main);
+        let (other_main, other_rest) = other.parts.split_at(other.main);
+        compare(main, other_main).then_with(|| compare(rest, other_rest))
     }
 }
 
@@ -401,6 +413,9 @@ mod tests {
         assert_eq!(v("1.21"), v("1.21.0"));
         assert_eq!(v("1.0+build.5"), v("1.0+build.9"));
         assert!(v("0.16.10") > v("0.16.9"));
+        assert!(v("1.21.1-3.0.17") > v("1.21-2.29.0"));
+        assert!(v("mc1.21.1-0.8.13") > v("mc1.21.1-0.8.2"));
+        assert!(v("21.0.0-beta") < v("21.0.0"));
     }
 
     #[test]
@@ -432,6 +447,7 @@ mod tests {
     fn maven_ranges() {
         let req = |s: &str| VersionReq::maven(s).unwrap();
         assert!(req("[21.1,)").matches(&v("21.1.77")));
+        assert!(req("[1.21-2.29.0,)").matches(&v("1.21.1-3.0.17")));
         assert!(!req("[21.1,)").matches(&v("21.0.167")));
         assert!(req("[1.21.1,1.22)").matches(&v("1.21.1")));
         assert!(!req("[1.21.1,1.22)").matches(&v("1.22")));

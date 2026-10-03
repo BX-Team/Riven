@@ -10,6 +10,7 @@ homepage = "https://github.com/BX-Team/Riven"
 repository = "https://github.com/BX-Team/Riven"
 
 [workspace.dependencies]
+riven-build = { path = "crates/riven-build" }
 riven-format = { path = "crates/riven-format" }
 riven-resolve = { path = "crates/riven-resolve" }
 riven-sources = { path = "crates/riven-sources" }
@@ -62,6 +63,7 @@ console = { version = "0.16", optional = true }
 futures-util.workspace = true
 indicatif = { version = "0.18", optional = true }
 reqwest.workspace = true
+riven-build.workspace = true
 riven-format.workspace = true
 riven-resolve.workspace = true
 riven-sources.workspace = true

@@ -3,6 +3,7 @@ mod game;
 mod http;
 pub mod modrinth;
 
+use std::collections::HashMap;
 use std::future::Future;
 
 use riven_format::{Hashes, Kind, LoaderKind, Side, SourceKind};
@@ -152,6 +153,58 @@ pub trait Source: Send + Sync {
     ) -> impl Future<Output = Result<Vec<Version>>> + Send;
 
     fn version(&self, id: &str) -> impl Future<Output = Result<Version>> + Send;
+
+    /// Several projects at once; unknown ids are left out.
+    fn projects(&self, ids: &[String]) -> impl Future<Output = Result<Vec<ProjectInfo>>> + Send {
+        async move {
+            let mut out = Vec::new();
+            for id in ids {
+                match self.project(id).await {
+                    Ok(project) => out.push(project),
+                    Err(Error::NotFound(_)) => {}
+                    Err(e) => return Err(e),
+                }
+            }
+            Ok(out)
+        }
+    }
+
+    /// Several versions at once; unknown ids are left out.
+    fn versions(&self, ids: &[String]) -> impl Future<Output = Result<Vec<Version>>> + Send {
+        async move {
+            let mut out = Vec::new();
+            for id in ids {
+                match self.version(id).await {
+                    Ok(version) => out.push(version),
+                    Err(Error::NotFound(_)) => {}
+                    Err(e) => return Err(e),
+                }
+            }
+            Ok(out)
+        }
+    }
+
+    /// The newest version compatible with `target` for each of `current`, keyed by its id.
+    fn latest(
+        &self,
+        current: &[Version],
+        target: &Target,
+    ) -> impl Future<Output = Result<HashMap<String, Version>>> + Send {
+        async move {
+            let mut out = HashMap::new();
+            for version in current {
+                let newest = self
+                    .resolve(&version.project, target)
+                    .await?
+                    .into_iter()
+                    .next();
+                if let Some(newest) = newest {
+                    out.insert(version.id.clone(), newest);
+                }
+            }
+            Ok(out)
+        }
+    }
 
     fn dependencies(
         &self,
