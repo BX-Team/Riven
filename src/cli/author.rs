@@ -108,7 +108,7 @@ fn slugify(name: &str) -> String {
 pub(super) fn ensure_gitignore(dir: &std::path::Path) -> anyhow::Result<()> {
     let path = dir.join(".gitignore");
     let existing = std::fs::read_to_string(&path).unwrap_or_default();
-    let missing: Vec<&str> = [".riven/", "dist/"]
+    let missing: Vec<&str> = [".riven/", "dist/", "exports/"]
         .into_iter()
         .filter(|line| !existing.lines().any(|l| l.trim() == *line))
         .collect();
