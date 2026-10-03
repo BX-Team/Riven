@@ -1333,6 +1333,7 @@ dependencies = [
  "console",
  "futures-util",
  "indicatif",
+ "percent-encoding",
  "reqwest",
  "riven-build",
  "riven-format",
@@ -1352,6 +1353,7 @@ dependencies = [
 name = "riven-build"
 version = "0.1.0"
 dependencies = [
+ "futures-util",
  "hex",
  "riven-format",
  "riven-sources",
@@ -1360,6 +1362,9 @@ dependencies = [
  "sha1",
  "sha2",
  "thiserror",
+ "tokio",
+ "toml",
+ "url",
  "zip",
 ]
 

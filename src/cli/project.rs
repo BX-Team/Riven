@@ -2,9 +2,9 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::{Context, bail};
-use riven_format::{EntryFile, Project};
-use riven_resolve::JarFetcher;
-use riven_sources::{Cache, GameMeta, Modrinth};
+use riven_format::{Entry, Hashes, Project, Source};
+use riven_resolve::{Downloaded, Downloader, JarFetcher};
+use riven_sources::{Cache, GameMeta, GitHub, Modrinth};
 use riven_sync::Store;
 
 pub const PROJECT_FILE: &str = "riven.json";
@@ -51,6 +51,15 @@ impl Workspace {
     pub fn modrinth(&self) -> Modrinth {
         Modrinth::new(riven_sources::client()).with_cache(self.cache())
     }
+
+    pub fn github(&self) -> GitHub {
+        GitHub::new(riven_sources::client()).with_cache(self.cache())
+    }
+
+    /// Jar access for this pack: the content store, plus `local` files from the repository.
+    pub fn jars(&self) -> anyhow::Result<StoreJars> {
+        StoreJars::new(&self.dir)
+    }
 }
 
 pub fn write_atomic(path: &Path, contents: &str) -> anyhow::Result<()> {
@@ -67,24 +76,63 @@ pub fn game_meta(cache: Option<Cache>) -> GameMeta {
     }
 }
 
-/// Fetches jars through the shared content store.
+/// Fetches jars through the shared content store; `local` entries come from the pack repository.
 pub struct StoreJars {
     store: Store,
     http: reqwest::Client,
+    repo: PathBuf,
 }
 
 impl StoreJars {
-    pub fn new() -> anyhow::Result<Self> {
+    pub fn new(repo: &Path) -> anyhow::Result<Self> {
         let store = Store::default_location().context("cannot locate the data directory")?;
         Ok(Self {
             store,
             http: riven_sources::client(),
+            repo: repo.to_owned(),
+        })
+    }
+
+    /// Adds bytes to the store, returning them with their computed hashes.
+    pub fn keep(&self, bytes: Vec<u8>, origin: &str) -> Result<Downloaded, String> {
+        let stored = self
+            .store
+            .insert(&bytes, &Hashes::default(), origin)
+            .map_err(|e| e.to_string())?;
+        Ok(Downloaded {
+            bytes,
+            hashes: Hashes {
+                sha512: Some(stored.sha512),
+                sha1: Some(stored.sha1),
+            },
+            size: stored.size,
         })
     }
 }
 
+impl Downloader for StoreJars {
+    async fn download(&self, url: &str) -> Result<Downloaded, String> {
+        let response = self
+            .http
+            .get(url)
+            .send()
+            .await
+            .and_then(reqwest::Response::error_for_status)
+            .map_err(|e| e.to_string())?;
+        let bytes = response.bytes().await.map_err(|e| e.to_string())?;
+        self.keep(bytes.to_vec(), url)
+    }
+}
+
 impl JarFetcher for StoreJars {
-    async fn jar(&self, file: &EntryFile) -> Result<Vec<u8>, String> {
+    async fn jar(&self, entry: &Entry) -> Result<Vec<u8>, String> {
+        if let Source::Local { path } = &entry.source {
+            let path = self.repo.join(path.as_str());
+            return tokio::fs::read(&path)
+                .await
+                .map_err(|e| format!("{}: {e}", path.display()));
+        }
+        let file = &entry.file;
         let path = match self.store.get(&file.hashes) {
             Some(path) => path,
             None => {

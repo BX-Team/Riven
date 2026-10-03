@@ -1,0 +1,92 @@
+[
+  {
+    "tag_name": "v22.0.0-alpha.1",
+    "name": "v22.0.0-alpha.1 for 26.4-snapshot-1",
+    "draft": false,
+    "prerelease": true,
+    "published_at": "2026-09-24T20:43:55Z",
+    "assets": [
+      {
+        "name": "modmenu-22.0.0-alpha.1.jar",
+        "size": 856814,
+        "browser_download_url": "https://github.com/TerraformersMC/ModMenu/releases/download/v22.0.0-alpha.1/modmenu-22.0.0-alpha.1.jar",
+        "digest": "sha256:3c2fba797fcf5283f8391b9e4b0f543cbff8c08a410a39f1bbfdf4918e69bc5d"
+      }
+    ]
+  },
+  {
+    "tag_name": "v20.0.3",
+    "name": "v20.0.3 for 26.2",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-09-24T19:34:08Z",
+    "assets": [
+      {
+        "name": "modmenu-20.0.3.jar",
+        "size": 616919,
+        "browser_download_url": "https://github.com/TerraformersMC/ModMenu/releases/download/v20.0.3/modmenu-20.0.3.jar",
+        "digest": "sha256:00865605007fbf26d4712b40ccdd55b1cdebad79a9ccfcc1ff635ed522f5bb27"
+      }
+    ]
+  },
+  {
+    "tag_name": "v18.0.2",
+    "name": "v18.0.2 for 26.1",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-09-24T19:22:16Z",
+    "assets": [
+      {
+        "name": "modmenu-18.0.2.jar",
+        "size": 859999,
+        "browser_download_url": "https://github.com/TerraformersMC/ModMenu/releases/download/v18.0.2/modmenu-18.0.2.jar",
+        "digest": "sha256:87ab58f8907dad8346ecc4500a522d66dd4c907462df5bff23c60b07caca8c96"
+      }
+    ]
+  },
+  {
+    "tag_name": "v17.0.1",
+    "name": "v17.0.1 for 1.21.11",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-09-24T19:10:30Z",
+    "assets": [
+      {
+        "name": "modmenu-17.0.1.jar",
+        "size": 960882,
+        "browser_download_url": "https://github.com/TerraformersMC/ModMenu/releases/download/v17.0.1/modmenu-17.0.1.jar",
+        "digest": "sha256:2eb2d6db9964fcf2e44e2be1e4d172b8c4e829e385c8f31636de94a1708c2076"
+      }
+    ]
+  },
+  {
+    "tag_name": "v11.0.5",
+    "name": "v11.0.5 for 1.21",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-09-24T18:59:53Z",
+    "assets": [
+      {
+        "name": "modmenu-11.0.5.jar",
+        "size": 975846,
+        "browser_download_url": "https://github.com/TerraformersMC/ModMenu/releases/download/v11.0.5/modmenu-11.0.5.jar",
+        "digest": "sha256:afa55fe4e7c48560126dbe654fa9647f141bc6ffd3ce35525b65dd65d88251b5"
+      }
+    ]
+  },
+  {
+    "tag_name": "v21.0.0",
+    "name": "v21.0.0 for 26.3",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-09-23T21:30:52Z",
+    "assets": [
+      {
+        "name": "modmenu-21.0.0.jar",
+        "size": 856779,
+        "browser_download_url": "https://github.com/TerraformersMC/ModMenu/releases/download/v21.0.0/modmenu-21.0.0.jar",
+        "digest": "sha256:837812c6c98d66141db7b5dcae668f27fb78d557e8f4c0c89912985fc26a5e6f"
+      }
+    ]
+  }
+]

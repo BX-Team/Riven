@@ -40,6 +40,16 @@ pub(crate) async fn get_json<T: DeserializeOwned>(
     cache: Option<&Cache>,
     url: &str,
 ) -> Result<T, Error> {
+    get_json_with(http, cache, url, &[]).await
+}
+
+/// [`get_json`] with extra request headers; they are not part of the cache key.
+pub(crate) async fn get_json_with<T: DeserializeOwned>(
+    http: &reqwest::Client,
+    cache: Option<&Cache>,
+    url: &str,
+    headers: &[(&str, &str)],
+) -> Result<T, Error> {
     let parse = |body: &str| {
         serde_json::from_str(body).map_err(|source| Error::Json {
             url: url.to_owned(),
@@ -54,7 +64,11 @@ pub(crate) async fn get_json<T: DeserializeOwned>(
         url: url.to_owned(),
         source,
     };
-    let response = http.get(url).send().await.map_err(http_err)?;
+    let mut request = http.get(url);
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let response = request.send().await.map_err(http_err)?;
     match response.status() {
         StatusCode::NOT_FOUND => return Err(Error::NotFound(url.to_owned())),
         status if !status.is_success() => {

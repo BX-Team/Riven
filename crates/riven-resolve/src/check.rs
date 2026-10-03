@@ -208,6 +208,20 @@ pub fn check(env: &Env, installed: &[Installed<'_>]) -> Vec<Problem> {
     problems
 }
 
+/// Whether a jar runs on the pack's game by itself: a fitting loader and an accepted Minecraft.
+pub fn fits_game(env: &Env, meta: &JarMeta) -> bool {
+    let alone = [Installed {
+        entry: "",
+        side: Side::Both,
+        meta,
+    }];
+    !check(env, &alone).iter().any(|p| match p {
+        Problem::WrongLoader { .. } => true,
+        Problem::Mismatch { dep, .. } => dep == "minecraft",
+        _ => false,
+    })
+}
+
 /// Older versions FML also accepts when a range misses the running one (`VersionSupportMatrix`).
 fn neoforge_support_matrix(minecraft: &ModVersion) -> &'static [(&'static str, &'static str)] {
     match minecraft.as_str() {

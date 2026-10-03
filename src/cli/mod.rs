@@ -1,4 +1,5 @@
 mod author;
+mod import;
 mod output;
 mod project;
 
@@ -36,10 +37,14 @@ enum Command {
     },
     /// Add content and its dependencies.
     Add {
-        /// Slug, project id, search query, or a Modrinth project/version URL.
+        /// Modrinth slug, id, search query or URL; a GitHub repo or release URL; a file URL; a local file.
         query: String,
-        #[arg(long, value_enum, default_value_t = SourceArg::Modrinth)]
-        source: SourceArg,
+        /// Where `query` points (default: guessed from it).
+        #[arg(long, value_enum)]
+        source: Option<SourceArg>,
+        /// GitHub asset name pattern, `*` matching the version: `mymod-neoforge-*.jar`.
+        #[arg(long)]
+        asset: Option<String>,
         #[arg(long, value_enum)]
         side: Option<SideArg>,
         #[arg(long)]
@@ -60,6 +65,9 @@ enum Command {
         /// Show the changes without writing `riven.json`.
         #[arg(long)]
         dry_run: bool,
+        /// Point a URL entry at a new file.
+        #[arg(long)]
+        url: Option<String>,
     },
     /// Keep an entry at its current version.
     Pin { id: String },
@@ -91,7 +99,7 @@ enum Command {
     Import {
         #[arg(value_enum)]
         format: ImportFormat,
-        /// Path or URL of the archive.
+        /// Path or URL of the archive or pack.
         source: String,
     },
     /// Bump the pack version.
@@ -124,6 +132,8 @@ enum GroupCommand {
 #[derive(Clone, Copy, ValueEnum)]
 enum ImportFormat {
     Mrpack,
+    /// A packwiz pack: its directory, `pack.toml`, or the URL of `pack.toml`.
+    Packwiz,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -185,12 +195,24 @@ async fn dispatch(command: Command, out: &Output) -> anyhow::Result<ExitCode> {
         Command::Add {
             query,
             source,
+            asset,
             side,
             group,
             pin,
-        } => author::add(out, &query, source, side.map(Into::into), group, pin).await,
+        } => {
+            let options = author::AddArgs {
+                source,
+                asset,
+                side: side.map(Into::into),
+                group,
+                pin,
+            };
+            author::add(out, &query, options).await
+        }
         Command::Remove { id, keep_deps } => author::remove(out, &id, keep_deps).await,
-        Command::Update { ids, dry_run } => author::update(out, &ids, dry_run).await,
+        Command::Update { ids, dry_run, url } => {
+            author::update(out, &ids, dry_run, url.as_deref()).await
+        }
         Command::Pin { id } => author::set_pinned(out, &id, true),
         Command::Unpin { id } => author::set_pinned(out, &id, false),
         Command::Side { id, side } => author::set_side(out, &id, side.into()),
@@ -198,7 +220,7 @@ async fn dispatch(command: Command, out: &Output) -> anyhow::Result<ExitCode> {
         Command::List { tree, outdated } => author::list(out, tree, outdated).await,
         Command::Why { id } => author::why(out, &id),
         Command::Check => author::check(out).await,
-        Command::Import { format, source } => author::import(out, format, &source).await,
+        Command::Import { format, source } => import::import(out, format, &source).await,
         Command::Bump { to } => author::bump(out, &to),
     }
 }

@@ -62,6 +62,7 @@ clap = { version = "4", features = ["derive"], optional = true }
 console = { version = "0.16", optional = true }
 futures-util.workspace = true
 indicatif = { version = "0.18", optional = true }
+percent-encoding = "2"
 reqwest.workspace = true
 riven-build.workspace = true
 riven-format.workspace = true
