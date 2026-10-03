@@ -2,7 +2,9 @@ mod author;
 mod import;
 mod output;
 mod project;
+mod release;
 
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -108,6 +110,80 @@ enum Command {
         #[arg(default_value = "patch")]
         to: String,
     },
+    /// Create the signing key for this pack, or show the existing one.
+    Keygen,
+    /// Manage keys pinned for installed packs.
+    #[command(subcommand)]
+    Trust(TrustCommand),
+    /// Build the current version into `dist/` and point a channel at it.
+    Build {
+        #[arg(long, default_value = "stable")]
+        channel: String,
+        #[arg(long, default_value = "dist")]
+        out: PathBuf,
+        /// Build without a signature.
+        #[arg(long)]
+        unsigned: bool,
+    },
+    /// Point a channel at an already built release; also how to roll back.
+    Publish {
+        channel: String,
+        version: String,
+        #[arg(long, default_value = "dist")]
+        out: PathBuf,
+    },
+    /// Commit `dist/` to a branch served by GitHub Pages and push it.
+    Deploy {
+        #[arg(long, default_value = "dist")]
+        out: PathBuf,
+        #[arg(long, default_value = "gh-pages")]
+        branch: String,
+        #[arg(long, default_value = "origin")]
+        remote: String,
+        /// Only commit to the local branch.
+        #[arg(long)]
+        no_push: bool,
+    },
+    /// Export the pack for other launchers.
+    Export {
+        #[arg(value_enum)]
+        format: ExportFormat,
+        /// Only content for this side (Prism defaults to client).
+        #[arg(long, value_enum)]
+        side: Option<InstallSideArg>,
+        /// Output file (default: exports/<id>-<version>.<ext>).
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
+enum TrustCommand {
+    /// Show pinned keys.
+    List,
+    /// Forget the key pinned for a pack URL, to accept a rotated key.
+    Reset { url: String },
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum ExportFormat {
+    Mrpack,
+    Prism,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum InstallSideArg {
+    Client,
+    Server,
+}
+
+impl From<InstallSideArg> for riven_format::InstallSide {
+    fn from(side: InstallSideArg) -> Self {
+        match side {
+            InstallSideArg::Client => Self::Client,
+            InstallSideArg::Server => Self::Server,
+        }
+    }
 }
 
 #[derive(Subcommand)]
@@ -222,5 +298,28 @@ async fn dispatch(command: Command, out: &Output) -> anyhow::Result<ExitCode> {
         Command::Check => author::check(out).await,
         Command::Import { format, source } => import::import(out, format, &source).await,
         Command::Bump { to } => author::bump(out, &to),
+        Command::Keygen => release::keygen(out),
+        Command::Trust(command) => release::trust(out, command),
+        Command::Build {
+            channel,
+            out: dist,
+            unsigned,
+        } => release::build(out, &channel, &dist, unsigned).await,
+        Command::Publish {
+            channel,
+            version,
+            out: dist,
+        } => release::publish(out, &channel, &version, &dist),
+        Command::Deploy {
+            out: dist,
+            branch,
+            remote,
+            no_push,
+        } => release::deploy(out, &dist, &branch, &remote, !no_push),
+        Command::Export {
+            format,
+            side,
+            out: path,
+        } => release::export(out, format, side.map(Into::into), path).await,
     }
 }

@@ -110,6 +110,16 @@ impl StoreJars {
     }
 }
 
+impl StoreJars {
+    /// Where `entry`'s bytes are on disk, if already present.
+    pub fn local_path(&self, entry: &Entry) -> Option<PathBuf> {
+        match &entry.source {
+            Source::Local { path } => Some(self.repo.join(path.as_str())),
+            _ => self.store.get(&entry.file.hashes),
+        }
+    }
+}
+
 impl Downloader for StoreJars {
     async fn download(&self, url: &str) -> Result<Downloaded, String> {
         let response = self

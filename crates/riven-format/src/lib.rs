@@ -2,6 +2,7 @@ mod common;
 mod path;
 mod project;
 mod release;
+mod sign;
 mod state;
 
 use schemars::JsonSchema;
@@ -15,7 +16,8 @@ pub use project::{
     Entry, EntryFile, FileRules, Issue, Kind, Project, Reason, Source, SourceKind, UpdatePolicy,
 };
 pub use release::{Channel, Release, ReleaseFile};
-pub use state::{State, StateFile};
+pub use sign::{KeyPair, PublicKey, SignError};
+pub use state::{State, StateFile, Trusted};
 
 pub const SCHEMA_BASE: &str = "https://raw.githubusercontent.com/BX-Team/Riven/master/schema/v1/";
 
@@ -52,6 +54,10 @@ impl Document for Channel {
 
 impl Document for State {
     const NAME: &'static str = "state";
+}
+
+impl Document for Trusted {
+    const NAME: &'static str = "trusted";
 }
 
 #[derive(Debug, thiserror::Error)]

@@ -143,6 +143,7 @@ fn committed_schemas_are_current() {
     golden(dir.join("release.json"), &schema::<Release>());
     golden(dir.join("channel.json"), &schema::<Channel>());
     golden(dir.join("state.json"), &schema::<State>());
+    golden(dir.join("trusted.json"), &schema::<Trusted>());
 }
 
 #[test]

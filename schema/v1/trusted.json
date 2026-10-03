@@ -1,0 +1,26 @@
+{
+  "$id": "https://raw.githubusercontent.com/BX-Team/Riven/master/schema/v1/trusted.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Trusted",
+  "description": "`<config>/riven/trusted.json` — public keys pinned per pack URL on first install (TOFU).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "format": {
+      "const": 1
+    },
+    "keys": {
+      "description": "Channel pointer URL → `ed25519:` public key.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {}
+    }
+  },
+  "required": [
+    "format"
+  ]
+}

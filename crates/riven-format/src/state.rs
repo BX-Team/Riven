@@ -29,3 +29,11 @@ pub struct StateFile {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub preserve: bool,
 }
+
+/// `<config>/riven/trusted.json` — public keys pinned per pack URL on first install (TOFU).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Trusted {
+    /// Channel pointer URL → `ed25519:` public key.
+    #[serde(default)]
+    pub keys: BTreeMap<String, String>,
+}

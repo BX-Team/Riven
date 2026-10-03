@@ -1,4 +1,5 @@
 mod store;
+pub mod trust;
 
 use std::path::PathBuf;
 
