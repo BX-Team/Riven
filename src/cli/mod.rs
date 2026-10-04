@@ -3,6 +3,7 @@ mod import;
 mod output;
 mod project;
 mod release;
+mod sync;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -112,6 +113,13 @@ enum Command {
     },
     /// Create the signing key for this pack, or show the existing one.
     Keygen,
+    /// Install or update a pack into a game directory.
+    Install(InstallArgs),
+    /// Show what is installed in a game directory and whether an update is out.
+    Status {
+        #[arg(long)]
+        dir: Option<PathBuf>,
+    },
     /// Manage keys pinned for installed packs.
     #[command(subcommand)]
     Trust(TrustCommand),
@@ -157,6 +165,28 @@ enum Command {
     },
 }
 
+#[derive(clap::Args)]
+pub struct InstallArgs {
+    /// Pack URL, channel pointer URL, `gh:owner/repo` (optionally `#key=ed25519:…`) or a `.riven` file; default: the installed one.
+    source: Option<String>,
+    /// Game directory (default: the current one).
+    #[arg(long)]
+    dir: Option<PathBuf>,
+    #[arg(long, value_enum)]
+    side: Option<InstallSideArg>,
+    #[arg(long)]
+    channel: Option<String>,
+    /// Optional groups: `shaders,+minimap,-music`.
+    #[arg(long, value_delimiter = ',')]
+    groups: Vec<String>,
+    /// Never prompt (servers, scripts).
+    #[arg(long)]
+    headless: bool,
+    /// Apply without asking.
+    #[arg(long, short)]
+    yes: bool,
+}
+
 #[derive(Subcommand)]
 enum TrustCommand {
     /// Show pinned keys.
@@ -169,6 +199,8 @@ enum TrustCommand {
 enum ExportFormat {
     Mrpack,
     Prism,
+    /// A `.riven` archive: the release manifest plus its own files, content linked.
+    Riven,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -298,6 +330,8 @@ async fn dispatch(command: Command, out: &Output) -> anyhow::Result<ExitCode> {
         Command::Check => author::check(out).await,
         Command::Import { format, source } => import::import(out, format, &source).await,
         Command::Bump { to } => author::bump(out, &to),
+        Command::Install(args) => sync::install(out, args).await,
+        Command::Status { dir } => sync::status(out, dir).await,
         Command::Keygen => release::keygen(out),
         Command::Trust(command) => release::trust(out, command),
         Command::Build {

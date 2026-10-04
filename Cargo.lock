@@ -1484,6 +1484,8 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "url",
+ "zip",
 ]
 
 [[package]]

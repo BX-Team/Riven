@@ -252,6 +252,31 @@ pub fn deploy(
     Ok(ExitCode::SUCCESS)
 }
 
+fn export_archive(out: &Output, ws: &Workspace, path: Option<PathBuf>) -> anyhow::Result<ExitCode> {
+    super::author::ensure_gitignore(&ws.dir)?;
+    let path = path.unwrap_or_else(|| {
+        ws.dir
+            .join("exports")
+            .join(format!("{}-{}.riven", ws.project.id, ws.project.version))
+    });
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("cannot create {}", parent.display()))?;
+    }
+    let key = load_key(&ws.project.id)?;
+    let built = riven_build::release::build_release(&ws.project, &ws.dir)?;
+    riven_build::release::write_archive(&built, key.as_ref(), &path)?;
+    out.emit(json!({ "path": path, "blobs": built.blobs.len() }), || {
+        out.success(&format!(
+            "Exported {} ({} files, {} embedded)",
+            path.display(),
+            built.release.files.len(),
+            built.blobs.len()
+        ));
+    });
+    Ok(ExitCode::SUCCESS)
+}
+
 pub async fn export(
     out: &Output,
     format: ExportFormat,
@@ -259,7 +284,11 @@ pub async fn export(
     path: Option<PathBuf>,
 ) -> anyhow::Result<ExitCode> {
     let ws = Workspace::find()?;
+    if let ExportFormat::Riven = format {
+        return export_archive(out, &ws, path);
+    }
     let format = match format {
+        ExportFormat::Riven => unreachable!("handled above"),
         ExportFormat::Mrpack => Format::Mrpack,
         ExportFormat::Prism => Format::Prism,
     };

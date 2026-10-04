@@ -11,6 +11,13 @@
     "format": {
       "const": 1
     },
+    "key": {
+      "description": "The signer's public key, pinned on first install when the link carries none.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "manifest": {
       "description": "Manifest URL, relative to the pointer.",
       "type": "string"
