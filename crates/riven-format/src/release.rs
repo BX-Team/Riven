@@ -46,4 +46,7 @@ pub struct Channel {
     /// Manifest URL, relative to the pointer.
     pub manifest: String,
     pub sha512: String,
+    /// The signer's public key, pinned on first install when the link carries none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
 }
