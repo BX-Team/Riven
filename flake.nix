@@ -20,8 +20,12 @@
     let
       inherit (nixpkgs) lib;
       eachSystem = f: lib.foldl' lib.recursiveUpdate { } (map f (import systems));
+      rivenLib = import ./nix/lib.nix;
     in
-    eachSystem (
+    {
+      lib = rivenLib;
+    }
+    // eachSystem (
       system:
       let
         pkgs = import nixpkgs {
@@ -52,8 +56,105 @@
           fontconfig
           freetype
         ];
+        buildToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+        rustPlatform = pkgs.makeRustPlatform {
+          cargo = buildToolchain;
+          rustc = buildToolchain;
+        };
+        cargoToml = lib.importTOML ./Cargo.toml;
+
+        rivenPackage =
+          {
+            pname,
+            cli ? false,
+          }:
+          rustPlatform.buildRustPackage {
+            inherit pname;
+            inherit (cargoToml.workspace.package) version;
+            src = lib.fileset.toSource {
+              root = ./.;
+              fileset = lib.fileset.unions [
+                ./Cargo.toml
+                ./Cargo.lock
+                ./src
+                ./crates
+              ];
+            };
+            cargoLock.lockFile = ./Cargo.lock;
+            buildNoDefaultFeatures = cli;
+            buildFeatures = lib.optionals cli [ "cli" ];
+            nativeBuildInputs = [ pkgs.pkg-config ];
+            # The workspace tests run in CI; here they would only repeat it.
+            doCheck = false;
+            # build.rs cannot ask git inside the sandbox; the About page shows this commit.
+            RIVEN_REV = self.shortRev or self.dirtyShortRev or "unknown";
+            meta = {
+              description = cargoToml.package.description;
+              homepage = cargoToml.workspace.package.homepage;
+              license = lib.licenses.gpl3Plus;
+              mainProgram = "riven";
+            };
+          };
+
+        miniPack =
+          args:
+          rivenLib.mkModpack (
+            {
+              inherit pkgs;
+              src = ./nix/tests/mini-pack;
+            }
+            // args
+          );
+        expect =
+          name: drv: script:
+          pkgs.runCommand "riven-check-${name}" { } ''
+            cd ${drv}
+            ${script}
+            touch $out
+          '';
       in
       {
+        packages.${system} = rec {
+          riven = rivenPackage { pname = "riven"; };
+          riven-cli = rivenPackage {
+            pname = "riven-cli";
+            cli = true;
+          };
+          default = riven;
+        };
+
+        checks.${system} = {
+          mini-pack-server = expect "mini-pack-server" (miniPack { side = "server"; }) ''
+            test -f "mods/server tools.jar"
+            test -f config/a.toml
+            test -f server.properties
+            test ! -e config/a.toml.bak
+            test ! -e options.txt
+            test ! -e shaderpacks/bsl.zip
+          '';
+          mini-pack-client =
+            expect "mini-pack-client"
+              (miniPack {
+                side = "client";
+                groups.shaders = true;
+              })
+              ''
+                test -f shaderpacks/bsl.zip
+                test -f options.txt
+                test ! -e "mods/server tools.jar"
+                test ! -e server.properties
+              '';
+          mini-pack-exclude =
+            expect "mini-pack-exclude"
+              (miniPack {
+                side = "server";
+                exclude = [ "server-tools" ];
+              })
+              ''
+                test ! -e "mods/server tools.jar"
+              '';
+        };
+
         devShells.${system}.default = pkgs.mkShell {
           buildInputs = runtimeLibs;
           nativeBuildInputs = with pkgs; [
