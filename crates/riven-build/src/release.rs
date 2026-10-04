@@ -341,6 +341,7 @@ pub fn publish(
         version: version.to_owned(),
         manifest: format!("../releases/{version}.json"),
         sha512: sha512_hex(&manifest),
+        key: key.map(|k| k.public().to_string()),
     };
     let text = riven_format::to_string(&pointer);
     let path = dist.join("channels").join(format!("{channel}.json"));
@@ -353,6 +354,37 @@ pub fn publish(
         }
     }
     Ok(pointer)
+}
+
+/// Writes a `.riven` archive: the manifest plus the blobs it serves; content stays linked.
+pub fn write_archive(built: &Built, key: Option<&KeyPair>, out: &Path) -> Result<(), Error> {
+    use std::io::Write;
+    let file = std::fs::File::create(out).map_err(io(out))?;
+    let mut zip = zip::ZipWriter::new(std::io::BufWriter::new(file));
+    let zip_err = |e: zip::result::ZipError| Error::Io {
+        path: out.to_owned(),
+        source: std::io::Error::other(e),
+    };
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated)
+        .last_modified_time(zip::DateTime::default());
+    let manifest = riven_format::to_string(&built.release);
+    let mut add = |name: &str, bytes: &[u8]| -> Result<(), Error> {
+        zip.start_file(name, options).map_err(zip_err)?;
+        zip.write_all(bytes).map_err(io(out))
+    };
+    add("manifest.json", manifest.as_bytes())?;
+    if let Some(key) = key {
+        add(
+            "manifest.json.sig",
+            key.sign(manifest.as_bytes()).as_bytes(),
+        )?;
+    }
+    for blob in &built.blobs {
+        let bytes = std::fs::read(&blob.source).map_err(io(&blob.source))?;
+        add(blob_url(&blob.sha512).trim_start_matches("../"), &bytes)?;
+    }
+    zip.finish().map_err(zip_err)?.flush().map_err(io(out))
 }
 
 /// Verifies a document against its `.sig` text with `key`.
