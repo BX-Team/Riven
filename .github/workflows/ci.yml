@@ -123,10 +123,27 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  nix:
+    name: Nix flake check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Check the flake and build the mini-pack checks
+        run: nix flake check -L
+
   gate:
     name: CI
     if: always()
-    needs: [format, check, build-cli]
+    needs: [format, check, build-cli, nix]
     runs-on: ubuntu-latest
     permissions: {}
     steps:
