@@ -1,0 +1,79 @@
+{
+  "$schema": "https://raw.githubusercontent.com/BX-Team/Riven/master/schema/v1/project.json",
+  "format": 1,
+  "name": "Mini",
+  "id": "mini",
+  "version": "1.0.0",
+  "authors": [
+    "BX Team"
+  ],
+  "minecraft": "1.21.1",
+  "loader": {
+    "type": "neoforge",
+    "version": "21.1.77"
+  },
+  "java": {
+    "major": 21
+  },
+  "groups": [
+    {
+      "id": "shaders",
+      "name": "Shaders",
+      "default": false
+    }
+  ],
+  "files": {
+    "preserve": [
+      "options.txt"
+    ],
+    "ignore": [
+      "**/*.bak"
+    ]
+  },
+  "content": [
+    {
+      "id": "bsl",
+      "kind": "shaderpack",
+      "name": "BSL",
+      "source": {
+        "type": "local",
+        "path": "local/bsl.zip"
+      },
+      "file": {
+        "path": "shaderpacks/bsl.zip",
+        "size": 6,
+        "hashes": {
+          "sha512": "27f044b76c6f6fabb96d74c88f1b75f9df6d80c2ed097a0ed85ecc359d775637f1162da68371697be4d1d41196a10673fada20c6a6234855b8d9b0caa578f9f1",
+          "sha1": "9f839265b432555bd17dbdd023966fcbed8c2c6d"
+        }
+      },
+      "side": "client",
+      "group": "shaders",
+      "update": "follow",
+      "reason": "explicit",
+      "requires": []
+    },
+    {
+      "id": "server-tools",
+      "kind": "mod",
+      "name": "Server Tools",
+      "source": {
+        "type": "local",
+        "path": "local/server tools.jar"
+      },
+      "file": {
+        "path": "mods/server tools.jar",
+        "size": 16,
+        "hashes": {
+          "sha512": "e2b017d10ff542278534ad7c29ed1657637fc99e3cba7e71f1e243c2f021dcd4077010e9116eea16c3e46cf23c5167633d289378b6f9605d2de6e1a7107af375",
+          "sha1": "38eaf03257a4bc319e4d8a8461543c0a041071f1"
+        }
+      },
+      "side": "server",
+      "group": null,
+      "update": "follow",
+      "reason": "explicit",
+      "requires": []
+    }
+  ]
+}
