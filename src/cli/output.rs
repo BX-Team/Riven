@@ -33,6 +33,22 @@ impl Output {
         bar
     }
 
+    /// Asks a yes/no question on the terminal; non-interactive runs answer `default`.
+    pub fn confirm(&self, question: &str, default: bool) -> bool {
+        if !self.interactive {
+            return default;
+        }
+        let hint = if default { "[Y/n]" } else { "[y/N]" };
+        eprint!("{question} {hint} ");
+        match Term::stderr().read_line() {
+            Ok(answer) => match answer.trim().to_ascii_lowercase().as_str() {
+                "" => default,
+                a => a.starts_with('y'),
+            },
+            Err(_) => default,
+        }
+    }
+
     /// Prints `value` in JSON mode; otherwise runs `human`.
     pub fn emit(&self, value: Value, human: impl FnOnce()) {
         if self.json {
