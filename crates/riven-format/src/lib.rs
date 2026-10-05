@@ -1,4 +1,5 @@
 mod common;
+mod launcher;
 mod path;
 mod project;
 mod release;
@@ -11,6 +12,10 @@ use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
 
 pub use common::{Group, Hash, Hashes, InstallSide, Java, Keyed, Loader, LoaderKind, Memory, Side};
+pub use launcher::{
+    Account, AccountKind, Accounts, Appearance, GameWindow, Instance, JavaChoice, LaunchCommands,
+    LaunchOverrides, LaunchSettings, MemoryMb, Settings, ThemeMode,
+};
 pub use path::{PackPath, PathError};
 pub use project::{
     Entry, EntryFile, FileRules, Issue, Kind, Project, Reason, Source, SourceKind, UpdatePolicy,
@@ -58,6 +63,18 @@ impl Document for State {
 
 impl Document for Trusted {
     const NAME: &'static str = "trusted";
+}
+
+impl Document for Settings {
+    const NAME: &'static str = "settings";
+}
+
+impl Document for Instance {
+    const NAME: &'static str = "instance";
+}
+
+impl Document for Accounts {
+    const NAME: &'static str = "accounts";
 }
 
 #[derive(Debug, thiserror::Error)]

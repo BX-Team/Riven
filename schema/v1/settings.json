@@ -1,0 +1,228 @@
+{
+  "$id": "https://raw.githubusercontent.com/BX-Team/Riven/master/schema/v1/settings.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Settings",
+  "description": "`<config>/riven/settings.json` — launcher-wide preferences and launch defaults.",
+  "type": "object",
+  "properties": {
+    "appearance": {
+      "$ref": "#/$defs/Appearance",
+      "default": {
+        "mode": "system",
+        "dark": "graphite",
+        "light": "day"
+      }
+    },
+    "language": {
+      "description": "UI language (`en-US`, `ru-RU`); none follows the system.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "developer_mode": {
+      "type": "boolean"
+    },
+    "reduce_motion": {
+      "type": "boolean"
+    },
+    "launch": {
+      "$ref": "#/$defs/LaunchSettings",
+      "default": {
+        "java": {
+          "type": "auto"
+        },
+        "memory": {
+          "min": 1024,
+          "max": 4096
+        },
+        "jvm_args": [],
+        "window": {
+          "width": 1280,
+          "height": 720
+        },
+        "commands": {}
+      }
+    },
+    "selected_instance": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "selected_account": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "$schema": {
+      "type": "string"
+    },
+    "format": {
+      "const": 1
+    }
+  },
+  "required": [
+    "format"
+  ],
+  "$defs": {
+    "Appearance": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "$ref": "#/$defs/ThemeMode"
+        },
+        "dark": {
+          "type": "string"
+        },
+        "light": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode",
+        "dark",
+        "light"
+      ]
+    },
+    "ThemeMode": {
+      "type": "string",
+      "enum": [
+        "system",
+        "light",
+        "dark"
+      ]
+    },
+    "LaunchSettings": {
+      "description": "How the game starts; every group can be overridden per instance.",
+      "type": "object",
+      "properties": {
+        "java": {
+          "$ref": "#/$defs/JavaChoice"
+        },
+        "memory": {
+          "$ref": "#/$defs/MemoryMb"
+        },
+        "jvm_args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "window": {
+          "$ref": "#/$defs/GameWindow"
+        },
+        "commands": {
+          "$ref": "#/$defs/LaunchCommands",
+          "default": {}
+        }
+      },
+      "required": [
+        "java",
+        "memory",
+        "window"
+      ]
+    },
+    "JavaChoice": {
+      "oneOf": [
+        {
+          "description": "The major version Minecraft needs, downloaded when missing.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "auto"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "A specific `java` executable.",
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "path"
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ]
+        }
+      ]
+    },
+    "MemoryMb": {
+      "type": "object",
+      "properties": {
+        "min": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "max": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "min",
+        "max"
+      ]
+    },
+    "GameWindow": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "height": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "maximized": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "width",
+        "height"
+      ]
+    },
+    "LaunchCommands": {
+      "description": "Commands run around the game, as in Prism: before it, wrapping it and after it exits.",
+      "type": "object",
+      "properties": {
+        "pre_launch": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "wrapper": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "post_exit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

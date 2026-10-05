@@ -67,6 +67,7 @@ pub struct ProjectInfo {
     pub server: Support,
     /// Team or organization owning the project; a change is worth a warning on update.
     pub owner: String,
+    pub icon_url: Option<String>,
 }
 
 impl ProjectInfo {

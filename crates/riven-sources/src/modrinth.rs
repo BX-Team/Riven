@@ -288,6 +288,8 @@ struct ApiProject {
     server_side: String,
     team: String,
     organization: Option<String>,
+    #[serde(default)]
+    icon_url: Option<String>,
 }
 
 fn support(value: &str) -> Support {
@@ -312,6 +314,7 @@ impl From<ApiProject> for ProjectInfo {
             client: support(&project.client_side),
             server: support(&project.server_side),
             owner: project.organization.unwrap_or(project.team),
+            icon_url: project.icon_url.filter(|u| !u.is_empty()),
             id: project.id,
             slug: project.slug,
             title: project.title,
@@ -546,10 +549,10 @@ mod tests {
             .clone()
             .unwrap();
         let body = serde_json::json!({
-            "hashes": [hash],
             "algorithm": "sha512",
             "game_versions": ["1.21.1"],
             "loaders": ["neoforge"],
+            "hashes": [hash],
         });
         let key = format!("POST {}\n{body}", probe.url("version_files/update", &[]));
         modrinth

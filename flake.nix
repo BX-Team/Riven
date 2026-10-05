@@ -78,12 +78,21 @@
                 ./Cargo.lock
                 ./src
                 ./crates
+                ./build.rs
+                ./assets
+                ./locales
               ];
             };
             cargoLock.lockFile = ./Cargo.lock;
             buildNoDefaultFeatures = cli;
             buildFeatures = lib.optionals cli [ "cli" ];
-            nativeBuildInputs = [ pkgs.pkg-config ];
+            nativeBuildInputs = [
+              pkgs.pkg-config
+            ]
+            ++ lib.optionals (!cli) [ pkgs.autoPatchelfHook ];
+            buildInputs = lib.optionals (!cli) (runtimeLibs ++ [ pkgs.stdenv.cc.cc.lib ]);
+            # gpui dlopens Vulkan, Wayland and X11 at runtime; autoPatchelf bakes them into the rpath.
+            runtimeDependencies = lib.optionals (!cli) runtimeLibs;
             # The workspace tests run in CI; here they would only repeat it.
             doCheck = false;
             # build.rs cannot ask git inside the sandbox; the About page shows this commit.

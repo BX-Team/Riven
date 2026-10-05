@@ -5,31 +5,9 @@
   "description": "`.riven/state.json` — what riven installed into an instance.",
   "type": "object",
   "properties": {
-    "$schema": {
+    "source": {
+      "description": "Channel pointer URL.",
       "type": "string"
-    },
-    "etag": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "files": {
-      "type": "object",
-      "additionalProperties": {
-        "$ref": "#/$defs/StateFile"
-      },
-      "default": {}
-    },
-    "format": {
-      "const": 1
-    },
-    "groups": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "boolean"
-      },
-      "default": {}
     },
     "key": {
       "type": [
@@ -40,12 +18,34 @@
     "side": {
       "$ref": "#/$defs/InstallSide"
     },
-    "source": {
-      "description": "Channel pointer URL.",
-      "type": "string"
-    },
     "version": {
       "type": "string"
+    },
+    "etag": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "groups": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "boolean"
+      },
+      "default": {}
+    },
+    "files": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/StateFile"
+      },
+      "default": {}
+    },
+    "$schema": {
+      "type": "string"
+    },
+    "format": {
+      "const": 1
     }
   },
   "required": [
@@ -66,11 +66,11 @@
     "StateFile": {
       "type": "object",
       "properties": {
-        "preserve": {
-          "type": "boolean"
-        },
         "sha512": {
           "type": "string"
+        },
+        "preserve": {
+          "type": "boolean"
         }
       },
       "required": [

@@ -240,6 +240,7 @@ mod tests {
             client: Support::Required,
             server: Support::Required,
             owner: String::new(),
+            icon_url: None,
         }
     }
 

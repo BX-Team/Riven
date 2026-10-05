@@ -7,3 +7,14 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+hex.workspace = true
+md-5 = "0.11"
+riven-format.workspace = true
+riven-resolve.workspace = true
+riven-sync.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha1.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

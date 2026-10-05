@@ -916,6 +916,7 @@ mod tests {
                 client,
                 server,
                 owner: "team".into(),
+                icon_url: None,
             });
         }
 

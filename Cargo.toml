@@ -12,6 +12,7 @@ repository = "https://github.com/BX-Team/Riven"
 [workspace.dependencies]
 riven-build = { path = "crates/riven-build" }
 riven-format = { path = "crates/riven-format" }
+riven-launch = { path = "crates/riven-launch" }
 riven-resolve = { path = "crates/riven-resolve" }
 riven-sources = { path = "crates/riven-sources" }
 riven-sync = { path = "crates/riven-sync" }
@@ -24,7 +25,7 @@ hex = "0.4"
 reqwest = { version = "0.13", features = ["json", "stream", "gzip"] }
 schemars = "1"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
 sha1 = "0.11"
 sha2 = "0.11"
 thiserror = "2"
@@ -56,7 +57,7 @@ crate-type = ["rlib"]
 
 [features]
 default = ["gui", "cli"]
-gui = []
+gui = ["dep:gpui-kit", "dep:image", "dep:rust-i18n", "dep:sys-locale"]
 cli = ["dep:clap", "dep:indicatif", "dep:console"]
 
 [dependencies]
@@ -64,16 +65,21 @@ anyhow = "1"
 clap = { version = "4", features = ["derive"], optional = true }
 console = { version = "0.16", optional = true }
 futures-util.workspace = true
+gpui-kit = { version = "=0.7.1", default-features = false, optional = true }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"], optional = true }
 indicatif = { version = "0.18", optional = true }
 percent-encoding = "2"
 reqwest.workspace = true
+rust-i18n = { version = "4", optional = true }
 riven-build.workspace = true
 riven-format.workspace = true
+riven-launch.workspace = true
 riven-resolve.workspace = true
 riven-sources.workspace = true
 riven-sync.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sys-locale = { version = "0.3", optional = true }
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
