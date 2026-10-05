@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::time::Duration;
 
 use gpui_kit::base::input::{InputEvent, InputState};
@@ -6,14 +7,17 @@ use gpui_kit::{
     AnyElement, App, AppContext as _, Context, Entity, FontWeight, IntoElement, ParentElement as _,
     Render, SharedString, Styled as _, Subscription, Window, div, px, relative,
 };
-use riven_format::{Loader, LoaderKind};
+use riven_format::{Loader, LoaderKind, Release};
 use riven_sources::Cache;
+use riven_sync::update::{self, Request};
 use rust_i18n::t;
 
 use super::runtime;
 use super::state::{AppState, Route};
 use super::theme::ActiveTheme as _;
-use super::ui::{Button, ButtonSize, Dropdown, MenuItem, TextField, h_flex, v_flex};
+use super::ui::{
+    Button, ButtonSize, Dropdown, MenuItem, Switch, Tabs, TextField, h_flex, tile, v_flex,
+};
 
 const LOADERS: [Option<LoaderKind>; 5] = [
     None,
@@ -41,16 +45,21 @@ fn game_meta() -> riven_sources::GameMeta {
     }
 }
 
-/// The form behind "New instance": a name, a Minecraft release and a loader.
+/// The form behind "New instance": an empty game of a chosen version, or a pack from its link.
 pub struct NewInstance {
+    from_pack: bool,
     name: Entity<InputState>,
     search: Entity<InputState>,
     releases: Vec<SharedString>,
     minecraft: Option<SharedString>,
     loader: usize,
+    link: Entity<InputState>,
+    /// The release the link points at, once checked.
+    release: Option<Release>,
+    groups: BTreeMap<String, bool>,
     error: Option<SharedString>,
     busy: bool,
-    _search: Subscription,
+    _subs: Vec<Subscription>,
 }
 
 impl NewInstance {
@@ -62,11 +71,25 @@ impl NewInstance {
         let search = cx.new(|cx| {
             InputState::new(window, cx).placeholder(t!("new_instance.find_version").to_string())
         });
-        let _search = cx.subscribe(&search, |_, _, event: &InputEvent, cx| {
-            if let InputEvent::Change = event {
-                cx.notify();
-            }
+        let link = cx.new(|cx| {
+            InputState::new(window, cx).placeholder(t!("new_instance.link_hint").to_string())
         });
+        let subs = vec![
+            cx.subscribe(&search, |_, _, event: &InputEvent, cx| {
+                if let InputEvent::Change = event {
+                    cx.notify();
+                }
+            }),
+            cx.subscribe(&link, |this, _, event: &InputEvent, cx| match event {
+                InputEvent::Change => {
+                    this.release = None;
+                    this.error = None;
+                    cx.notify();
+                }
+                InputEvent::PressEnter { .. } => this.check(cx),
+                _ => {}
+            }),
+        ];
         cx.spawn_in(window, async move |this, cx| {
             let releases = runtime::spawn(async { game_meta().minecraft_releases().await })
                 .await
@@ -84,15 +107,209 @@ impl NewInstance {
         })
         .detach();
         Self {
+            from_pack: false,
             name,
             search,
             releases: Vec::new(),
             minecraft: None,
             loader: 0,
+            link,
+            release: None,
+            groups: BTreeMap::new(),
             error: None,
             busy: false,
-            _search,
+            _subs: subs,
         }
+    }
+
+    /// Reads the release behind the pack link to show it before installing.
+    fn check(&mut self, cx: &mut Context<Self>) {
+        let link = self.link.read(cx).value().trim().to_string();
+        if link.is_empty() || self.busy {
+            return;
+        }
+        self.busy = true;
+        self.error = None;
+        cx.notify();
+        cx.spawn(async move |this, cx| {
+            let found = runtime::spawn(async move {
+                let store = riven_sync::Store::default_location()
+                    .ok_or_else(|| t!("new_instance.no_data_dir").to_string())?;
+                update::preview(&store, &riven_sources::client(), &link, None)
+                    .await
+                    .map_err(|e| e.to_string())
+            })
+            .await
+            .unwrap_or_else(|_| Err("cancelled".into()));
+            let _ = this.update(cx, |this, cx| {
+                this.busy = false;
+                match found {
+                    Ok(release) => {
+                        this.groups = release
+                            .groups
+                            .iter()
+                            .map(|g| (g.id.clone(), g.default))
+                            .collect();
+                        this.release = Some(release);
+                    }
+                    Err(e) => this.error = Some(e.into()),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// Creates an instance for the checked pack and starts installing it into the launch bar.
+    fn install(&mut self, cx: &mut Context<Self>) {
+        let Some(release) = self.release.clone() else {
+            return self.check(cx);
+        };
+        let state = AppState::global(cx);
+        let Some(store) = state.read(cx).store.clone() else {
+            return;
+        };
+        let name = self.name.read(cx).value().trim().to_string();
+        let name = if name.is_empty() {
+            release.name.clone()
+        } else {
+            name
+        };
+        let id = match store.create(&name, &release.minecraft, Some(release.loader.clone())) {
+            Ok(id) => id,
+            Err(e) => {
+                self.error = Some(e.to_string().into());
+                cx.notify();
+                return;
+            }
+        };
+        let request = Request {
+            source: Some(self.link.read(cx).value().trim().to_string()),
+            groups: self
+                .groups
+                .iter()
+                .map(|(g, on)| format!("{}{g}", if *on { "+" } else { "-" }))
+                .collect(),
+            ..Request::default()
+        };
+        state.update(cx, |s, cx| {
+            s.reload_instances(cx);
+            s.navigate(Route::Instance(id.clone()), cx);
+            s.close_modal(cx);
+            s.install_pack(&id, request, cx);
+        });
+    }
+
+    fn render_pack(&self, cx: &mut Context<Self>) -> AnyElement {
+        let c = cx.theme().colors;
+        let view = cx.entity().downgrade();
+        v_flex()
+            .gap(px(14.))
+            .child(field(
+                t!("new_instance.link"),
+                TextField::new(&self.link),
+                cx,
+            ))
+            .when_some(self.release.as_ref(), |col, release| {
+                let loader = format!(
+                    "Minecraft {} · {} {}",
+                    release.minecraft,
+                    super::launch_bar::loader_display(release.loader.kind),
+                    release.loader.version
+                );
+                let groups = release.groups.iter().enumerate().map(|(i, g)| {
+                    let on = self.groups.get(&g.id).copied().unwrap_or(g.default);
+                    let id = g.id.clone();
+                    let view = view.clone();
+                    h_flex()
+                        .gap(px(12.))
+                        .child(
+                            v_flex()
+                                .flex_1()
+                                .min_w_0()
+                                .child(div().child(g.name.clone()))
+                                .when_some(g.description.clone(), |col, d| {
+                                    col.child(div().text_size(px(12.)).text_color(c.muted).child(d))
+                                }),
+                        )
+                        .child(
+                            Switch::new(SharedString::from(format!("group-{i}")), on)
+                                .accessible(g.name.clone())
+                                .on_change(move |on, _, cx| {
+                                    let id = id.clone();
+                                    let _ = view.update(cx, |this, cx| {
+                                        this.groups.insert(id, on);
+                                        cx.notify();
+                                    });
+                                }),
+                        )
+                });
+                col.child(
+                    v_flex()
+                        .gap(px(12.))
+                        .p(px(14.))
+                        .rounded(px(10.))
+                        .border_1()
+                        .border_color(c.border)
+                        .bg(c.bg)
+                        .child(
+                            h_flex()
+                                .gap(px(12.))
+                                .child(
+                                    tile(super::launch_bar::initials(&release.name), 40., 8., cx)
+                                        .text_color(c.accent),
+                                )
+                                .child(
+                                    v_flex()
+                                        .min_w_0()
+                                        .child(
+                                            h_flex()
+                                                .gap(px(6.))
+                                                .child(
+                                                    div()
+                                                        .font_weight(FontWeight::BOLD)
+                                                        .truncate()
+                                                        .child(release.name.clone()),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .text_color(c.muted)
+                                                        .child(release.version.clone()),
+                                                ),
+                                        )
+                                        .child(
+                                            div()
+                                                .mt(px(2.))
+                                                .text_size(px(12.))
+                                                .text_color(c.muted)
+                                                .child(format!(
+                                                    "{loader} · {}",
+                                                    t!(
+                                                        "new_instance.files",
+                                                        n = release.files.len()
+                                                    )
+                                                )),
+                                        ),
+                                ),
+                        )
+                        .when(!release.groups.is_empty(), |card| {
+                            card.child(
+                                v_flex()
+                                    .gap(px(10.))
+                                    .pt(px(12.))
+                                    .border_t_1()
+                                    .border_color(c.border)
+                                    .children(groups),
+                            )
+                        }),
+                )
+            })
+            .child(field(
+                t!("new_instance.name"),
+                TextField::new(&self.name),
+                cx,
+            ))
+            .into_any_element()
     }
 
     /// Creates the instance in the background; the dialog stays open until it is done.
@@ -158,6 +375,52 @@ impl NewInstance {
 
 impl Render for NewInstance {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let modes = cx.entity().downgrade();
+        let tabs = Tabs::new(
+            "new-instance-mode",
+            vec![
+                t!("new_instance.empty").into(),
+                t!("new_instance.from_pack").into(),
+            ],
+            usize::from(self.from_pack),
+            move |ix, window, cx| {
+                let _ = modes.update(cx, |this, cx| {
+                    this.from_pack = ix == 1;
+                    this.error = None;
+                    if this.from_pack {
+                        this.link.update(cx, |s, cx| s.focus(window, cx));
+                    }
+                    cx.notify();
+                });
+            },
+        );
+        let busy = self.busy;
+        if self.from_pack {
+            let ready = self.release.is_some();
+            let body = v_flex()
+                .gap(px(16.))
+                .child(tabs)
+                .child(self.render_pack(cx))
+                .when_some(self.error.clone(), |this, error| {
+                    this.child(div().text_color(cx.theme().colors.warn).child(error))
+                });
+            return dialog_frame(
+                t!("new_instance.title"),
+                t!("new_instance.pack_description"),
+                body,
+                Button::new("install")
+                    .primary()
+                    .size(ButtonSize::Md)
+                    .disabled(busy)
+                    .label(match (busy, ready) {
+                        (true, _) => t!("new_instance.checking"),
+                        (false, false) => t!("new_instance.check"),
+                        (false, true) => t!("new_instance.install"),
+                    })
+                    .on_click(cx.listener(|this, _, _, cx| this.install(cx))),
+                cx,
+            );
+        }
         let view = cx.entity().downgrade();
         let pick = view.clone();
         let versions = self
@@ -170,9 +433,10 @@ impl Render for NewInstance {
             .enumerate()
             .map(|(i, l)| MenuItem::new(i.to_string(), loader_label(*l)))
             .collect();
-        let width = px(392.);
+        let width = px(432.);
         let form = v_flex()
             .gap(px(14.))
+            .child(tabs)
             .child(field(
                 t!("new_instance.name"),
                 TextField::new(&self.name),
@@ -215,7 +479,6 @@ impl Render for NewInstance {
             .when_some(self.error.clone(), |this, error| {
                 this.child(div().text_color(cx.theme().colors.warn).child(error))
             });
-        let busy = self.busy;
         dialog_frame(
             t!("new_instance.title"),
             t!("new_instance.description"),
@@ -305,7 +568,7 @@ fn open(view: gpui_kit::AnyView, width: f32, cx: &mut App) {
 
 pub fn open_new_instance(window: &mut Window, cx: &mut App) {
     let form = cx.new(|cx| NewInstance::new(window, cx));
-    open(form.into(), 432., cx);
+    open(form.into(), 472., cx);
 }
 
 /// The form behind "Add offline account": just a player name.
