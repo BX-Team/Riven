@@ -18,7 +18,10 @@ icons!(
     "close",
     "code",
     "compass",
+    "copy",
+    "folder",
     "loader",
+    "more",
     "package",
     "play",
     "plus",
@@ -50,5 +53,21 @@ impl AssetSource for Assets {
             .filter(|(p, _)| p.starts_with(path))
             .map(|(p, _)| (*p).into())
             .collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::ui::IconName;
+
+    #[test]
+    fn every_icon_is_embedded() {
+        for icon in IconName::ALL {
+            let path = icon.path();
+            assert!(
+                super::ICONS.iter().any(|(p, _)| *p == path),
+                "{path} is missing from the icons! list"
+            );
+        }
     }
 }
