@@ -13,6 +13,7 @@ use rust_i18n::t;
 use riven_launch::instances::Instances;
 
 use super::instance_settings::InstanceSettings;
+use super::logs::LogsView;
 use super::mods::{self, ModsTable, SortBy};
 use super::runtime;
 use super::theme::ActiveTheme as _;
@@ -64,6 +65,7 @@ pub struct InstanceView {
     mods: ModsTable,
     scroll: UniformListScrollHandle,
     settings: Entity<InstanceSettings>,
+    logs: Entity<LogsView>,
     loading: bool,
     /// When the rows and the Modrinth icons arrived, for their entrance.
     shown_at: Option<Instant>,
@@ -82,6 +84,7 @@ impl InstanceView {
     ) -> Self {
         let game_dir = store.game_dir(&id);
         let settings = cx.new(|cx| InstanceSettings::new(id.clone(), store, window, cx));
+        let logs = super::logs::view(id.clone(), game_dir.clone(), cx);
         let search =
             cx.new(|cx| InputState::new(window, cx).placeholder(t!("mods.search").to_string()));
         let _search = cx.subscribe(&search, |this, input, event, cx| {
@@ -101,6 +104,7 @@ impl InstanceView {
             mods: ModsTable::default(),
             scroll: UniformListScrollHandle::new(),
             settings,
+            logs,
             loading: true,
             shown_at: None,
             icons_at: None,
@@ -408,6 +412,7 @@ impl Render for InstanceView {
         let content = match self.tab {
             Tab::Mods => self.render_mods(cx).into_any_element(),
             Tab::Settings => self.settings.clone().into_any_element(),
+            Tab::Logs => self.logs.clone().into_any_element(),
             other => super::app::placeholder(
                 IconName::Package,
                 other.label(),
