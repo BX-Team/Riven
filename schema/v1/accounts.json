@@ -1,0 +1,54 @@
+{
+  "$id": "https://raw.githubusercontent.com/BX-Team/Riven/master/schema/v1/accounts.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Accounts",
+  "description": "`<config>/riven/accounts.json` — accounts the launcher can play with; secrets stay in the keychain.",
+  "type": "object",
+  "properties": {
+    "accounts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Account"
+      },
+      "default": []
+    },
+    "$schema": {
+      "type": "string"
+    },
+    "format": {
+      "const": 1
+    }
+  },
+  "required": [
+    "format"
+  ],
+  "$defs": {
+    "Account": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Player UUID, hyphenated.",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/AccountKind"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind"
+      ]
+    },
+    "AccountKind": {
+      "type": "string",
+      "enum": [
+        "offline",
+        "microsoft"
+      ]
+    }
+  }
+}

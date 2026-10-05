@@ -5,18 +5,8 @@
   "description": "`channels/<name>.json` — the tiny pointer polled on every launch.",
   "type": "object",
   "properties": {
-    "$schema": {
+    "version": {
       "type": "string"
-    },
-    "format": {
-      "const": 1
-    },
-    "key": {
-      "description": "The signer's public key, pinned on first install when the link carries none.",
-      "type": [
-        "string",
-        "null"
-      ]
     },
     "manifest": {
       "description": "Manifest URL, relative to the pointer.",
@@ -25,8 +15,18 @@
     "sha512": {
       "type": "string"
     },
-    "version": {
+    "key": {
+      "description": "The signer's public key, pinned on first install when the link carries none.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "$schema": {
       "type": "string"
+    },
+    "format": {
+      "const": 1
     }
   },
   "required": [
