@@ -6180,6 +6180,7 @@ dependencies = [
 name = "riven-launch"
 version = "0.1.0"
 dependencies = [
+ "dirs 7.0.0",
  "hex",
  "lighty-launcher",
  "md-5 0.11.0",
