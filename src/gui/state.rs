@@ -4,6 +4,7 @@ use gpui_kit::{AnyView, App, AppContext as _, Context, Entity, Global, Pixels};
 use riven_format::{Account, Accounts, Instance, Settings};
 use riven_launch::instances::Instances;
 
+use super::session::Session;
 use super::ui::Modal;
 
 /// The screen shown next to the sidebar.
@@ -28,6 +29,9 @@ pub struct AppState {
     pub error: Option<String>,
     pub modal: Option<Modal>,
     modal_serial: u64,
+    /// Launches and pack installs by instance id, kept after they end for their log.
+    pub sessions: HashMap<String, Session>,
+    pub(super) ticking: bool,
     pub(super) toasts: Vec<super::toast::Toast>,
     pub(super) toast_serial: u64,
 }
@@ -100,6 +104,8 @@ impl AppState {
             error,
             modal: None,
             modal_serial: 0,
+            sessions: HashMap::new(),
+            ticking: false,
             toasts: Vec::new(),
             toast_serial: 0,
         }

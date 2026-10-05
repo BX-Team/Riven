@@ -1,12 +1,17 @@
+use std::time::Duration;
+
 use gpui_kit::base::{Popover, box_shadow};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
-    Anchor, App, Entity, InteractiveElement as _, IntoElement, ParentElement as _, SharedString,
-    StatefulInteractiveElement as _, Styled as _, Window, div, hsla, px,
+    Anchor, Animation, AnimationExt as _, AnyElement, App, Entity, InteractiveElement as _,
+    IntoElement, ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _,
+    Window, div, ease_in_out, hsla, px, relative,
 };
 use riven_format::{Account, AccountKind, Instance};
+use riven_launch::game::Stage;
 use rust_i18n::t;
 
+use super::session::{Phase, Session};
 use super::state::AppState;
 use super::theme::ActiveTheme as _;
 use super::ui::{
@@ -53,11 +58,211 @@ fn selected_account(st: &AppState) -> Option<Account> {
         .cloned()
 }
 
+fn stage_label(stage: Stage) -> String {
+    match stage {
+        Stage::Pack => t!("launch.stage.pack"),
+        Stage::Metadata => t!("launch.stage.metadata"),
+        Stage::Java => t!("launch.stage.java"),
+        Stage::Game => t!("launch.stage.game"),
+        Stage::Starting => t!("launch.stage.starting"),
+    }
+    .into()
+}
+
+fn megabytes(bytes: u64) -> String {
+    format!("{:.0}", bytes as f64 / 1_048_576.)
+}
+
+fn clock(seconds: u64) -> String {
+    let (h, m, s) = (seconds / 3600, seconds % 3600 / 60, seconds % 60);
+    if h > 0 {
+        format!("{h}:{m:02}:{s:02}")
+    } else {
+        format!("{m}:{s:02}")
+    }
+}
+
+/// A thin bar filling to `fraction`; with no total yet a short segment sweeps across instead.
+fn progress_bar(id: &str, fraction: Option<f32>, window: &mut Window, cx: &mut App) -> AnyElement {
+    let c = cx.theme().colors;
+    let track = div()
+        .relative()
+        .w_full()
+        .h(px(4.))
+        .rounded(px(2.))
+        .bg(c.sel)
+        .overflow_hidden();
+    match fraction {
+        Some(f) => {
+            let f = ui::motion::glide(
+                SharedString::from(format!("progress:{id}")),
+                f.clamp(0., 1.),
+                window,
+                cx,
+            );
+            track
+                .child(div().h_full().w(relative(f)).rounded(px(2.)).bg(c.accent))
+                .into_any_element()
+        }
+        None if cx.reduce_motion() => track
+            .child(div().h_full().w(relative(0.3)).bg(c.accent.opacity(0.6)))
+            .into_any_element(),
+        None => track
+            .child(
+                div()
+                    .absolute()
+                    .top_0()
+                    .h_full()
+                    .w(relative(0.3))
+                    .rounded(px(2.))
+                    .bg(c.accent)
+                    .with_animation(
+                        "sweep",
+                        Animation::new(Duration::from_millis(1100))
+                            .repeat()
+                            .with_easing(ease_in_out),
+                        |d, t| d.left(relative(-0.3 + 1.3 * t)),
+                    ),
+            )
+            .into_any_element(),
+    }
+}
+
+fn status(
+    id: &str,
+    phase: Option<Phase>,
+    notice: Option<SharedString>,
+    pack: Option<String>,
+    window: &mut Window,
+    cx: &mut App,
+) -> AnyElement {
+    let c = cx.theme().colors;
+    let line = |text: String, color| {
+        div()
+            .text_size(px(12.))
+            .text_color(color)
+            .truncate()
+            .child(text)
+    };
+    let idle = match &pack {
+        Some(version) => line(format!("{version} — {}", t!("launch.pack_current")), c.ok),
+        None => line(t!("launch.no_pack").to_string(), c.muted),
+    };
+    let Some(phase) = phase else {
+        return idle.into_any_element();
+    };
+    let busy = matches!(phase, Phase::Working { .. } | Phase::Running { .. });
+    let body = match &phase {
+        Phase::Working { stage, done, total } => {
+            let fraction = (*total > 0).then(|| *done as f32 / *total as f32);
+            let amount = match (stage, fraction) {
+                (Stage::Java | Stage::Game, Some(_)) => {
+                    format!("{} / {} MB", megabytes(*done), megabytes(*total))
+                }
+                (_, Some(f)) => format!("{:.0}%", f * 100.),
+                _ => String::new(),
+            };
+            v_flex()
+                .gap(px(6.))
+                .child(
+                    h_flex()
+                        .gap(px(8.))
+                        .child(line(stage_label(*stage), c.text2).flex_1())
+                        .child(
+                            div()
+                                .flex_none()
+                                .text_size(px(11.))
+                                .font_family(cx.theme().mono.clone())
+                                .text_color(c.muted)
+                                .child(amount),
+                        ),
+                )
+                .child(progress_bar(id, fraction, window, cx))
+                .into_any_element()
+        }
+        Phase::Running { since, .. } => line(
+            t!("launch.running", time = clock(since.elapsed().as_secs())).into(),
+            c.ok,
+        )
+        .into_any_element(),
+        Phase::Failed(e) => line(e.to_string(), c.warn).into_any_element(),
+        Phase::Finished { code: Some(code) } if !matches!(code, 0 | 130 | 137 | 143) => {
+            line(t!("launch.crashed", code = code).into(), c.warn).into_any_element()
+        }
+        Phase::Finished { .. } => idle.into_any_element(),
+    };
+    v_flex()
+        .min_w_0()
+        .gap(px(4.))
+        .child(ui::motion::enter(
+            SharedString::from(format!("status:{id}:{}", phase_key(&phase))),
+            div().child(body),
+            4.,
+            window,
+            cx,
+        ))
+        .when_some(notice.filter(|_| !busy), |col, n| {
+            col.child(line(n.to_string(), c.muted))
+        })
+        .into_any_element()
+}
+
+fn phase_key(phase: &Phase) -> &'static str {
+    match phase {
+        Phase::Working { .. } => "working",
+        Phase::Running { .. } => "running",
+        Phase::Finished { .. } => "finished",
+        Phase::Failed(_) => "failed",
+    }
+}
+
+fn play_button(
+    state: &Entity<AppState>,
+    id: &str,
+    session: Option<&Session>,
+    account: Option<Account>,
+    cx: &App,
+) -> AnyElement {
+    let c = cx.theme().colors;
+    let id = id.to_owned();
+    let state = state.clone();
+    match session.map(|s| &s.phase) {
+        Some(Phase::Working { .. }) => Button::new("play")
+            .primary()
+            .size(ButtonSize::Lg)
+            .disabled(true)
+            .child(ui::motion::spinner(
+                "play-spinner",
+                icon(IconName::Loader, c.on_accent),
+                cx,
+            ))
+            .label(t!("launch.preparing"))
+            .into_any_element(),
+        Some(Phase::Running { .. }) => Button::new("stop")
+            .outline()
+            .size(ButtonSize::Lg)
+            .icon(IconName::Stop)
+            .label(t!("launch.stop"))
+            .on_click(move |_, _, cx| state.update(cx, |s, cx| s.stop(&id, cx)))
+            .into_any_element(),
+        _ => Button::new("play")
+            .primary()
+            .size(ButtonSize::Lg)
+            .icon(IconName::Play)
+            .label(t!("launch.play"))
+            .on_click(move |_, window, cx| match account.clone() {
+                Some(account) => state.update(cx, |s, cx| s.play(&id, account, cx)),
+                None => super::dialogs::open_add_offline(window, cx),
+            })
+            .into_any_element(),
+    }
+}
+
 /// The bar under every instance: what will start, its pack status, the account and Play.
 pub fn render(
     state: &Entity<AppState>,
     id: &str,
-    _: &mut Window,
+    window: &mut Window,
     cx: &mut App,
 ) -> impl IntoElement + use<> {
     let c = cx.theme().colors;
@@ -67,6 +272,13 @@ pub fn render(
     };
     let pack = st.packs.get(id).cloned();
     let account = selected_account(st);
+    let session = st.sessions.get(id);
+    let phase = session.map(|s| s.phase.clone());
+    let notice = session.and_then(|s| s.notice.clone());
+    let status = status(id, phase, notice, pack, window, cx);
+    let st = state.read(cx);
+    let session = st.sessions.get(id);
+    let button = play_button(state, id, session, account.clone(), cx);
 
     h_flex()
         .flex_none()
@@ -107,33 +319,13 @@ pub fn render(
                         ),
                 ),
         )
-        .child(
-            div()
-                .flex_1()
-                .min_w_0()
-                .text_size(px(12.))
-                .truncate()
-                .map(|d| match &pack {
-                    Some(version) => d
-                        .text_color(c.ok)
-                        .child(format!("{version} — {}", t!("launch.pack_current"))),
-                    None => d
-                        .text_color(c.muted)
-                        .child(t!("launch.no_pack").to_string()),
-                }),
-        )
+        .child(div().flex_1().min_w_0().child(status))
         .child(
             h_flex()
                 .flex_none()
                 .gap(px(10.))
                 .child(account_button(state, account.as_ref(), cx))
-                .child(
-                    Button::new("play")
-                        .primary()
-                        .size(ButtonSize::Lg)
-                        .icon(IconName::Play)
-                        .label(t!("launch.play")),
-                ),
+                .child(button),
         )
         .into_any_element()
 }

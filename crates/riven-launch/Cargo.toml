@@ -10,11 +10,15 @@ repository.workspace = true
 hex.workspace = true
 md-5 = "0.11"
 riven-format.workspace = true
+riven-game.workspace = true
 riven-resolve.workspace = true
+riven-sources.workspace = true
 riven-sync.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha1.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
 tracing.workspace = true
+

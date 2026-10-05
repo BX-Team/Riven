@@ -12,6 +12,7 @@ repository = "https://github.com/BX-Team/Riven"
 [workspace.dependencies]
 riven-build = { path = "crates/riven-build" }
 riven-format = { path = "crates/riven-format" }
+riven-game = { path = "crates/riven-game" }
 riven-launch = { path = "crates/riven-launch" }
 riven-resolve = { path = "crates/riven-resolve" }
 riven-sources = { path = "crates/riven-sources" }

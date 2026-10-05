@@ -40,6 +40,19 @@ launch:
   play: Play
   no_pack: No pack
   pack_current: Pack up to date
+  preparing: Preparing…
+  stop: Stop
+  running: "Running · %{time}"
+  crashed: "The game exited with code %{code}; see Logs"
+  installed: "Pack %{version} installed"
+  updated: "Pack updated to %{version}"
+  offline: Cannot reach the pack; started with what is installed
+  stage:
+    pack: Updating the pack
+    metadata: Reading version info
+    java: Downloading Java
+    game: Downloading the game
+    starting: Starting the game
 accounts:
   bad_name: "3–16 Latin letters, digits or _"
   player_name: Player name
@@ -109,6 +122,16 @@ new_instance:
   pick_version: Pick a Minecraft version
   find_version: Find a version
   creating: Creating…
+  empty: Empty
+  from_pack: From a pack link
+  pack_description: "Install a Riven pack by its link: the pack picks the Minecraft version and loader, and updates come in before every launch."
+  link: Pack link
+  link_hint: "https://… or gh:owner/repo"
+  check: Check
+  checking: Checking…
+  install: Install
+  files: "%{n} files"
+  no_data_dir: Cannot locate the data directory
 instance_settings:
   java: Java
   commands: Launch commands
@@ -146,3 +169,11 @@ about:
   software: software
   source: Source code
   copy: Copy details
+logs:
+  session: Game output
+  latest: Last run (latest.log)
+  lines: "%{n} lines"
+  reload: Reload
+  copy: Copy
+  empty_title: No log yet
+  empty_hint: Start the game and its output appears here

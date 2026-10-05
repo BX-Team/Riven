@@ -40,6 +40,19 @@ launch:
   play: Играть
   no_pack: Без пака
   pack_current: Пак актуален
+  preparing: Подготовка…
+  stop: Остановить
+  running: "Запущено · %{time}"
+  crashed: "Игра завершилась с кодом %{code}; подробности во вкладке «Логи»"
+  installed: "Пак %{version} установлен"
+  updated: "Пак обновлён до %{version}"
+  offline: Не удалось проверить пак; запущено то, что установлено
+  stage:
+    pack: Обновление пака
+    metadata: Получение данных о версии
+    java: Загрузка Java
+    game: Загрузка игры
+    starting: Запуск игры
 accounts:
   bad_name: "3–16 латинских букв, цифр или _"
   player_name: Ник игрока
@@ -109,6 +122,16 @@ new_instance:
   pick_version: Выберите версию Minecraft
   find_version: Найти версию
   creating: Создаю…
+  empty: Пустой
+  from_pack: Пак по ссылке
+  pack_description: "Установка пака Riven по ссылке: версия Minecraft и загрузчик берутся из пака, обновления подтягиваются перед каждым запуском."
+  link: Ссылка на пак
+  link_hint: "https://… или gh:владелец/репозиторий"
+  check: Проверить
+  checking: Проверка…
+  install: Установить
+  files: "файлов: %{n}"
+  no_data_dir: Не найден каталог данных
 instance_settings:
   java: Java
   commands: Команды запуска
@@ -146,3 +169,11 @@ about:
   software: программная
   source: Исходный код
   copy: Скопировать сведения
+logs:
+  session: Вывод игры
+  latest: Прошлый запуск (latest.log)
+  lines: "строк: %{n}"
+  reload: Обновить
+  copy: Копировать
+  empty_title: Логов пока нет
+  empty_hint: Запустите игру, и её вывод появится здесь

@@ -145,7 +145,7 @@ const FOLDERS: [Folder; 5] = [
 ];
 
 /// What the Runtime row counts: shared game downloads and Java, all straight under the data folder.
-const RUNTIME: [&str; 5] = ["java", "java-custom", "libraries", "assets", "packs"];
+const RUNTIME: [&str; 5] = ["java", "libraries", "assets", "versions", "packs"];
 
 impl Folder {
     fn path(self) -> Option<PathBuf> {
