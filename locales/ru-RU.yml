@@ -1,0 +1,148 @@
+common:
+  cancel: Отмена
+  coming_soon: Скоро
+  close: Закрыть
+titlebar:
+  search: Поиск
+  browse: Обзор паков
+  developer: Режим разработчика
+sidebar:
+  instances: Инстансы
+  new_instance: Новый инстанс
+  settings: Настройки
+library:
+  empty_title: Инстансов пока нет
+  empty_hint: Создайте инстанс или установите пак по ссылке
+instance:
+  vanilla: Ванилла
+  open_folder: Открыть папку
+  tabs:
+    mods: Моды
+    configs: Конфиги
+    logs: Логи
+    screenshots: Скриншоты
+    settings: Настройки
+mods:
+  name: Название
+  version: Версия
+  modified: Изменён
+  search: Поиск модов
+  search_count: "Поиск среди %{n} модов"
+  reading: Читаю файлы…
+time:
+  today: сегодня
+  yesterday: вчера
+  days: "%{n} дн. назад"
+  weeks: "%{n} нед. назад"
+  months: "%{n} мес. назад"
+  years: "%{n} г. назад"
+launch:
+  play: Играть
+  no_pack: Без пака
+  pack_current: Пак актуален
+accounts:
+  bad_name: "3–16 латинских букв, цифр или _"
+  player_name: Ник игрока
+  offline_hint: Для серверов в офлайн-режиме и одиночной игры
+  microsoft_pending: Ждём одобрения лаунчера в Microsoft
+  title: Аккаунты
+  none: Аккаунтов пока нет
+  add: Добавить аккаунт
+  add_microsoft: Войти через Microsoft
+  add_offline: Добавить офлайн-аккаунт
+  microsoft: Microsoft
+  offline: Офлайн
+  remove: Удалить аккаунт
+  active: Активный
+  use: Выбрать
+developer:
+  title: Разработка
+  soon: Проекты паков, содержимое и релизы появятся вместе с разделом разработки
+settings:
+  general: Общие
+  language: Язык
+  system: Как в системе
+  theme_mode: Оформление
+  theme_light: Светлое
+  theme_dark: Тёмное
+  dark_theme: Тёмная тема
+  light_theme: Светлая тема
+  java: Java и память
+  java_path: Исполняемый файл Java
+  java_path_hint: Если пусто — нужная версия скачается автоматически
+  jvm_args: Аргументы JVM
+  memory: Память, МБ
+  memory_min: Минимум
+  memory_max: Максимум
+  window: Окно игры
+  window_width: Ширина
+  window_height: Высота
+  window_fullscreen: Запускать в полноэкранном режиме
+  advanced: Расширенные
+  developer_mode: Режим разработчика
+  developer_mode_hint: Показывает раздел разработки — проекты паков, релизы и Git
+  back: Библиотека
+  java_auto: автоматически
+  memory_hint: В мегабайтах; пак может советовать больше
+  launch: Запуск
+  accounts: Аккаунты
+  folders: Каталоги
+  about: О программе
+  theme_mode_hint: "«Системная» следует светлому или тёмному режиму ОС"
+  animations: Анимации
+  animations_hint: Плавные наведения, переключатели и появление панелей
+  jvm_args_hint: Добавляются к каждому запуску, через пробел
+  memory_max_hint: Пак может просить больше; с модами игре нужно около 4 ГБ
+  pre_launch_hint: Выполняется до старта игры; запуск ждёт её завершения
+  wrapper_hint: Игра запускается через неё, например mangohud или gamemoderun
+  post_exit_hint: Выполняется после выхода из игры
+new_instance:
+  title: Новый инстанс
+  description: "Пустая установка игры; моды добавляются потом во вкладке «Моды» или из пака."
+  name: Название
+  name_hint: Если пусто — по версии
+  minecraft: Minecraft
+  loader: Загрузчик модов
+  loading: Загрузка версий…
+  create: Создать
+  offline: Не удалось загрузить версии Minecraft — проверьте подключение
+  pick_version: Выберите версию Minecraft
+  find_version: Найти версию
+  creating: Создаю…
+instance_settings:
+  java: Java
+  commands: Команды запуска
+  pre_launch: Перед запуском
+  wrapper: Обёртка
+  post_exit: После выхода
+  inherited: "Как в лаунчере:"
+  override: Переопределить
+  java_auto: автоматически
+  none: нет
+  custom: свои
+folders:
+  instances: Инстансы
+  store: Хранилище файлов
+  cache: Кэш
+  config: Настройки
+  instances_hint: "Папки игры: моды, миры, конфиги"
+  store_hint: Скачанные файлы паков, общие для всех инстансов
+  runtime: Java и файлы игры
+  runtime_hint: Java, библиотеки и ресурсы Minecraft, общие для всех инстансов
+  cache_hint: Ответы Modrinth и иконки; можно очистить
+  config_hint: Настройки лаунчера и аккаунты
+  open: Открыть
+  clear: Очистить
+about:
+  copied: Данные для отладки скопированы в буфер обмена
+  tagline: Лаунчер Minecraft и инструменты для модпаков
+  version: Версия
+  commit: Коммит
+  build: Сборка
+  system: Система
+  toolkit: Интерфейс
+  renderer: Графика
+  license: Лицензия
+  software: программная
+  source: Исходный код
+  copy: Скопировать сведения

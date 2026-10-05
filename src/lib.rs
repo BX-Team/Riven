@@ -2,6 +2,11 @@
 compile_error!("the `cli` feature is required");
 
 mod cli;
+#[cfg(feature = "gui")]
+mod gui;
+
+#[cfg(feature = "gui")]
+rust_i18n::i18n!("locales", fallback = "en-US");
 
 use std::process::ExitCode;
 
@@ -17,8 +22,8 @@ pub fn run() -> ExitCode {
 
 #[cfg(feature = "gui")]
 fn run_gui() -> ExitCode {
-    eprintln!("Riven Launcher GUI is not implemented yet; see `riven --help`.");
-    ExitCode::FAILURE
+    init_logging();
+    gui::run()
 }
 
 fn init_logging() {

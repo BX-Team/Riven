@@ -55,7 +55,7 @@ Before every commit, the same checks CI runs must pass: `cargo fmt --all --check
 
 ### i18n
 - All user-facing GUI strings go through `rust_i18n::t!` with a key.
-- Every key must exist in ALL locale files: `locales/en-US.yml`, `ru-RU.yml`, `zh-CN.yml`.
+- Every key must exist in ALL locale files: `locales/en-US.yml`, `ru-RU.yml`.
 
 ### Testing
 
