@@ -1,0 +1,146 @@
+common:
+  cancel: Cancel
+  coming_soon: Coming soon
+  close: Close
+titlebar:
+  search: Search
+  browse: Browse packs
+  developer: Developer mode
+sidebar:
+  instances: Instances
+  new_instance: New instance
+  settings: Settings
+library:
+  empty_title: No instances yet
+  empty_hint: Create one or install a pack from a link
+instance:
+  vanilla: Vanilla
+  open_folder: Open folder
+  tabs:
+    mods: Mods
+    configs: Configs
+    logs: Logs
+    screenshots: Screenshots
+    settings: Settings
+mods:
+  name: Name
+  version: Version
+  modified: Modified
+  search: Search mods
+  search_count: "Search among %{n} mods"
+  reading: Reading files…
+time:
+  today: today
+  yesterday: yesterday
+  days: "%{n} d ago"
+  weeks: "%{n} wk ago"
+  months: "%{n} mo ago"
+  years: "%{n} yr ago"
+launch:
+  play: Play
+  no_pack: No pack
+  pack_current: Pack up to date
+accounts:
+  bad_name: "3–16 Latin letters, digits or _"
+  player_name: Player name
+  offline_hint: Plays on servers in offline mode and in single player
+  microsoft_pending: Waiting for Microsoft to approve the launcher
+  title: Accounts
+  none: No accounts yet
+  add: Add account
+  add_microsoft: Sign in with Microsoft
+  add_offline: Add offline account
+  microsoft: Microsoft
+  offline: Offline
+  remove: Remove account
+  active: Active
+  use: Use
+developer:
+  title: Developer
+  soon: Pack projects, content and releases arrive with the developer section
+settings:
+  general: General
+  language: Language
+  system: System
+  theme_mode: Appearance
+  theme_light: Light
+  theme_dark: Dark
+  dark_theme: Dark theme
+  light_theme: Light theme
+  java: Java and memory
+  java_path: Java executable
+  java_path_hint: Empty picks the version Minecraft needs and downloads it
+  jvm_args: JVM arguments
+  memory: Memory, MB
+  memory_min: Minimum
+  memory_max: Maximum
+  window: Game window
+  window_width: Width
+  window_height: Height
+  window_fullscreen: Start fullscreen
+  advanced: Advanced
+  developer_mode: Developer mode
+  developer_mode_hint: Shows the developer section for pack projects, releases and Git
+  back: Library
+  java_auto: automatic
+  memory_hint: In megabytes; the pack may recommend more
+  launch: Launch
+  accounts: Accounts
+  folders: Folders
+  about: About
+  theme_mode_hint: "“System” follows the light or dark mode of the OS"
+  animations: Animations
+  animations_hint: Smooth hover, switches and opening panels
+  jvm_args_hint: Added to every launch, separated by spaces
+  memory_max_hint: Packs may ask for more; the game needs about 4 GB with mods
+  pre_launch_hint: Runs before the game starts; the launch waits for it
+  wrapper_hint: The game runs through it, e.g. mangohud or gamemoderun
+  post_exit_hint: Runs after the game exits
+new_instance:
+  title: New instance
+  description: "An empty game installation; mods come later from the Mods tab or a pack."
+  name: Name
+  name_hint: Taken from the version when empty
+  minecraft: Minecraft
+  loader: Mod loader
+  loading: Loading versions…
+  create: Create
+  offline: Cannot load Minecraft versions; check the connection
+  pick_version: Pick a Minecraft version
+  find_version: Find a version
+  creating: Creating…
+instance_settings:
+  java: Java
+  commands: Launch commands
+  pre_launch: Before launch
+  wrapper: Wrapper
+  post_exit: After exit
+  inherited: "Inherited:"
+  override: Override
+  java_auto: automatic
+  none: none
+  custom: custom
+folders:
+  instances: Instances
+  store: File store
+  cache: Cache
+  config: Settings
+  instances_hint: "Game folders: mods, saves, configs"
+  store_hint: Downloaded pack files, shared between instances
+  cache_hint: Modrinth answers and icons; safe to clear
+  config_hint: Launcher settings and accounts
+  open: Open
+  clear: Clear
+about:
+  copied: Debug info copied to the clipboard
+  tagline: Minecraft launcher and modpack toolkit
+  version: Version
+  commit: Commit
+  build: Build
+  system: System
+  toolkit: Interface
+  renderer: Graphics
+  license: License
+  software: software
+  source: Source code
+  copy: Copy details

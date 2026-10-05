@@ -35,6 +35,8 @@ struct Latest {
 #[derive(Deserialize)]
 struct ManifestVersion {
     id: String,
+    #[serde(rename = "type")]
+    kind: String,
     url: String,
 }
 
@@ -58,6 +60,18 @@ impl GameMeta {
 
     pub async fn latest_minecraft(&self) -> Result<String> {
         Ok(self.manifest().await?.latest.release)
+    }
+
+    /// Release versions of Minecraft, newest first.
+    pub async fn minecraft_releases(&self) -> Result<Vec<String>> {
+        Ok(self
+            .manifest()
+            .await?
+            .versions
+            .into_iter()
+            .filter(|v| v.kind == "release")
+            .map(|v| v.id)
+            .collect())
     }
 
     /// Java major version Mojang ships for `minecraft`.

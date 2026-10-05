@@ -144,6 +144,9 @@ fn committed_schemas_are_current() {
     golden(dir.join("channel.json"), &schema::<Channel>());
     golden(dir.join("state.json"), &schema::<State>());
     golden(dir.join("trusted.json"), &schema::<Trusted>());
+    golden(dir.join("settings.json"), &schema::<Settings>());
+    golden(dir.join("instance.json"), &schema::<Instance>());
+    golden(dir.join("accounts.json"), &schema::<Accounts>());
 }
 
 #[test]
@@ -194,4 +197,11 @@ fn validate_reports_dangling_references() {
             .iter()
             .any(|i| matches!(i, Issue::UnknownRequire { require, .. } if require == "missing"))
     );
+}
+
+#[test]
+fn older_window_settings_still_read() {
+    let window: GameWindow =
+        serde_json::from_str(r#"{ "width": 1280, "height": 720, "maximized": true }"#).unwrap();
+    assert!(window.fullscreen);
 }

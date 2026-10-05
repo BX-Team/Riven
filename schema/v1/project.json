@@ -5,45 +5,27 @@
   "description": "`riven.json` — the pack project in the author's repository.",
   "type": "object",
   "properties": {
-    "$schema": {
+    "name": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "version": {
       "type": "string"
     },
     "authors": {
       "type": "array",
-      "default": [],
       "items": {
         "type": "string"
-      }
-    },
-    "content": {
-      "type": "array",
-      "default": [],
-      "items": {
-        "$ref": "#/$defs/Entry"
-      }
+      },
+      "default": []
     },
     "description": {
       "type": [
         "string",
         "null"
       ]
-    },
-    "files": {
-      "$ref": "#/$defs/FileRules",
-      "default": {
-        "ignore": [],
-        "preserve": []
-      }
-    },
-    "format": {
-      "const": 1
-    },
-    "groups": {
-      "type": "array",
-      "default": [],
-      "items": {
-        "$ref": "#/$defs/Group"
-      }
     },
     "icon": {
       "anyOf": [
@@ -55,23 +37,41 @@
         }
       ]
     },
-    "id": {
+    "minecraft": {
       "type": "string"
-    },
-    "java": {
-      "$ref": "#/$defs/Java"
     },
     "loader": {
       "$ref": "#/$defs/Loader"
     },
-    "minecraft": {
+    "java": {
+      "$ref": "#/$defs/Java"
+    },
+    "groups": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Group"
+      },
+      "default": []
+    },
+    "files": {
+      "$ref": "#/$defs/FileRules",
+      "default": {
+        "preserve": [],
+        "ignore": []
+      }
+    },
+    "content": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Entry"
+      },
+      "default": []
+    },
+    "$schema": {
       "type": "string"
     },
-    "name": {
-      "type": "string"
-    },
-    "version": {
-      "type": "string"
+    "format": {
+      "const": 1
     }
   },
   "required": [
@@ -84,188 +84,10 @@
     "java"
   ],
   "$defs": {
-    "Entry": {
-      "type": "object",
-      "properties": {
-        "file": {
-          "$ref": "#/$defs/EntryFile"
-        },
-        "group": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
-        },
-        "id": {
-          "type": "string"
-        },
-        "kind": {
-          "$ref": "#/$defs/Kind"
-        },
-        "name": {
-          "type": "string"
-        },
-        "reason": {
-          "$ref": "#/$defs/Reason"
-        },
-        "requires": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "type": "string"
-          }
-        },
-        "side": {
-          "$ref": "#/$defs/Side"
-        },
-        "source": {
-          "$ref": "#/$defs/Source"
-        },
-        "update": {
-          "$ref": "#/$defs/UpdatePolicy"
-        }
-      },
-      "required": [
-        "id",
-        "kind",
-        "name",
-        "source",
-        "file",
-        "side",
-        "update",
-        "reason"
-      ]
-    },
-    "EntryFile": {
-      "type": "object",
-      "properties": {
-        "hashes": {
-          "$ref": "#/$defs/Hashes"
-        },
-        "path": {
-          "$ref": "#/$defs/PackPath"
-        },
-        "size": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "url": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "path",
-        "size",
-        "hashes"
-      ]
-    },
-    "FileRules": {
-      "type": "object",
-      "properties": {
-        "ignore": {
-          "description": "Globs under `overrides/` left out of releases.",
-          "type": "array",
-          "default": [],
-          "items": {
-            "type": "string"
-          }
-        },
-        "preserve": {
-          "description": "Globs the installer never overwrites once the user changed them.",
-          "type": "array",
-          "default": [],
-          "items": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    "Group": {
-      "type": "object",
-      "properties": {
-        "default": {
-          "type": "boolean",
-          "default": false
-        },
-        "description": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "name"
-      ]
-    },
-    "Hashes": {
-      "description": "Hashes a source provided; the strongest present one is verified.",
-      "type": "object",
-      "properties": {
-        "sha1": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "sha512": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      }
-    },
-    "Java": {
-      "type": "object",
-      "properties": {
-        "jvm_args": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "major": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "memory": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Memory"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "required": [
-        "major"
-      ]
-    },
-    "Kind": {
+    "PackPath": {
+      "description": "Relative POSIX path: no leading `/`, `\\`, `:`, empty, `.` or `..` components.",
       "type": "string",
-      "enum": [
-        "mod",
-        "resourcepack",
-        "shaderpack",
-        "datapack",
-        "file"
-      ]
+      "minLength": 1
     },
     "Loader": {
       "type": "object",
@@ -291,6 +113,35 @@
         "neoforge"
       ]
     },
+    "Java": {
+      "type": "object",
+      "properties": {
+        "major": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "memory": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Memory"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "jvm_args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "major"
+      ]
+    },
     "Memory": {
       "type": "object",
       "properties": {
@@ -306,24 +157,113 @@
         "recommended"
       ]
     },
-    "PackPath": {
-      "description": "Relative POSIX path: no leading `/`, `\\`, `:`, empty, `.` or `..` components.",
-      "type": "string",
-      "minLength": 1
-    },
-    "Reason": {
-      "type": "string",
-      "enum": [
-        "explicit",
-        "dependency"
+    "Group": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "default": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "id",
+        "name"
       ]
     },
-    "Side": {
+    "FileRules": {
+      "type": "object",
+      "properties": {
+        "preserve": {
+          "description": "Globs the installer never overwrites once the user changed them.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "ignore": {
+          "description": "Globs under `overrides/` left out of releases.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      }
+    },
+    "Entry": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/Kind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        },
+        "file": {
+          "$ref": "#/$defs/EntryFile"
+        },
+        "side": {
+          "$ref": "#/$defs/Side"
+        },
+        "group": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "update": {
+          "$ref": "#/$defs/UpdatePolicy"
+        },
+        "reason": {
+          "$ref": "#/$defs/Reason"
+        },
+        "requires": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "source",
+        "file",
+        "side",
+        "update",
+        "reason"
+      ]
+    },
+    "Kind": {
       "type": "string",
       "enum": [
-        "client",
-        "server",
-        "both"
+        "mod",
+        "resourcepack",
+        "shaderpack",
+        "datapack",
+        "file"
       ]
     },
     "Source": {
@@ -334,12 +274,12 @@
             "project": {
               "type": "string"
             },
+            "version": {
+              "type": "string"
+            },
             "type": {
               "type": "string",
               "const": "modrinth"
-            },
-            "version": {
-              "type": "string"
             }
           },
           "required": [
@@ -351,13 +291,13 @@
         {
           "type": "object",
           "properties": {
-            "asset": {
-              "type": "string"
-            },
             "repo": {
               "type": "string"
             },
             "tag": {
+              "type": "string"
+            },
+            "asset": {
               "type": "string"
             },
             "type": {
@@ -375,12 +315,12 @@
         {
           "type": "object",
           "properties": {
+            "url": {
+              "type": "string"
+            },
             "type": {
               "type": "string",
               "const": "url"
-            },
-            "url": {
-              "type": "string"
             }
           },
           "required": [
@@ -406,11 +346,71 @@
         }
       ]
     },
+    "EntryFile": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/PackPath"
+        },
+        "size": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "hashes": {
+          "$ref": "#/$defs/Hashes"
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "size",
+        "hashes"
+      ]
+    },
+    "Hashes": {
+      "description": "Hashes a source provided; the strongest present one is verified.",
+      "type": "object",
+      "properties": {
+        "sha512": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha1": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "Side": {
+      "type": "string",
+      "enum": [
+        "client",
+        "server",
+        "both"
+      ]
+    },
     "UpdatePolicy": {
       "type": "string",
       "enum": [
         "follow",
         "pinned"
+      ]
+    },
+    "Reason": {
+      "type": "string",
+      "enum": [
+        "explicit",
+        "dependency"
       ]
     }
   }
