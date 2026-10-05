@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::rc::Rc;
 use std::time::Duration;
 
 use gpui_kit::base::input::{InputEvent, InputState};
@@ -27,14 +28,14 @@ const LOADERS: [Option<LoaderKind>; 5] = [
     Some(LoaderKind::Forge),
 ];
 
-fn loader_label(kind: Option<LoaderKind>) -> SharedString {
+pub(super) fn loader_label(kind: Option<LoaderKind>) -> SharedString {
     match kind {
         None => t!("instance.vanilla").into(),
         Some(kind) => super::launch_bar::loader_display(kind).into(),
     }
 }
 
-fn game_meta() -> riven_sources::GameMeta {
+pub(super) fn game_meta() -> riven_sources::GameMeta {
     let meta = riven_sources::GameMeta::new(riven_sources::client());
     match riven_sync::data_dir() {
         Some(dir) => meta.with_cache(Cache::new(
@@ -656,4 +657,65 @@ pub fn open_add_offline(window: &mut Window, cx: &mut App) {
 pub fn open_add_offline_then(back: Option<Back>, window: &mut Window, cx: &mut App) {
     let form = cx.new(|cx| AddOffline::new(back, window, cx));
     open(form.into(), 400., cx);
+}
+
+type OnConfirm = Rc<dyn Fn(&mut Window, &mut App)>;
+
+/// "Are you sure?" before something that cannot be undone.
+pub struct Confirm {
+    title: SharedString,
+    message: SharedString,
+    action: SharedString,
+    on_confirm: OnConfirm,
+}
+
+impl Render for Confirm {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let on_confirm = self.on_confirm.clone();
+        dialog_frame(
+            self.title.clone(),
+            self.message.clone(),
+            div(),
+            Button::new("confirm")
+                .danger()
+                .size(ButtonSize::Md)
+                .label(self.action.clone())
+                .on_click(move |_, window, cx| {
+                    AppState::global(cx).update(cx, |s, cx| s.close_modal(cx));
+                    on_confirm(window, cx);
+                }),
+            None,
+            cx,
+        )
+    }
+}
+
+/// Asks before a destructive action and runs `on_confirm` only when the user agrees.
+pub fn confirm(
+    title: impl Into<SharedString>,
+    message: impl Into<SharedString>,
+    action: impl Into<SharedString>,
+    on_confirm: impl Fn(&mut Window, &mut App) + 'static,
+    cx: &mut App,
+) {
+    let view = cx.new(|_| Confirm {
+        title: title.into(),
+        message: message.into(),
+        action: action.into(),
+        on_confirm: Rc::new(on_confirm),
+    });
+    open(view.into(), 420., cx);
+}
+
+pub fn confirm_remove_account(id: String, name: String, cx: &mut App) {
+    confirm(
+        t!("confirm.remove_account_title", name = name),
+        t!("confirm.remove_account_body"),
+        t!("accounts.remove"),
+        move |_, cx| {
+            let id = id.clone();
+            AppState::global(cx).update(cx, |s, cx| s.remove_account(&id, cx));
+        },
+        cx,
+    );
 }

@@ -10,10 +10,10 @@ mod tabs;
 
 pub use button::{Button, ButtonSize};
 pub use dialog::{Modal, modal};
-pub use field::TextField;
+pub use field::{TextArea, TextField, textarea};
 pub use icon::{IconName, icon};
 pub use menu::{Dropdown, MenuItem};
-pub use section::{Section, caption, setting_row};
+pub use section::{Section, caption, setting_block, setting_row};
 pub use switch::Switch;
 pub use tabs::Tabs;
 
@@ -36,7 +36,7 @@ pub trait UiText: Styled + Sized {
         let theme = cx.theme();
         self.font_family(theme.font.clone())
             .text_size(px(13.))
-            .line_height(relative(1.3))
+            .line_height(relative(1.4))
             .text_color(theme.colors.text)
     }
 }

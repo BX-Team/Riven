@@ -271,6 +271,11 @@ pub fn apply(appearance: &Appearance, window: Option<&mut Window>, cx: &mut App)
     cx.refresh_windows();
 }
 
+/// The red of destructive buttons and the window's close button, the same in every theme.
+pub fn danger() -> Hsla {
+    gpui_kit::hsla(355. / 360., 0.72, 0.52, 1.)
+}
+
 /// Whether the palette is changing; transitions jump straight to their targets meanwhile.
 pub fn fading(cx: &App) -> bool {
     cx.theme().fade.is_some()
@@ -288,10 +293,10 @@ pub fn tick(window: &mut Window, cx: &mut App) {
     theme.colors = colors;
     if t >= 1. {
         theme.fade = None;
-    } else {
-        window.request_animation_frame();
     }
     sync_base(&colors, dark, cx);
+    // A plain animation frame would keep cached screens in the old colors.
+    window.refresh();
 }
 
 /// gpui-base paints carets, selections, placeholders and scrollbars from its own tokens.

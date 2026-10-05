@@ -22,6 +22,11 @@ instance:
     logs: Логи
     screenshots: Скриншоты
     settings: Настройки
+  actions: Действия с инстансом
+  duplicate: Дублировать
+  delete: Удалить инстанс
+  delete_running: Сначала остановите игру
+  copy_name: "%{name} (копия)"
 mods:
   name: Название
   version: Версия
@@ -36,9 +41,11 @@ time:
   weeks: "%{n} нед. назад"
   months: "%{n} мес. назад"
   years: "%{n} г. назад"
+  minutes: "%{m} мин"
+  hours_minutes: "%{h} ч %{m} мин"
+  under_minute: меньше минуты
 launch:
   play: Играть
-  no_pack: Без пака
   pack_current: Пак актуален
   preparing: Подготовка…
   stop: Остановить
@@ -53,6 +60,8 @@ launch:
     java: Загрузка Java
     game: Загрузка игры
     starting: Запуск игры
+  played: "Наиграно %{total}"
+  played_last: "Наиграно %{total} · последний запуск %{last}"
 accounts:
   bad_name: "3–16 латинских букв, цифр или _"
   player_name: Ник игрока
@@ -82,7 +91,7 @@ settings:
   light_theme: Светлая тема
   java: Java и память
   java_path: Исполняемый файл Java
-  java_path_hint: Если пусто — нужная версия скачается автоматически
+  java_path_hint: Найденные на компьютере Java; «Автоматически» скачивает ту, что нужна версии Minecraft
   jvm_args: Аргументы JVM
   memory: Память, МБ
   memory_min: Минимум
@@ -107,7 +116,7 @@ settings:
   jvm_args_hint: Добавляются к каждому запуску, через пробел
   memory_max_hint: Пак может просить больше; с модами игре нужно около 4 ГБ
   pre_launch_hint: Выполняется до старта игры; запуск ждёт её завершения
-  wrapper_hint: Игра запускается через неё, например mangohud или gamemoderun
+  wrapper_hint: Например mangohud или gamemoderun; пока не применяется — поддержка появится позже
   post_exit_hint: Выполняется после выхода из игры
 new_instance:
   title: Новый инстанс
@@ -143,6 +152,14 @@ instance_settings:
   java_auto: автоматически
   none: нет
   custom: свои
+  instance: Инстанс
+  launch: Запуск
+  version: Версия
+  set_by_pack: задаётся паком
+  looking_up: Ищем версию загрузчика…
+  loader_build: "%{loader} %{version} — самая свежая сборка для этой версии"
+  played: Время в игре
+  never_played: Ещё не запускался
 folders:
   instances: Инстансы
   store: Хранилище файлов
@@ -177,3 +194,23 @@ logs:
   copy: Копировать
   empty_title: Логов пока нет
   empty_hint: Запустите игру, и её вывод появится здесь
+confirm:
+  stop_title: Остановить игру?
+  stop_body: Игра закроется сразу; прогресс после последнего сохранения пропадёт.
+  remove_account_title: "Удалить %{name}?"
+  remove_account_body: Аккаунт пропадёт из лаунчера; его можно будет добавить снова.
+  clear_cache_title: Очистить кеш?
+  clear_cache_body: Ответы Modrinth и иконки скачаются заново, когда понадобятся.
+  delete_instance_title: "Удалить %{name}?"
+  delete_instance_body: "Папка инстанса удалится вместе с мирами, конфигами и скриншотами. Отменить это нельзя."
+java:
+  auto: Автоматически
+  auto_hint: Riven сам скачает Java, нужную этой версии Minecraft
+  custom: Выбрана вручную
+  browse: Обзор…
+  rescan: Искать заново
+  scanning: Ищем Java…
+  found: "Найдено: %{n}"
+  fits: Подходит
+  needs: "Нужна Java %{major}"
+  not_java: "%{path} — не рабочая Java"

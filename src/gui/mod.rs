@@ -4,6 +4,7 @@ mod chrome;
 mod dialogs;
 mod instance;
 mod instance_settings;
+mod java_picker;
 mod launch_bar;
 mod logs;
 mod mods;

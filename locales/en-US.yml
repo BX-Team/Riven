@@ -22,6 +22,11 @@ instance:
     logs: Logs
     screenshots: Screenshots
     settings: Settings
+  actions: Instance actions
+  duplicate: Duplicate
+  delete: Delete instance
+  delete_running: Stop the game first
+  copy_name: "%{name} (copy)"
 mods:
   name: Name
   version: Version
@@ -36,9 +41,11 @@ time:
   weeks: "%{n} wk ago"
   months: "%{n} mo ago"
   years: "%{n} yr ago"
+  minutes: "%{m} min"
+  hours_minutes: "%{h} h %{m} min"
+  under_minute: under a minute
 launch:
   play: Play
-  no_pack: No pack
   pack_current: Pack up to date
   preparing: Preparing…
   stop: Stop
@@ -53,6 +60,8 @@ launch:
     java: Downloading Java
     game: Downloading the game
     starting: Starting the game
+  played: "%{total} played"
+  played_last: "%{total} played · last %{last}"
 accounts:
   bad_name: "3–16 Latin letters, digits or _"
   player_name: Player name
@@ -82,7 +91,7 @@ settings:
   light_theme: Light theme
   java: Java and memory
   java_path: Java executable
-  java_path_hint: Empty picks the version Minecraft needs and downloads it
+  java_path_hint: Java found on this computer; Automatic downloads the one the Minecraft version needs
   jvm_args: JVM arguments
   memory: Memory, MB
   memory_min: Minimum
@@ -107,7 +116,7 @@ settings:
   jvm_args_hint: Added to every launch, separated by spaces
   memory_max_hint: Packs may ask for more; the game needs about 4 GB with mods
   pre_launch_hint: Runs before the game starts; the launch waits for it
-  wrapper_hint: The game runs through it, e.g. mangohud or gamemoderun
+  wrapper_hint: Such as mangohud or gamemoderun; not applied yet, support comes later
   post_exit_hint: Runs after the game exits
 new_instance:
   title: New instance
@@ -143,6 +152,14 @@ instance_settings:
   java_auto: automatic
   none: none
   custom: custom
+  instance: Instance
+  launch: Launch
+  version: Version
+  set_by_pack: set by the pack
+  looking_up: Looking up the loader…
+  loader_build: "%{loader} %{version}, the newest build for this version"
+  played: Play time
+  never_played: Not played yet
 folders:
   instances: Instances
   store: File store
@@ -177,3 +194,23 @@ logs:
   copy: Copy
   empty_title: No log yet
   empty_hint: Start the game and its output appears here
+confirm:
+  stop_title: Stop the game?
+  stop_body: The game is closed at once; progress since the last save is lost.
+  remove_account_title: "Remove %{name}?"
+  remove_account_body: The account disappears from the launcher; you can add it again later.
+  clear_cache_title: Clear the cache?
+  clear_cache_body: Modrinth answers and icons are downloaded again when needed.
+  delete_instance_title: "Delete %{name}?"
+  delete_instance_body: "The instance folder is deleted with its worlds, configs and screenshots. This cannot be undone."
+java:
+  auto: Automatic
+  auto_hint: Riven downloads the Java this Minecraft version needs
+  custom: Picked by hand
+  browse: Browse…
+  rescan: Search again
+  scanning: Searching for Java…
+  found: "Found: %{n}"
+  fits: Fits
+  needs: "Needs Java %{major}"
+  not_java: "%{path} is not a working Java"

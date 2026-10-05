@@ -75,6 +75,39 @@ pub fn setting_row(
         .child(div().flex_none().child(control))
 }
 
+/// A setting whose control needs the full width, such as a long command, under its title.
+pub fn setting_block(
+    title: impl Into<SharedString>,
+    hint: Option<SharedString>,
+    control: impl IntoElement,
+    cx: &App,
+) -> Div {
+    let c = cx.theme().colors;
+    v_flex()
+        .gap(px(10.))
+        .px(px(18.))
+        .py(px(16.))
+        .child(
+            v_flex()
+                .child(
+                    div()
+                        .font_weight(W_SEMIBOLD)
+                        .text_size(px(14.))
+                        .child(title.into()),
+                )
+                .when_some(hint, |col, hint| {
+                    col.child(
+                        div()
+                            .mt(px(4.))
+                            .text_color(c.muted)
+                            .line_height(relative(1.5))
+                            .child(hint),
+                    )
+                }),
+        )
+        .child(control)
+}
+
 /// The small monospace heading over a list: "INSTANCES", "SETTINGS".
 pub fn caption(text: impl Into<SharedString>, cx: &App) -> Div {
     let theme = cx.theme();

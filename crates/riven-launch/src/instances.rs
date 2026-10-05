@@ -91,10 +91,40 @@ impl Instances {
         Ok(id)
     }
 
+    /// Copies an instance under a new name, keeping links to shared folders as links.
+    pub fn duplicate(&self, id: &str, name: &str) -> Result<String, LaunchError> {
+        let mut instance = self.load(id)?;
+        let new_id = unique_id(&self.root, name);
+        copy_tree(&self.dir(id), &self.dir(&new_id))?;
+        instance.name = name.to_owned();
+        instance.last_played = None;
+        instance.play_seconds = 0;
+        self.save(&new_id, &instance)?;
+        Ok(new_id)
+    }
+
     pub fn delete(&self, id: &str) -> Result<(), LaunchError> {
         let dir = self.dir(id);
         std::fs::remove_dir_all(&dir).map_err(io(&dir))
     }
+}
+
+fn copy_tree(from: &Path, to: &Path) -> Result<(), LaunchError> {
+    std::fs::create_dir_all(to).map_err(io(to))?;
+    for entry in std::fs::read_dir(from).map_err(io(from))? {
+        let entry = entry.map_err(io(from))?;
+        let (src, dst) = (entry.path(), to.join(entry.file_name()));
+        let kind = entry.file_type().map_err(io(&src))?;
+        if kind.is_symlink() {
+            let target = std::fs::read_link(&src).map_err(io(&src))?;
+            crate::link_dir(&target, &dst).map_err(io(&dst))?;
+        } else if kind.is_dir() {
+            copy_tree(&src, &dst)?;
+        } else {
+            std::fs::copy(&src, &dst).map_err(io(&src))?;
+        }
+    }
+    Ok(())
 }
 
 /// A lowercase ASCII slug of `name` not yet taken under `root` (`name`, `name-2`, …).

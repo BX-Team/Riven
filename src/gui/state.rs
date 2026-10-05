@@ -138,6 +138,64 @@ impl AppState {
         cx.notify();
     }
 
+    /// Writes a changed instance and refreshes the list, so the sidebar and header follow.
+    pub fn save_instance(&mut self, id: &str, instance: &Instance, cx: &mut Context<Self>) {
+        if let Some(store) = &self.store
+            && let Err(e) = store.save(id, instance)
+        {
+            self.error = Some(e.to_string());
+        }
+        self.reload_instances(cx);
+    }
+
+    /// Copies an instance in the background and opens the copy.
+    pub fn duplicate_instance(&mut self, id: &str, cx: &mut Context<Self>) {
+        let (Some(store), Some(instance)) = (self.store.clone(), self.instance(id)) else {
+            return;
+        };
+        let name = rust_i18n::t!("instance.copy_name", name = instance.name).to_string();
+        let id = id.to_owned();
+        cx.spawn(async move |this, cx| {
+            let copied = super::runtime::blocking(move || store.duplicate(&id, &name)).await;
+            let _ = this.update(cx, |s, cx| match copied {
+                Ok(Ok(new_id)) => {
+                    s.reload_instances(cx);
+                    s.navigate(Route::Instance(new_id), cx);
+                }
+                Ok(Err(e)) => s.error = Some(e.to_string()),
+                Err(_) => {}
+            });
+        })
+        .detach();
+    }
+
+    /// Deletes an instance that is not running and selects a neighbour.
+    pub fn delete_instance(&mut self, id: &str, cx: &mut Context<Self>) {
+        if self
+            .sessions
+            .get(id)
+            .is_some_and(super::session::Session::busy)
+        {
+            return;
+        }
+        let Some(store) = self.store.clone() else {
+            return;
+        };
+        if let Err(e) = store.delete(id) {
+            tracing::error!("{e}");
+            self.error = Some(e.to_string());
+            return;
+        }
+        self.sessions.remove(id);
+        self.reload_instances(cx);
+        let next = self
+            .instances
+            .first()
+            .map(|(i, _)| Route::Instance(i.clone()));
+        self.settings.selected_instance = None;
+        self.navigate(next.unwrap_or(Route::Empty), cx);
+    }
+
     pub fn open_modal(&mut self, view: AnyView, width: Pixels, cx: &mut Context<Self>) {
         let focus = cx.focus_handle();
         self.modal_serial += 1;

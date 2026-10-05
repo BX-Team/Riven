@@ -49,6 +49,28 @@ pub fn loader_label(instance: &Instance) -> String {
     }
 }
 
+/// "3 h 12 min played · yesterday", or none for an instance never started.
+pub fn played(instance: &Instance) -> Option<String> {
+    if instance.play_seconds == 0 && instance.last_played.is_none() {
+        return None;
+    }
+    let minutes = instance.play_seconds / 60;
+    let total = match minutes {
+        0 => t!("time.under_minute"),
+        1..60 => t!("time.minutes", m = minutes),
+        _ => t!("time.hours_minutes", h = minutes / 60, m = minutes % 60),
+    };
+    let last = instance
+        .last_played
+        .as_deref()
+        .and_then(riven_launch::parse_rfc3339)
+        .map(|secs| super::time::ago(std::time::UNIX_EPOCH + Duration::from_secs(secs)));
+    Some(match last {
+        Some(last) => t!("launch.played_last", total = total, last = last).into(),
+        None => t!("launch.played", total = total).into(),
+    })
+}
+
 fn selected_account(st: &AppState) -> Option<Account> {
     st.settings
         .selected_account
@@ -133,6 +155,7 @@ fn status(
     phase: Option<Phase>,
     notice: Option<SharedString>,
     pack: Option<String>,
+    played: Option<String>,
     window: &mut Window,
     cx: &mut App,
 ) -> AnyElement {
@@ -144,9 +167,10 @@ fn status(
             .truncate()
             .child(text)
     };
-    let idle = match &pack {
-        Some(version) => line(format!("{version} — {}", t!("launch.pack_current")), c.ok),
-        None => line(t!("launch.no_pack").to_string(), c.muted),
+    let idle = match (&pack, played) {
+        (Some(version), _) => line(format!("{version} — {}", t!("launch.pack_current")), c.ok),
+        (None, Some(played)) => line(played, c.muted),
+        (None, None) => div(),
     };
     let Some(phase) = phase else {
         return idle.into_any_element();
@@ -243,7 +267,16 @@ fn play_button(
             .size(ButtonSize::Lg)
             .icon(IconName::Stop)
             .label(t!("launch.stop"))
-            .on_click(move |_, _, cx| state.update(cx, |s, cx| s.stop(&id, cx)))
+            .on_click(move |_, _, cx| {
+                let (state, id) = (state.clone(), id.clone());
+                super::dialogs::confirm(
+                    t!("confirm.stop_title"),
+                    t!("confirm.stop_body"),
+                    t!("launch.stop"),
+                    move |_, cx| state.update(cx, |s, cx| s.stop(&id, cx)),
+                    cx,
+                );
+            })
             .into_any_element(),
         _ => Button::new("play")
             .primary()
@@ -275,7 +308,7 @@ pub fn render(
     let session = st.sessions.get(id);
     let phase = session.map(|s| s.phase.clone());
     let notice = session.and_then(|s| s.notice.clone());
-    let status = status(id, phase, notice, pack, window, cx);
+    let status = status(id, phase, notice, pack, played(&instance), window, cx);
     let st = state.read(cx);
     let session = st.sessions.get(id);
     let button = play_button(state, id, session, account.clone(), cx);
@@ -425,7 +458,8 @@ fn accounts_panel(
                     let id = a.id.clone();
                     let select = state.clone();
                     let remove_id = a.id.clone();
-                    let remove = state.clone();
+                    let remove_name = a.name.clone();
+                    let dismiss = popover.clone();
                     let hover = ui::motion::hover(("account-hover", i), window, cx);
                     let bg = ui::motion::animate(
                         ("account-bg", i),
@@ -492,10 +526,14 @@ fn accounts_panel(
                                         .size(ButtonSize::Xs)
                                         .icon(IconName::Trash)
                                         .tooltip(t!("accounts.remove"))
-                                        .on_click(move |_, _, cx| {
+                                        .on_click(move |_, window, cx| {
                                             cx.stop_propagation();
-                                            let id = remove_id.clone();
-                                            remove.update(cx, |s, cx| s.remove_account(&id, cx));
+                                            dismiss.update(cx, |p, cx| p.dismiss(window, cx));
+                                            super::dialogs::confirm_remove_account(
+                                                remove_id.clone(),
+                                                remove_name.clone(),
+                                                cx,
+                                            );
                                         }),
                                 )
                             }
