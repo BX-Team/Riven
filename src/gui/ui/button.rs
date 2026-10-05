@@ -52,6 +52,7 @@ impl ButtonSize {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Variant {
     Primary,
+    Danger,
     Outline,
     Ghost,
 }
@@ -92,6 +93,12 @@ impl Button {
 
     pub fn primary(mut self) -> Self {
         self.variant = Variant::Primary;
+        self
+    }
+
+    /// A filled red button for actions that destroy something.
+    pub fn danger(mut self) -> Self {
+        self.variant = Variant::Danger;
         self
     }
 
@@ -165,19 +172,21 @@ impl RenderOnce for Button {
         let c = cx.theme().colors;
         let size = self.size;
         let square = self.label.is_none() && self.children.is_empty();
-        let primary = self.variant == Variant::Primary;
+        let primary = matches!(self.variant, Variant::Primary | Variant::Danger);
         let enabled = !self.disabled;
         let key = format!("button:{}", self.id);
         let hover = motion::hover(SharedString::from(format!("{key}:hover")), window, cx);
         let hovered = hover.on && enabled;
         let fg = match self.variant {
             Variant::Primary => c.on_accent,
+            Variant::Danger => gpui_kit::white(),
             _ if self.selected || hovered => c.text,
             Variant::Outline if !square => c.text,
             _ => c.muted,
         };
         let bg = match self.variant {
             Variant::Primary => c.accent,
+            Variant::Danger => crate::gui::theme::danger(),
             _ if self.selected => c.sel,
             _ if hovered => c.row,
             _ => c.row.opacity(0.),
@@ -212,7 +221,7 @@ impl RenderOnce for Button {
                 }
             })
             .map(|b| match self.variant {
-                Variant::Primary => b
+                Variant::Primary | Variant::Danger => b
                     .opacity(lift)
                     .font_weight(if size == ButtonSize::Lg {
                         W_HEAVY

@@ -1,23 +1,24 @@
 use std::path::{Path, PathBuf};
 
-use gpui_kit::base::input::{InputEvent, InputState};
+use gpui_kit::base::input::{InputEvent, InputState, TextareaState};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
     AnyElement, App, AppContext as _, ClipboardItem, Context, Entity, FontWeight,
     InteractiveElement as _, IntoElement, ParentElement as _, Render, SharedString,
     StatefulInteractiveElement as _, Styled as _, Subscription, Window, div, px,
 };
-use riven_format::{AccountKind, JavaChoice, Settings as Prefs, ThemeMode};
+use riven_format::{AccountKind, Settings as Prefs, ThemeMode};
 use rust_i18n::t;
 
 use super::app::{SIDEBAR_WIDTH, nav_row};
+use super::java_picker::JavaPicker;
 use super::launch_bar::initials;
 use super::runtime;
 use super::state::AppState;
 use super::theme::{self, ActiveTheme as _};
 use super::ui::{
-    self, Button, ButtonSize, Dropdown, IconName, MenuItem, Section, Switch, TextField, W_SEMIBOLD,
-    caption, h_flex, icon, setting_row, tile, v_flex,
+    self, Button, ButtonSize, Dropdown, IconName, MenuItem, Section, Switch, TextArea, TextField,
+    W_SEMIBOLD, caption, h_flex, icon, setting_block, setting_row, tile, v_flex,
 };
 
 const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
@@ -60,7 +61,6 @@ impl Page {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Text {
-    JavaPath,
     JvmArgs,
     MemoryMin,
     MemoryMax,
@@ -71,13 +71,11 @@ enum Text {
     PostExit,
 }
 
-const TEXTS: [Text; 9] = [
-    Text::JavaPath,
+const FIELDS: [Text; 4] = [Text::MemoryMin, Text::MemoryMax, Text::Width, Text::Height];
+
+/// Settings that can grow long, edited in multi-line fields.
+const AREAS: [Text; 4] = [
     Text::JvmArgs,
-    Text::MemoryMin,
-    Text::MemoryMax,
-    Text::Width,
-    Text::Height,
     Text::PreLaunch,
     Text::Wrapper,
     Text::PostExit,
@@ -88,10 +86,6 @@ impl Text {
         let l = &s.launch;
         let opt = |v: &Option<String>| v.clone().unwrap_or_default();
         match self {
-            Text::JavaPath => match &l.java {
-                JavaChoice::Auto => String::new(),
-                JavaChoice::Path { path } => path.clone(),
-            },
             Text::JvmArgs => l.jvm_args.join(" "),
             Text::MemoryMin => l.memory.min.to_string(),
             Text::MemoryMax => l.memory.max.to_string(),
@@ -108,12 +102,6 @@ impl Text {
         let number = |fallback: u32| value.parse().unwrap_or(fallback);
         let opt = || (!value.is_empty()).then(|| value.to_owned());
         match self {
-            Text::JavaPath if value.is_empty() => l.java = JavaChoice::Auto,
-            Text::JavaPath => {
-                l.java = JavaChoice::Path {
-                    path: value.to_owned(),
-                }
-            }
             Text::JvmArgs => l.jvm_args = value.split_whitespace().map(str::to_owned).collect(),
             Text::MemoryMin => l.memory.min = number(l.memory.min),
             Text::MemoryMax => l.memory.max = number(l.memory.max),
@@ -235,6 +223,8 @@ fn human_size(bytes: u64) -> String {
 pub struct SettingsView {
     page: Page,
     fields: Vec<(Text, Entity<InputState>)>,
+    areas: Vec<(Text, Entity<TextareaState>)>,
+    java: Entity<JavaPicker>,
     sizes: Option<Vec<(Folder, u64)>>,
     _subs: Vec<Subscription>,
 }
@@ -256,16 +246,9 @@ impl SettingsView {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let mut fields = Vec::new();
         let mut subs = Vec::new();
-        for kind in TEXTS {
+        for kind in FIELDS {
             let value = kind.read(prefs(cx));
-            let input = cx.new(|cx| {
-                let s = InputState::new(window, cx).default_value(value);
-                match kind {
-                    Text::JavaPath => s.placeholder(t!("settings.java_auto").to_string()),
-                    Text::Wrapper => s.placeholder("mangohud"),
-                    _ => s,
-                }
-            });
+            let input = cx.new(|cx| InputState::new(window, cx).default_value(value));
             subs.push(cx.subscribe(&input, move |_, input, event, cx| {
                 if let InputEvent::Blur | InputEvent::PressEnter { .. } = event {
                     let value = input.read(cx).value().trim().to_string();
@@ -274,12 +257,47 @@ impl SettingsView {
             }));
             fields.push((kind, input));
         }
+        let mut areas = Vec::new();
+        for kind in AREAS {
+            let lines = if kind == Text::Wrapper {
+                (1, 3)
+            } else {
+                (3, 12)
+            };
+            let area = ui::textarea(kind.read(prefs(cx)), lines, window, cx);
+            subs.push(cx.subscribe(&area, move |_, area, event, cx| {
+                if let InputEvent::Blur = event {
+                    let value = area.read(cx).value().trim().to_string();
+                    write(cx, |s| kind.write(&value, s));
+                }
+            }));
+            areas.push((kind, area));
+        }
+        subs.push(cx.observe(&AppState::global(cx), |_, _, cx| cx.notify()));
+        let java = JavaPicker::new(
+            "settings-java",
+            prefs(cx).launch.java.clone(),
+            None,
+            |choice, cx| write(cx, |s| s.launch.java = choice),
+            cx,
+        );
         Self {
             page: Page::General,
             fields,
+            areas,
+            java,
             sizes: None,
             _subs: subs,
         }
+    }
+
+    fn area(&self, kind: Text) -> &Entity<TextareaState> {
+        &self
+            .areas
+            .iter()
+            .find(|(k, _)| *k == kind)
+            .expect("every long setting has an area")
+            .1
     }
 
     fn field(&self, kind: Text) -> &Entity<InputState> {
@@ -476,18 +494,16 @@ impl SettingsView {
     fn java(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         vec![
             Section::new()
-                .row(setting_row(
+                .row(setting_block(
                     t!("settings.java_path").to_string(),
                     Some(t!("settings.java_path_hint").into()),
-                    TextField::new(self.field(Text::JavaPath))
-                        .mono()
-                        .w(px(260.)),
+                    self.java.clone(),
                     cx,
                 ))
-                .row(setting_row(
+                .row(setting_block(
                     t!("settings.jvm_args").to_string(),
                     Some(t!("settings.jvm_args_hint").into()),
-                    TextField::new(self.field(Text::JvmArgs)).mono().w(px(260.)),
+                    TextArea::new(self.area(Text::JvmArgs)),
                     cx,
                 ))
                 .into_any_element(),
@@ -537,26 +553,22 @@ impl SettingsView {
                 .into_any_element(),
             group_title(t!("instance_settings.commands").into(), cx),
             Section::new()
-                .row(setting_row(
+                .row(setting_block(
                     t!("instance_settings.pre_launch").to_string(),
                     Some(t!("settings.pre_launch_hint").into()),
-                    TextField::new(self.field(Text::PreLaunch))
-                        .mono()
-                        .w(px(260.)),
+                    TextArea::new(self.area(Text::PreLaunch)),
                     cx,
                 ))
-                .row(setting_row(
+                .row(setting_block(
                     t!("instance_settings.wrapper").to_string(),
                     Some(t!("settings.wrapper_hint").into()),
-                    TextField::new(self.field(Text::Wrapper)).mono().w(px(260.)),
+                    TextArea::new(self.area(Text::Wrapper)),
                     cx,
                 ))
-                .row(setting_row(
+                .row(setting_block(
                     t!("instance_settings.post_exit").to_string(),
                     Some(t!("settings.post_exit_hint").into()),
-                    TextField::new(self.field(Text::PostExit))
-                        .mono()
-                        .w(px(260.)),
+                    TextArea::new(self.area(Text::PostExit)),
                     cx,
                 ))
                 .into_any_element(),
@@ -586,6 +598,7 @@ impl SettingsView {
             let is_active = active.as_deref() == Some(a.id.as_str());
             let select_id = a.id.clone();
             let remove_id = a.id.clone();
+            let remove_name = a.name.clone();
             let kind = match a.kind {
                 AccountKind::Microsoft => t!("accounts.microsoft"),
                 AccountKind::Offline => t!("accounts.offline"),
@@ -635,8 +648,11 @@ impl SettingsView {
                             .icon(IconName::Trash)
                             .tooltip(t!("accounts.remove"))
                             .on_click(move |_, _, cx| {
-                                let id = remove_id.clone();
-                                AppState::global(cx).update(cx, |s, cx| s.remove_account(&id, cx));
+                                super::dialogs::confirm_remove_account(
+                                    remove_id.clone(),
+                                    remove_name.clone(),
+                                    cx,
+                                )
                             }),
                     ),
             );
@@ -667,6 +683,7 @@ impl SettingsView {
         let theme = cx.theme();
         let c = theme.colors;
         let mono = theme.mono.clone();
+        let view = cx.entity().downgrade();
         let mut section = Section::new();
         for folder in FOLDERS {
             let path = folder.path();
@@ -716,10 +733,23 @@ impl SettingsView {
                             ),
                     )
                     .when(folder == Folder::Cache, |row| {
+                        let view = view.clone();
                         row.child(
                             Button::new("clear-cache")
                                 .label(t!("folders.clear"))
-                                .on_click(cx.listener(|this, _, _, cx| this.clear_cache(cx))),
+                                .on_click(move |_, _, cx| {
+                                    let view = view.clone();
+                                    super::dialogs::confirm(
+                                        t!("confirm.clear_cache_title"),
+                                        t!("confirm.clear_cache_body"),
+                                        t!("folders.clear"),
+                                        move |_, cx| {
+                                            let _ =
+                                                view.update(cx, |this, cx| this.clear_cache(cx));
+                                        },
+                                        cx,
+                                    );
+                                }),
                         )
                     })
                     .child(

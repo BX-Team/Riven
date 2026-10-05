@@ -7,6 +7,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+dirs.workspace = true
 hex.workspace = true
 lighty-launcher.workspace = true
 md-5 = "0.11"

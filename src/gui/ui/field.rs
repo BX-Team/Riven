@@ -1,5 +1,5 @@
 use gpui_kit::base::StyledExt as _;
-use gpui_kit::base::input::{Input, InputState};
+use gpui_kit::base::input::{Input, InputState, Textarea, TextareaState};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
     App, Entity, Focusable as _, InteractiveElement as _, IntoElement, MouseButton,
@@ -14,7 +14,6 @@ use crate::gui::theme::ActiveTheme as _;
 pub struct TextField {
     state: Entity<InputState>,
     leading: Option<IconName>,
-    mono: bool,
     style: StyleRefinement,
 }
 
@@ -23,18 +22,12 @@ impl TextField {
         Self {
             state: state.clone(),
             leading: None,
-            mono: false,
             style: StyleRefinement::default(),
         }
     }
 
     pub fn leading(mut self, icon: IconName) -> Self {
         self.leading = Some(icon);
-        self
-    }
-
-    pub fn mono(mut self) -> Self {
-        self.mono = true;
         self
     }
 }
@@ -47,9 +40,7 @@ impl Styled for TextField {
 
 impl RenderOnce for TextField {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let theme = cx.theme();
-        let c = theme.colors;
-        let mono = theme.mono.clone();
+        let c = cx.theme().colors;
         let focus = self.state.read(cx).focus_handle(cx);
         let focused = focus.is_focused(window);
         let border = motion::animate(
@@ -80,9 +71,70 @@ impl RenderOnce for TextField {
                     .min_w_0()
                     .h(px(18.))
                     .line_height(px(18.))
-                    .when(self.mono, |d| d.font_family(mono).text_size(px(12.)))
                     .child(Input::new(&self.state)),
             )
             .refine_style(&self.style)
     }
+}
+
+/// A bordered multi-line field that grows with its text, for commands and JVM arguments.
+#[derive(IntoElement)]
+pub struct TextArea {
+    state: Entity<TextareaState>,
+}
+
+impl TextArea {
+    pub fn new(state: &Entity<TextareaState>) -> Self {
+        Self {
+            state: state.clone(),
+        }
+    }
+}
+
+impl RenderOnce for TextArea {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let theme = cx.theme();
+        let c = theme.colors;
+        let mono = theme.mono.clone();
+        let focus = self.state.read(cx).focus_handle(cx);
+        let focused = focus.is_focused(window);
+        let border = motion::animate(
+            ("area-border", self.state.entity_id().as_u64() as usize),
+            if focused { c.accent } else { c.border },
+            window,
+            cx,
+        );
+        div()
+            .w_full()
+            .px(px(10.))
+            .py(px(6.))
+            .rounded(px(6.))
+            .border_1()
+            .border_color(border)
+            .bg(c.bg)
+            .text_color(c.text)
+            .font_family(mono)
+            .text_size(px(12.))
+            .line_height(px(18.))
+            .cursor_text()
+            .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                focus.focus(window, cx);
+            })
+            .child(Textarea::new(&self.state))
+    }
+}
+
+/// A multi-line input state that shows `min` lines and grows with its text to `max`.
+pub fn textarea(
+    value: String,
+    (min, max): (usize, usize),
+    window: &mut Window,
+    cx: &mut App,
+) -> Entity<TextareaState> {
+    use gpui_kit::AppContext as _;
+    cx.new(|cx| {
+        TextareaState::new(window, cx)
+            .auto_grow(min, max)
+            .default_value(value)
+    })
 }

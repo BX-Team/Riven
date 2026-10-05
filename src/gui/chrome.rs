@@ -110,7 +110,7 @@ pub fn title_bar(actions: AnyElement, window: &mut Window, cx: &mut App) -> AnyE
                 .child(control(
                     Control::Close,
                     c.text2,
-                    hsla(355. / 360., 0.75, 0.52, 1.),
+                    super::theme::danger(),
                     window,
                     cx,
                 ))

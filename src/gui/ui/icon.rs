@@ -9,7 +9,10 @@ pub enum IconName {
     Close,
     Code,
     Compass,
+    Copy,
+    Folder,
     Loader,
+    More,
     Package,
     Play,
     Plus,
@@ -25,7 +28,34 @@ pub enum IconName {
 }
 
 impl IconName {
-    fn path(self) -> &'static str {
+    #[cfg(test)]
+    pub const ALL: [IconName; 23] = [
+        IconName::ArrowLeft,
+        IconName::Check,
+        IconName::ChevronDown,
+        IconName::ChevronUp,
+        IconName::Close,
+        IconName::Code,
+        IconName::Compass,
+        IconName::Copy,
+        IconName::Folder,
+        IconName::Loader,
+        IconName::More,
+        IconName::Package,
+        IconName::Play,
+        IconName::Plus,
+        IconName::Search,
+        IconName::Settings,
+        IconName::Stop,
+        IconName::Terminal,
+        IconName::Trash,
+        IconName::WindowClose,
+        IconName::WindowMaximize,
+        IconName::WindowMinimize,
+        IconName::WindowRestore,
+    ];
+
+    pub(crate) fn path(self) -> &'static str {
         match self {
             Self::ArrowLeft => "icons/arrow-left.svg",
             Self::Check => "icons/check.svg",
@@ -34,7 +64,10 @@ impl IconName {
             Self::Close => "icons/close.svg",
             Self::Code => "icons/code.svg",
             Self::Compass => "icons/compass.svg",
+            Self::Copy => "icons/copy.svg",
+            Self::Folder => "icons/folder.svg",
             Self::Loader => "icons/loader.svg",
+            Self::More => "icons/more.svg",
             Self::Package => "icons/package.svg",
             Self::Play => "icons/play.svg",
             Self::Plus => "icons/plus.svg",

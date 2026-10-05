@@ -2,11 +2,12 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use gpui_kit::base::input::{InputEvent, InputState};
+use gpui_kit::base::{Popover, box_shadow};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
-    AppContext as _, Context, Entity, FontWeight, InteractiveElement as _, IntoElement,
+    Anchor, AppContext as _, Context, Entity, FontWeight, InteractiveElement as _, IntoElement,
     ParentElement as _, Render, SharedString, StatefulInteractiveElement as _, Styled as _,
-    Subscription, UniformListScrollHandle, Window, div, img, px, uniform_list,
+    Subscription, UniformListScrollHandle, Window, div, hsla, img, px, uniform_list,
 };
 use rust_i18n::t;
 
@@ -16,9 +17,12 @@ use super::instance_settings::InstanceSettings;
 use super::logs::LogsView;
 use super::mods::{self, ModsTable, SortBy};
 use super::runtime;
+use super::state::AppState;
 use super::theme::ActiveTheme as _;
 use super::time;
-use super::ui::{Button, IconName, Tabs, TextField, h_flex, icon, motion, scrollbar, v_flex};
+use super::ui::{
+    Button, IconName, Tabs, TextField, UiText as _, h_flex, icon, motion, scrollbar, v_flex,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Tab {
@@ -175,6 +179,11 @@ impl InstanceView {
         let c = cx.theme().colors;
         let selected = TABS.iter().position(|t| *t == self.tab).unwrap_or(0);
         let view = cx.entity().downgrade();
+        let name: SharedString = AppState::global(cx)
+            .read(cx)
+            .instance(&self.id)
+            .map(|i| i.name.clone().into())
+            .unwrap_or_else(|| self.name.clone());
         h_flex()
             .flex_none()
             .gap(px(12.))
@@ -193,7 +202,7 @@ impl InstanceView {
                         div()
                             .font_weight(FontWeight::BOLD)
                             .truncate()
-                            .child(self.name.clone()),
+                            .child(name.clone()),
                     )
                     .children(
                         self.version
@@ -211,6 +220,11 @@ impl InstanceView {
                         cx.notify();
                     });
                 },
+            ))
+            .child(actions_menu(
+                self.id.clone(),
+                name.to_string(),
+                self.game_dir.clone(),
             ))
     }
 
@@ -432,5 +446,120 @@ impl Render for InstanceView {
                 window,
                 cx,
             ))
+    }
+}
+
+/// The "⋯" menu of an instance: its folder, a copy, deletion.
+fn actions_menu(id: String, name: String, game_dir: PathBuf) -> impl IntoElement {
+    let trigger = Button::new("instance-actions")
+        .ghost()
+        .icon(IconName::More)
+        .tooltip(t!("instance.actions"));
+    Popover::new("instance-actions-menu")
+        .anchor(Anchor::TopRight)
+        .offset(px(4.))
+        .trigger(trigger)
+        .content(move |_, window, cx| {
+            let c = cx.theme().colors;
+            let popover = cx.entity();
+            let busy = AppState::global(cx)
+                .read(cx)
+                .sessions
+                .get(&id)
+                .is_some_and(super::session::Session::busy);
+            let items: Vec<(IconName, SharedString, bool, ItemAction)> = vec![
+                (
+                    IconName::Folder,
+                    t!("instance.open_folder").into(),
+                    false,
+                    ItemAction::Folder(game_dir.clone()),
+                ),
+                (
+                    IconName::Copy,
+                    t!("instance.duplicate").into(),
+                    false,
+                    ItemAction::Duplicate(id.clone()),
+                ),
+                (
+                    IconName::Trash,
+                    t!("instance.delete").into(),
+                    busy,
+                    ItemAction::Delete(id.clone(), name.clone()),
+                ),
+            ];
+            let rows: Vec<_> = items
+                .into_iter()
+                .enumerate()
+                .map(|(i, (glyph, label, disabled, action))| {
+                    let danger = matches!(action, ItemAction::Delete(..));
+                    let hover = motion::hover(("action-hover", i), window, cx);
+                    let bg = motion::animate(
+                        ("action-bg", i),
+                        if hover.on && !disabled {
+                            c.row
+                        } else {
+                            c.row.opacity(0.)
+                        },
+                        window,
+                        cx,
+                    );
+                    let ink = if danger {
+                        super::theme::danger()
+                    } else {
+                        c.text2
+                    };
+                    let popover = popover.clone();
+                    hover
+                        .track(h_flex().id(i))
+                        .h(px(30.))
+                        .px(px(8.))
+                        .gap(px(10.))
+                        .rounded(px(6.))
+                        .bg(bg)
+                        .text_color(ink)
+                        .when(disabled, |r| r.opacity(0.5))
+                        .when(!disabled, |r| {
+                            r.cursor_pointer().on_click(move |_, window, cx| {
+                                popover.update(cx, |p, cx| p.dismiss(window, cx));
+                                action.run(cx);
+                            })
+                        })
+                        .child(icon(glyph, ink))
+                        .child(label)
+                })
+                .collect();
+            let list = v_flex()
+                .ui_text(cx)
+                .w(px(220.))
+                .p(px(4.))
+                .gap(px(2.))
+                .rounded(px(8.))
+                .border_1()
+                .border_color(c.border)
+                .bg(c.panel)
+                .shadow(vec![box_shadow(0., 12., 32., 0., hsla(0., 0., 0., 0.35))])
+                .children(rows);
+            motion::enter("actions-in", list, -6., window, cx)
+        })
+}
+
+#[derive(Clone)]
+enum ItemAction {
+    Folder(PathBuf),
+    Duplicate(String),
+    Delete(String, String),
+}
+
+impl ItemAction {
+    fn run(&self, cx: &mut gpui_kit::App) {
+        match self {
+            ItemAction::Folder(dir) => cx.open_with_system(dir),
+            ItemAction::Duplicate(id) => {
+                AppState::global(cx).update(cx, |s, cx| s.duplicate_instance(id, cx))
+            }
+            ItemAction::Delete(id, name) => {
+                super::instance_settings::confirm_delete(id.clone(), name.clone(), cx)
+            }
+        }
     }
 }

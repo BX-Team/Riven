@@ -1,6 +1,7 @@
 pub mod accounts;
 pub mod game;
 pub mod instances;
+pub mod java;
 pub mod mods;
 
 use std::path::{Path, PathBuf};
@@ -99,6 +100,21 @@ pub fn now_rfc3339() -> String {
     rfc3339(secs)
 }
 
+/// Seconds since the Unix epoch for `2026-10-07T14:03:00Z`; offsets other than `Z` are ignored.
+pub fn parse_rfc3339(text: &str) -> Option<u64> {
+    let num = |range: std::ops::Range<usize>| text.get(range)?.parse::<i64>().ok();
+    let (year, month, day) = (num(0..4)?, num(5..7)?, num(8..10)?);
+    let (hour, minute, second) = (num(11..13)?, num(14..16)?, num(17..19)?);
+    let y = if month <= 2 { year - 1 } else { year };
+    let era = y.div_euclid(400);
+    let yoe = y.rem_euclid(400);
+    let mp = (month + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146_097 + doe - 719_468;
+    u64::try_from(days * 86_400 + hour * 3600 + minute * 60 + second).ok()
+}
+
 fn rfc3339(secs: u64) -> String {
     let days = (secs / 86_400) as i64;
     let rem = secs % 86_400;
@@ -173,5 +189,13 @@ mod tests {
         assert_eq!(super::rfc3339(0), "1970-01-01T00:00:00Z");
         assert_eq!(super::rfc3339(951_782_400), "2000-02-29T00:00:00Z");
         assert_eq!(super::rfc3339(1_791_381_780), "2026-10-07T14:03:00Z");
+    }
+
+    #[test]
+    fn rfc3339_parses_back() {
+        for secs in [0, 951_782_400, 1_791_381_780, 4_102_444_799] {
+            assert_eq!(super::parse_rfc3339(&super::rfc3339(secs)), Some(secs));
+        }
+        assert_eq!(super::parse_rfc3339("not a date"), None);
     }
 }
