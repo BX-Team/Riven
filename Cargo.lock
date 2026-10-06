@@ -5760,6 +5760,8 @@ dependencies = [
  "hex",
  "junction",
  "md-5 0.11.0",
+ "percent-encoding",
+ "reqwest",
  "riven-format",
  "riven-game",
  "riven-resolve",
@@ -5772,6 +5774,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+ "url",
 ]
 
 [[package]]

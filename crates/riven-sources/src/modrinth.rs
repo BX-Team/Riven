@@ -97,9 +97,10 @@ impl Modrinth {
         Ok(pages.into_iter().flatten().collect())
     }
 
-    /// Versions owning files with the given sha512 hashes; unknown hashes are absent.
-    pub async fn versions_by_sha512(&self, hashes: &[String]) -> Result<HashMap<String, Version>> {
-        self.versions_by_hash("sha512", hashes).await
+    /// A project's page: its long description, categories, license and links.
+    pub async fn page(&self, id: &str) -> Result<ProjectPage> {
+        let page: ApiPage = self.get(&self.url(&format!("project/{id}"), &[])).await?;
+        Ok(page.into())
     }
 
     /// Versions owning files with the given `sha1` or `sha512` hashes, keyed by hash.
@@ -272,6 +273,84 @@ impl From<ApiHit> for Hit {
             author: hit.author,
             downloads: hit.downloads,
             icon_url: hit.icon_url.filter(|u| !u.is_empty()),
+        }
+    }
+}
+
+/// What a project page shows about it beyond a search hit.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProjectPage {
+    pub slug: String,
+    pub categories: Vec<String>,
+    pub license: Option<String>,
+    pub downloads: u64,
+    pub followers: u64,
+    /// RFC 3339.
+    pub updated: String,
+    pub client: Support,
+    pub server: Support,
+    /// `(label, url)` of the source, issue tracker, wiki and Discord, where given.
+    pub links: Vec<(&'static str, String)>,
+    /// The long description, in Markdown.
+    pub body: String,
+}
+
+#[derive(Deserialize)]
+struct ApiLicense {
+    #[serde(default)]
+    id: String,
+    #[serde(default)]
+    name: String,
+}
+
+#[derive(Deserialize)]
+struct ApiPage {
+    slug: String,
+    #[serde(default)]
+    categories: Vec<String>,
+    license: Option<ApiLicense>,
+    #[serde(default)]
+    downloads: u64,
+    #[serde(default)]
+    followers: u64,
+    #[serde(default)]
+    updated: String,
+    client_side: String,
+    server_side: String,
+    source_url: Option<String>,
+    issues_url: Option<String>,
+    wiki_url: Option<String>,
+    discord_url: Option<String>,
+    #[serde(default)]
+    body: String,
+}
+
+impl From<ApiPage> for ProjectPage {
+    fn from(page: ApiPage) -> Self {
+        let links = [
+            ("source", page.source_url),
+            ("issues", page.issues_url),
+            ("wiki", page.wiki_url),
+            ("discord", page.discord_url),
+        ]
+        .into_iter()
+        .filter_map(|(label, url)| Some((label, url.filter(|u| !u.is_empty())?)))
+        .collect();
+        let license = page.license.and_then(|l| {
+            let text = if l.name.is_empty() { l.id } else { l.name };
+            (!text.is_empty()).then_some(text)
+        });
+        Self {
+            slug: page.slug,
+            categories: page.categories,
+            license,
+            downloads: page.downloads,
+            followers: page.followers,
+            updated: page.updated,
+            client: support(&page.client_side),
+            server: support(&page.server_side),
+            links,
+            body: page.body,
         }
     }
 }

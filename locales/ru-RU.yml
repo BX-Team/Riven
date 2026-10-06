@@ -3,8 +3,6 @@ common:
   coming_soon: Скоро
   close: Закрыть
 titlebar:
-  search: Поиск
-  browse: Обзор паков
   developer: Режим разработчика
 sidebar:
   instances: Инстансы
@@ -34,6 +32,18 @@ mods:
   search: Поиск модов
   search_count: "Поиск среди %{n} модов"
   reading: Читаю файлы…
+  locked: Моды задаёт пак; свои моды можно разрешить в настройках инстанса
+  add: Добавить
+  needs_loader: В ванильный инстанс моды не ставятся; выберите загрузчик в настройках
+  check_updates: Проверить обновления
+  checking_updates: Проверяю…
+  update_n: "Обновить %{n}"
+  updating: Обновляю…
+  up_to_date: Ваши моды актуальны
+  updated: "Обновлено модов: %{n}"
+  from_pack: Мод пака
+  delete: Удалить
+  own: свой
 time:
   today: сегодня
   yesterday: вчера
@@ -62,6 +72,7 @@ launch:
     starting: Запуск игры
   played: "Наиграно %{total}"
   played_last: "Наиграно %{total} · последний запуск %{last}"
+  replaced: "Пак теперь сам содержит %{names}; ваши копии удалены"
 accounts:
   bad_name: "3–16 латинских букв, цифр или _"
   player_name: Ник игрока
@@ -160,6 +171,8 @@ instance_settings:
   loader_build: "%{loader} %{version} — самая свежая сборка для этой версии"
   played: Время в игре
   never_played: Ещё не запускался
+  own_mods: Свои моды
+  own_mods_hint: Добавляйте моды поверх пака. Моды пака по-прежнему обновляются вместе с ним.
 folders:
   instances: Инстансы
   store: Хранилище файлов
@@ -203,6 +216,11 @@ confirm:
   clear_cache_body: Ответы Modrinth и иконки скачаются заново, когда понадобятся.
   delete_instance_title: "Удалить %{name}?"
   delete_instance_body: "Папка инстанса удалится вместе с мирами, конфигами и скриншотами. Отменить это нельзя."
+  delete_mod_title: "Удалить %{name}?"
+  delete_mod_body: Файл добавлен вручную, поэтому лаунчер не сможет скачать его снова.
+  unlock_title: Разрешить свои моды?
+  unlock_body: "Ваши моды могут конфликтовать с паком, и автор пака их не поддерживает. Если обновление пака принесёт такой же мод, ваша копия заменится версией пака."
+  unlock_action: Разрешить
 java:
   auto: Автоматически
   auto_hint: Riven сам скачает Java, нужную этой версии Minecraft
@@ -214,3 +232,23 @@ java:
   fits: Подходит
   needs: "Нужна Java %{major}"
   not_java: "%{path} — не рабочая Java"
+add_mods:
+  title: Добавить моды
+  description: "Minecraft %{minecraft} · %{loader}; зависимости установятся сами"
+  search: Поиск на Modrinth
+  searching: Ищу…
+  nothing: Ничего не найдено
+  install: Установить
+  installing: Устанавливаю…
+  installed: Установлен
+  already: Уже установлен
+  added: "Установлено: %{names}"
+  added_with_deps: "Установлено: %{names} и зависимостей: %{n}"
+  by_link: По ссылке
+  from_file: Из файла
+  link: Ссылка
+  link_hint: https://…/mod.jar
+  link_about: Прямая ссылка на jar мода или страница мода на Modrinth.
+  file_about: Jar-файлы с диска копируются в инстанс; обновлять их лаунчер не сможет.
+  pick: Выбрать файлы…
+  done: Готово

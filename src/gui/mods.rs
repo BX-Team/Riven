@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -9,18 +9,32 @@ use riven_sources::{Cache, Known, Modrinth};
 
 const PARALLEL_ICONS: usize = 16;
 
+/// Who put a file into `mods/`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Origin {
+    /// The instance's pack, which keeps it up to date.
+    Pack,
+    /// The player through "Add", recorded under this entry id.
+    Own(String),
+    /// Dropped into the folder by hand.
+    Manual,
+}
+
 /// One file of an instance's `mods/`, with what reading it and Modrinth told about it.
 #[derive(Clone)]
 pub struct ModRow {
     pub file: ContentFile,
+    pub origin: Origin,
     pub details: Option<Details>,
     pub title: SharedString,
     pub version: SharedString,
     pub icon: Option<PathBuf>,
+    /// The file name of a newer version, once updates were checked.
+    pub update: Option<SharedString>,
 }
 
 impl ModRow {
-    fn new(file: ContentFile) -> Self {
+    fn new(file: ContentFile, origin: Origin) -> Self {
         let stem = file
             .name
             .trim_end_matches(".jar")
@@ -28,10 +42,12 @@ impl ModRow {
             .to_owned();
         Self {
             file,
+            origin,
             details: None,
             title: stem.into(),
             version: SharedString::default(),
             icon: None,
+            update: None,
         }
     }
 }
@@ -112,13 +128,35 @@ impl ModsTable {
 
 /// Lists `mods/`, named after the files until their metadata is read.
 pub fn scan_rows(game_dir: &Path) -> Vec<ModRow> {
+    let warn = |e: &dyn std::fmt::Display| tracing::warn!("{e}");
+    let pack: HashSet<String> = riven_sync::install::load_state(game_dir)
+        .inspect_err(|e| warn(e))
+        .ok()
+        .flatten()
+        .map(|s| s.files.into_keys().map(|p| p.as_str().to_owned()).collect())
+        .unwrap_or_default();
+    let own: HashMap<String, String> = riven_launch::own::load(game_dir)
+        .inspect_err(|e| warn(e))
+        .unwrap_or_default()
+        .content
+        .into_iter()
+        .map(|e| (e.file.path.as_str().to_owned(), e.id))
+        .collect();
     riven_launch::mods::scan(game_dir, "mods")
         .unwrap_or_else(|e| {
-            tracing::warn!("{e}");
+            warn(&e);
             vec![]
         })
         .into_iter()
-        .map(ModRow::new)
+        .map(|file| {
+            let path = format!("mods/{}", file.name);
+            let origin = match own.get(&path) {
+                _ if pack.contains(&path) => Origin::Pack,
+                Some(id) => Origin::Own(id.clone()),
+                None => Origin::Manual,
+            };
+            ModRow::new(file, origin)
+        })
         .collect()
 }
 
@@ -145,7 +183,7 @@ pub struct Identified {
     pub icon: Option<PathBuf>,
 }
 
-fn cache_dir() -> Option<PathBuf> {
+pub fn cache_dir() -> Option<PathBuf> {
     riven_sync::data_dir().map(|d| d.join("cache"))
 }
 

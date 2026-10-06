@@ -1,0 +1,242 @@
+{
+  "$id": "https://raw.githubusercontent.com/BX-Team/Riven/master/schema/v1/own.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OwnContent",
+  "description": "`.riven/own.json` — content the player added to an instance; pack updates leave it alone.",
+  "type": "object",
+  "properties": {
+    "content": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Entry"
+      },
+      "default": []
+    },
+    "$schema": {
+      "type": "string"
+    },
+    "format": {
+      "const": 1
+    }
+  },
+  "required": [
+    "format"
+  ],
+  "$defs": {
+    "Entry": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/Kind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        },
+        "file": {
+          "$ref": "#/$defs/EntryFile"
+        },
+        "side": {
+          "$ref": "#/$defs/Side"
+        },
+        "group": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "update": {
+          "$ref": "#/$defs/UpdatePolicy"
+        },
+        "reason": {
+          "$ref": "#/$defs/Reason"
+        },
+        "requires": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "source",
+        "file",
+        "side",
+        "update",
+        "reason"
+      ]
+    },
+    "Kind": {
+      "type": "string",
+      "enum": [
+        "mod",
+        "resourcepack",
+        "shaderpack",
+        "datapack",
+        "file"
+      ]
+    },
+    "Source": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "project": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "modrinth"
+            }
+          },
+          "required": [
+            "type",
+            "project",
+            "version"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            },
+            "asset": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "github"
+            }
+          },
+          "required": [
+            "type",
+            "repo",
+            "tag",
+            "asset"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "url"
+            }
+          },
+          "required": [
+            "type",
+            "url"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "path": {
+              "$ref": "#/$defs/PackPath"
+            },
+            "type": {
+              "type": "string",
+              "const": "local"
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ]
+        }
+      ]
+    },
+    "PackPath": {
+      "description": "Relative POSIX path: no leading `/`, `\\`, `:`, empty, `.` or `..` components.",
+      "type": "string",
+      "minLength": 1
+    },
+    "EntryFile": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/PackPath"
+        },
+        "size": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "hashes": {
+          "$ref": "#/$defs/Hashes"
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "size",
+        "hashes"
+      ]
+    },
+    "Hashes": {
+      "description": "Hashes a source provided; the strongest present one is verified.",
+      "type": "object",
+      "properties": {
+        "sha512": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha1": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "Side": {
+      "type": "string",
+      "enum": [
+        "client",
+        "server",
+        "both"
+      ]
+    },
+    "UpdatePolicy": {
+      "type": "string",
+      "enum": [
+        "follow",
+        "pinned"
+      ]
+    },
+    "Reason": {
+      "type": "string",
+      "enum": [
+        "explicit",
+        "dependency"
+      ]
+    }
+  }
+}

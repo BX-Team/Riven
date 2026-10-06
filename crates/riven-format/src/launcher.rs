@@ -130,6 +130,9 @@ pub struct Instance {
     /// Launch groups this instance sets itself instead of inheriting the launcher's.
     #[serde(default)]
     pub overrides: LaunchOverrides,
+    /// Lets the player add their own mods to an instance installed from a pack.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub own_mods: bool,
     /// RFC 3339.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_played: Option<String>,

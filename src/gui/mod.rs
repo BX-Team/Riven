@@ -1,3 +1,4 @@
+mod add_mods;
 mod app;
 mod assets;
 mod chrome;
@@ -7,6 +8,7 @@ mod instance_settings;
 mod java_picker;
 mod launch_bar;
 mod logs;
+mod markdown;
 mod mods;
 mod runtime;
 mod session;

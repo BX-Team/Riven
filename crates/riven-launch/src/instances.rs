@@ -82,6 +82,7 @@ impl Instances {
             minecraft: minecraft.to_owned(),
             loader,
             overrides: LaunchOverrides::default(),
+            own_mods: false,
             last_played: None,
             play_seconds: 0,
         };
