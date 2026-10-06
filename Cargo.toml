@@ -66,6 +66,7 @@ cli = ["dep:clap", "dep:indicatif", "dep:console"]
 anyhow = "1"
 clap = { version = "4", features = ["derive"], optional = true }
 console = { version = "0.16", optional = true }
+dirs.workspace = true
 futures-util.workspace = true
 gpui-kit = { version = "=0.7.1", default-features = false, optional = true }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"], optional = true }

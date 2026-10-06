@@ -87,9 +87,6 @@ accounts:
   remove: Удалить аккаунт
   active: Активный
   use: Выбрать
-developer:
-  title: Разработка
-  soon: Проекты паков, содержимое и релизы появятся вместе с разделом разработки
 settings:
   general: Общие
   language: Язык
@@ -249,3 +246,95 @@ add_mods:
   file_about: Jar-файлы с диска копируются в инстанс; обновлять их лаунчер не сможет.
   pick: Выбрать файлы…
   done: Готово
+dev:
+  sections: Разделы
+  content: Содержимое
+  dependencies: Зависимости
+  groups: Группы
+  releases: Релизы
+  no_project: Нет проекта
+  recent: Недавние
+  new: Новый
+  open: Открыть папку с riven.json…
+  create: Создать проект
+  create_description: Запускает riven init в папке; берётся самая свежая сборка загрузчика для версии.
+  folder: Папка
+  no_folder: Папка не выбрана
+  choose: Выбрать…
+  pick_folder: Выберите папку проекта
+  pick_folder_first: Сначала выберите папку
+  empty_title: Проект пака не открыт
+  empty_hint: Откройте папку с riven.json или создайте проект, чтобы править содержимое пака, проверять и выпускать его.
+  filter: Фильтр содержимого
+  file: Файл
+  source: Источник
+  side: Сторона
+  group: Группа
+  no_group: Без группы
+  side_client: клиент
+  side_server: сервер
+  side_both: оба
+  side_default: Как в моде
+  source_auto: Авто
+  dependency: зависимость
+  pinned: "Закреплён: обновления его пропускают"
+  pin: Закрепить версию
+  update_one: Обновить
+  remove: Удалить
+  remove_title: Удаление
+  add: Добавить
+  add_title: Добавить содержимое
+  add_description: Slug, поиск или ссылка Modrinth, репозиторий GitHub, ссылка на файл или файл с диска — то же, что принимает riven add.
+  add_hint: "sodium, modrinth.com/mod/…, owner/repo, https://…/mod.jar"
+  add_n: "Добавить: %{n}"
+  resolve: Найти
+  resolving: Ищу…
+  ambiguous: Подходит несколько проектов — выберите один
+  apply: Применить
+  preview_hint: Ничего не запишется, пока вы не примените изменения.
+  updates_title: Обновления
+  check_updates: Проверить обновления
+  checking_updates: Проверяю…
+  update_n: "Обновления: %{n}"
+  up_to_date: Всё актуально
+  nothing_to_do: Менять нечего
+  check: Проверка
+  checking: Читаю метаданные jar…
+  check_clean: "Записей: %{n}, проблем нет"
+  recheck: Проверить заново
+  log: Лог тестового запуска
+  files: Файлы
+  new_file: Новый файл
+  new_folder: Новая папка
+  new_path_hint: "Путь внутри overrides/: common/ попадает на обе стороны, client/ и server/ — на одну."
+  delete_file_title: "Удалить %{name}?"
+  delete_file_body: Он удалится из папки проекта; git вернёт его, если он был закоммичен.
+  discard_title: "Закрыть %{name} без сохранения?"
+  discard_body: Изменения в этом файле пропадут.
+  discard: Не сохранять
+  save: Сохранить
+  save_hint: Сохранить (Ctrl+S)
+  saved: "Сохранено: %{name}"
+  read_only: Меняется через разделы, а не руками
+  groups_hint: Необязательные части пака, которые игрок включает или выключает при установке.
+  groups_none: Групп пока нет. Добавьте группу и распределите в неё записи через меню в «Содержимом».
+  group_add: Добавить группу
+  group_edit: Изменить группу
+  group_id: Id
+  group_name: Название
+  group_description: Описание
+  group_default: Включена по умолчанию
+  group_bad_id: В id допустимы строчные латинские буквы, цифры, - и _
+  group_empty: Записей пока нет
+  group_members: "Записей: %{n} — %{names}"
+  group_remove_title: "Удалить группу %{name}?"
+  group_remove_body: Её записи останутся в паке и будут ставиться всем.
+  dependencies_hint: Что тянет за собой каждая добавленная запись; выберите запись, чтобы узнать, почему она здесь.
+  orphans: Никому не нужны
+  why_pick: Выберите запись, чтобы узнать, почему она в паке.
+  why_explicit: Добавлена явно
+  why_dependency: Добавлена как зависимость
+  why_paths: Кто её тянет
+  why_orphan: Её больше ничто не требует
+  why_needed_by: Нужна для
+  why_needs: Требует
