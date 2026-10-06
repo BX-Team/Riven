@@ -42,6 +42,10 @@ pub enum Progress {
     Updated {
         version: String,
     },
+    /// The pack now ships these mods the player had added; their copies were removed.
+    Replaced {
+        names: Vec<String>,
+    },
     /// The pack could not be checked; the game starts with what is installed.
     Offline {
         reason: String,
@@ -214,9 +218,12 @@ async fn apply(
             total: total as u64,
         });
     };
-    pending
-        .apply(&files, &http, &store.game_dir(id), &progress)
-        .await?;
+    let game_dir = store.game_dir(id);
+    let state = pending.apply(&files, &http, &game_dir, &progress).await?;
+    let names = crate::own::yield_to_pack(&game_dir, &release, &state.files)?;
+    if !names.is_empty() {
+        report(Progress::Replaced { names });
+    }
     adopt_release(store, id, instance, &release)?;
     report(Progress::Updated {
         version: release.version,

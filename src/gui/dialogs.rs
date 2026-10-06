@@ -499,7 +499,11 @@ impl Render for NewInstance {
     }
 }
 
-fn field(label: impl Into<SharedString>, control: impl IntoElement, cx: &App) -> impl IntoElement {
+pub(super) fn field(
+    label: impl Into<SharedString>,
+    control: impl IntoElement,
+    cx: &App,
+) -> impl IntoElement {
     v_flex()
         .gap(px(6.))
         .child(
@@ -517,6 +521,22 @@ fn dialog_frame(
     description: impl Into<SharedString>,
     body: impl IntoElement,
     action: Button,
+    cx: &App,
+) -> AnyElement {
+    let cancel = Button::new("cancel")
+        .outline()
+        .size(ButtonSize::Md)
+        .label(t!("common.cancel"))
+        .on_click(|_, _, cx| AppState::global(cx).update(cx, |s, cx| s.close_modal(cx)));
+    dialog_shell(title, description, body, vec![cancel, action], cx)
+}
+
+/// A dialog's title and description, its body, then `buttons` on the right of the footer.
+pub(super) fn dialog_shell(
+    title: impl Into<SharedString>,
+    description: impl Into<SharedString>,
+    body: impl IntoElement,
+    buttons: Vec<Button>,
     cx: &App,
 ) -> AnyElement {
     let c = cx.theme().colors;
@@ -549,21 +569,12 @@ fn dialog_frame(
                 .py(px(14.))
                 .border_t_1()
                 .border_color(c.border)
-                .child(
-                    Button::new("cancel")
-                        .outline()
-                        .size(ButtonSize::Md)
-                        .label(t!("common.cancel"))
-                        .on_click(|_, _, cx| {
-                            AppState::global(cx).update(cx, |s, cx| s.close_modal(cx))
-                        }),
-                )
-                .child(action),
+                .children(buttons),
         )
         .into_any_element()
 }
 
-fn open(view: gpui_kit::AnyView, width: f32, cx: &mut App) {
+pub(super) fn open(view: gpui_kit::AnyView, width: f32, cx: &mut App) {
     AppState::global(cx).update(cx, |s, cx| s.open_modal(view, px(width), cx));
 }
 

@@ -6184,6 +6184,8 @@ dependencies = [
  "hex",
  "lighty-launcher",
  "md-5 0.11.0",
+ "percent-encoding",
+ "reqwest",
  "riven-format",
  "riven-resolve",
  "riven-sources",
@@ -6193,6 +6195,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+ "url",
 ]
 
 [[package]]
