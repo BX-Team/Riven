@@ -3,8 +3,6 @@ common:
   coming_soon: Coming soon
   close: Close
 titlebar:
-  search: Search
-  browse: Browse packs
   developer: Developer mode
 sidebar:
   instances: Instances
@@ -34,6 +32,18 @@ mods:
   search: Search mods
   search_count: "Search among %{n} mods"
   reading: Reading files…
+  locked: Mods come from the pack; own mods can be allowed in the instance settings
+  add: Add
+  needs_loader: Vanilla instances cannot have mods; pick a loader in Settings
+  check_updates: Check for updates
+  checking_updates: Checking…
+  update_n: "Update %{n}"
+  updating: Updating…
+  up_to_date: Your mods are up to date
+  updated: "Mods updated: %{n}"
+  from_pack: Managed by the pack
+  delete: Delete
+  own: yours
 time:
   today: today
   yesterday: yesterday
@@ -61,6 +71,7 @@ launch:
     starting: Starting the game
   played: "%{total} played"
   played_last: "%{total} played · last %{last}"
+  replaced: "The pack now ships %{names}; your copies were removed"
 accounts:
   bad_name: "3–16 Latin letters, digits or _"
   player_name: Player name
@@ -159,6 +170,8 @@ instance_settings:
   loader_build: "%{loader} %{version}, the newest build for this version"
   played: Play time
   never_played: Not played yet
+  own_mods: Own mods
+  own_mods_hint: Add mods on top of the pack. Its own mods still update with it.
 folders:
   instances: Instances
   store: File store
@@ -200,6 +213,11 @@ confirm:
   clear_cache_body: Modrinth answers and icons are downloaded again when needed.
   delete_instance_title: "Delete %{name}?"
   delete_instance_body: "The instance folder is deleted with its worlds, configs and screenshots. This cannot be undone."
+  delete_mod_title: "Delete %{name}?"
+  delete_mod_body: The file was added by hand, so the launcher cannot download it again.
+  unlock_title: Allow own mods?
+  unlock_body: "Mods you add can conflict with the pack, and its author does not support them. If a pack update brings the same mod, the pack's version replaces yours."
+  unlock_action: Allow
 java:
   auto: Automatic
   auto_hint: Riven downloads the Java this Minecraft version needs
@@ -211,3 +229,23 @@ java:
   fits: Fits
   needs: "Needs Java %{major}"
   not_java: "%{path} is not a working Java"
+add_mods:
+  title: Add mods
+  description: "Minecraft %{minecraft} · %{loader}; dependencies are installed too"
+  search: Search Modrinth
+  searching: Searching…
+  nothing: Nothing found
+  install: Install
+  installing: Installing…
+  installed: Installed
+  already: Already installed
+  added: "Installed %{names}"
+  added_with_deps: "Installed %{names}; dependencies: %{n}"
+  by_link: Link
+  from_file: File
+  link: Link
+  link_hint: https://…/mod.jar
+  link_about: A direct link to a mod jar, or a mod page on Modrinth.
+  file_about: Jars from your disk are copied into the instance; the launcher cannot update them.
+  pick: Choose files…
+  done: Done

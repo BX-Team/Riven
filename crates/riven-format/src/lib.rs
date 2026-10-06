@@ -22,7 +22,7 @@ pub use project::{
 };
 pub use release::{Channel, Release, ReleaseFile};
 pub use sign::{KeyPair, PublicKey, SignError};
-pub use state::{State, StateFile, Trusted};
+pub use state::{OwnContent, State, StateFile, Trusted};
 
 pub const SCHEMA_BASE: &str = "https://raw.githubusercontent.com/BX-Team/Riven/master/schema/v1/";
 
@@ -59,6 +59,10 @@ impl Document for Channel {
 
 impl Document for State {
     const NAME: &'static str = "state";
+}
+
+impl Document for OwnContent {
+    const NAME: &'static str = "own";
 }
 
 impl Document for Trusted {

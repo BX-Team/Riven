@@ -3,6 +3,7 @@ pub mod game;
 pub mod instances;
 pub mod java;
 pub mod mods;
+pub mod own;
 
 use std::path::{Path, PathBuf};
 
@@ -36,6 +37,22 @@ pub enum LaunchError {
     Game(String),
     #[error(transparent)]
     Sync(#[from] riven_sync::SyncError),
+    #[error(transparent)]
+    Store(#[from] riven_sync::Error),
+    #[error(transparent)]
+    Resolve(#[from] riven_resolve::ResolveError),
+    #[error("this instance's mods come from its pack; allow own mods in its settings first")]
+    Locked,
+    #[error("vanilla instances cannot have mods; pick a loader first")]
+    NoLoader,
+    #[error("`{0}` is not a direct http(s) link to a file")]
+    BadLink(String),
+    #[error("cannot download: {0}")]
+    Download(String),
+    #[error("`{0}` is not a mod jar")]
+    NotAMod(String),
+    #[error("`{0}` was not added by the player")]
+    NotOwn(String),
 }
 
 /// Links a folder to another: a symlink, or on Windows a junction, which needs no admin rights.

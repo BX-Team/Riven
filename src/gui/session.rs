@@ -69,6 +69,10 @@ impl Session {
                 self.notice = Some(rust_i18n::t!("launch.updated", version = version).into())
             }
             Progress::Offline { .. } => self.notice = Some(rust_i18n::t!("launch.offline").into()),
+            Progress::Replaced { names } => {
+                self.notice =
+                    Some(rust_i18n::t!("launch.replaced", names = names.join(", ")).into())
+            }
             Progress::Started { pid } => {
                 self.phase = Phase::Running {
                     pid,
@@ -106,8 +110,22 @@ impl AppState {
                 let alive = this.update(cx, |s, cx| {
                     if let Some(session) = s.sessions.get_mut(&id) {
                         let exited = batch.iter().any(|p| matches!(p, Progress::Exited { .. }));
+                        let mut news = Vec::new();
                         for p in batch {
+                            match &p {
+                                Progress::Updated { version } => news.push(
+                                    rust_i18n::t!("launch.updated", version = version).to_string(),
+                                ),
+                                Progress::Replaced { names } => news.push(
+                                    rust_i18n::t!("launch.replaced", names = names.join(", "))
+                                        .to_string(),
+                                ),
+                                _ => {}
+                            }
                             session.apply(p);
+                        }
+                        for text in news {
+                            s.toast(super::toast::ToastKind::Info, text, cx);
                         }
                         if exited {
                             s.reload_instances(cx);

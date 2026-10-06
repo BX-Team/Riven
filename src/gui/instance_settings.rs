@@ -1,14 +1,19 @@
+use std::collections::BTreeMap;
+
 use gpui_kit::base::input::{InputEvent, InputState, TextareaState};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
-    AnyElement, App, AppContext as _, Context, Entity, InteractiveElement as _, IntoElement,
-    ParentElement as _, Render, SharedString, StatefulInteractiveElement as _, Styled as _,
-    Subscription, Window, div, px,
+    AnyElement, App, AppContext as _, ClipboardItem, Context, Entity, FontWeight,
+    InteractiveElement as _, IntoElement, ParentElement as _, Render, SharedString,
+    StatefulInteractiveElement as _, Styled as _, Subscription, Window, div, px, relative,
 };
 use riven_format::{
     GameWindow, Instance, JavaChoice, LaunchCommands, LaunchSettings, Loader, LoaderKind, MemoryMb,
+    Release, State,
 };
 use riven_launch::instances::Instances;
+use riven_sync::remote;
+use riven_sync::update::Request;
 use rust_i18n::t;
 
 use super::java_picker::JavaPicker;
@@ -16,9 +21,50 @@ use super::runtime;
 use super::state::AppState;
 use super::theme::ActiveTheme as _;
 use super::ui::{
-    self, Button, Dropdown, IconName, MenuItem, Section, Switch, TextArea, TextField, W_SEMIBOLD,
-    h_flex, setting_row, v_flex,
+    self, Button, ButtonSize, Dropdown, IconName, MenuItem, Section, Switch, TextArea, TextField,
+    W_SEMIBOLD, h_flex, icon, motion, setting_row, v_flex,
 };
+
+const WIDTH: f32 = 940.;
+const NAV_WIDTH: f32 = 210.;
+const CHANNELS: [&str; 2] = ["stable", "beta"];
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Page {
+    General,
+    Pack,
+    /// Java, memory and JVM arguments.
+    Java,
+    /// The game window and launch commands.
+    Launch,
+}
+
+impl Page {
+    /// The override groups a page shows, in order.
+    fn groups(self) -> &'static [Group] {
+        match self {
+            Page::Java => &[Group::Java, Group::Memory, Group::JvmArgs],
+            Page::Launch => &[Group::Window, Group::Commands],
+            Page::General | Page::Pack => &[],
+        }
+    }
+}
+
+/// What the pack's channel serves now, looked up when the Pack page is first shown.
+enum Remote {
+    Unchecked,
+    Checking,
+    Ready(Box<Release>),
+    Failed(SharedString),
+}
+
+/// The pack an instance was installed from, and the changes to it waiting to be applied.
+struct PackPanel {
+    state: State,
+    channel: String,
+    groups: BTreeMap<String, bool>,
+    remote: Remote,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Group {
@@ -58,9 +104,11 @@ const LOADERS: [Option<LoaderKind>; 5] = [
     Some(LoaderKind::Forge),
 ];
 
-/// The Settings tab of an instance: what it is, what to do with it, and its launch overrides.
+/// The settings window of an instance: what it is, its pack, and its launch overrides.
 pub struct InstanceSettings {
     id: String,
+    page: Page,
+    pack: Option<PackPanel>,
     store: Instances,
     instance: Instance,
     /// Instances installed from a pack take their versions from it.
@@ -84,6 +132,7 @@ impl InstanceSettings {
                 minecraft: String::new(),
                 loader: None,
                 overrides: Default::default(),
+                own_mods: false,
                 last_played: None,
                 play_seconds: 0,
             }
@@ -213,8 +262,21 @@ impl InstanceSettings {
                 input,
             });
         }
+        let pack = riven_sync::install::load_state(&store.game_dir(&id))
+            .ok()
+            .flatten()
+            .map(|state| PackPanel {
+                channel: remote::channel_of(&state.source)
+                    .unwrap_or_default()
+                    .to_owned(),
+                groups: state.groups.clone(),
+                state,
+                remote: Remote::Unchecked,
+            });
         let mut view = Self {
             id,
+            page: Page::General,
+            pack,
             store,
             instance,
             from_pack,
@@ -397,7 +459,7 @@ impl InstanceSettings {
         }
     }
 
-    fn render_about(&self, cx: &mut Context<Self>) -> AnyElement {
+    fn render_general(&self, cx: &mut Context<Self>) -> AnyElement {
         let c = cx.theme().colors;
         let played = AppState::global(cx)
             .read(cx)
@@ -478,12 +540,6 @@ impl InstanceSettings {
         };
         let id = self.id.clone();
         let dir = self.store.dir(&self.id);
-        let busy = AppState::global(cx)
-            .read(cx)
-            .sessions
-            .get(&self.id)
-            .is_some_and(super::session::Session::busy);
-        let delete_name = self.instance.name.clone();
         Section::new()
             .row(setting_row(
                 t!("new_instance.name").to_string(),
@@ -530,19 +586,35 @@ impl InstanceSettings {
                                 AppState::global(cx)
                                     .update(cx, |s, cx| s.duplicate_instance(&id, cx))
                             })
-                    })
-                    .child(div().flex_1())
-                    .child(
-                        Button::new("instance-delete")
-                            .icon(IconName::Trash)
-                            .label(t!("instance.delete"))
-                            .disabled(busy)
-                            .when(busy, |b| b.tooltip(t!("instance.delete_running")))
-                            .on_click(move |_, _, cx| {
-                                confirm_delete(id.clone(), delete_name.clone(), cx)
-                            }),
-                    ),
+                    }),
             )
+            .into_any_element()
+    }
+
+    /// The single-line fields of a group side by side.
+    fn field_row(&self, group: Group, cx: &mut Context<Self>) -> AnyElement {
+        let c = cx.theme().colors;
+        h_flex()
+            .flex_wrap()
+            .items_start()
+            .gap(px(16.))
+            .children(self.fields.iter().filter(|f| f.group == group).map(|f| {
+                let input = match &f.input {
+                    Input::Line(s) => TextField::new(s).into_any_element(),
+                    Input::Area(s) => TextArea::new(s).into_any_element(),
+                };
+                v_flex()
+                    .flex_1()
+                    .min_w(px(160.))
+                    .gap(px(6.))
+                    .child(
+                        div()
+                            .text_size(px(12.))
+                            .text_color(c.muted)
+                            .child(f.label.clone()),
+                    )
+                    .child(input)
+            }))
             .into_any_element()
     }
 
@@ -573,23 +645,27 @@ impl InstanceSettings {
                         .child(input)
                 }))
                 .into_any_element(),
-            _ => h_flex()
-                .flex_wrap()
-                .items_start()
-                .gap(px(16.))
-                .children(self.fields.iter().filter(|f| f.group == group).map(|f| {
-                    let input = match &f.input {
-                        Input::Line(s) => TextField::new(s).into_any_element(),
-                        Input::Area(s) => TextArea::new(s).into_any_element(),
-                    };
-                    v_flex()
-                        .flex_1()
-                        .min_w(px(160.))
-                        .gap(px(6.))
-                        .child(label(f.label.clone()))
-                        .child(input)
-                }))
-                .into_any_element(),
+            Group::Window => {
+                let fullscreen = self.instance.overrides.window.is_some_and(|w| w.fullscreen);
+                let toggle = cx.entity().downgrade();
+                v_flex()
+                    .gap(px(14.))
+                    .child(self.field_row(group, cx))
+                    .child(
+                        Switch::new("override-fullscreen", fullscreen)
+                            .label(t!("settings.window_fullscreen").to_string())
+                            .on_change(move |on, _, cx| {
+                                let _ = toggle.update(cx, |this, cx| {
+                                    if let Some(w) = &mut this.instance.overrides.window {
+                                        w.fullscreen = on;
+                                    }
+                                    this.save(cx);
+                                });
+                            }),
+                    )
+                    .into_any_element()
+            }
+            _ => self.field_row(group, cx),
         };
         v_flex()
             .rounded(px(10.))
@@ -648,42 +724,608 @@ pub fn confirm_delete(id: String, name: String, cx: &mut App) {
     );
 }
 
-impl Render for InstanceSettings {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let c = cx.theme().colors;
-        let global = AppState::global(cx).read(cx).settings.launch.clone();
-        let groups = [
-            (Group::Memory, t!("settings.memory")),
-            (Group::Java, t!("instance_settings.java")),
-            (Group::JvmArgs, t!("settings.jvm_args")),
-            (Group::Window, t!("settings.window")),
-            (Group::Commands, t!("instance_settings.commands")),
-        ];
-        let heading = |text: String| {
-            div()
-                .pt(px(6.))
-                .text_size(px(15.))
-                .font_weight(W_SEMIBOLD)
-                .text_color(c.text)
-                .child(text)
+/// Asks before letting the player add mods to a pack instance.
+pub fn confirm_unlock(id: String, cx: &mut App) {
+    super::dialogs::confirm(
+        t!("confirm.unlock_title"),
+        t!("confirm.unlock_body"),
+        t!("confirm.unlock_action"),
+        move |_, cx| set_own_mods(&id, true, cx),
+        cx,
+    );
+}
+
+fn set_own_mods(id: &str, on: bool, cx: &mut App) {
+    let state = AppState::global(cx);
+    let Some(store) = state.read(cx).store.clone() else {
+        return;
+    };
+    match store.load(id) {
+        Ok(mut instance) => {
+            instance.own_mods = on;
+            state.update(cx, |s, cx| s.save_instance(id, &instance, cx));
+        }
+        Err(e) => tracing::error!("{e}"),
+    }
+}
+
+impl InstanceSettings {
+    fn pages(&self) -> Vec<(Page, SharedString)> {
+        let mut pages = vec![(Page::General, t!("instance_settings.general").into())];
+        if self.pack.is_some() {
+            pages.push((Page::Pack, t!("instance_settings.pack").into()));
+        }
+        pages.extend([
+            (Page::Java, t!("instance_settings.java").into()),
+            (Page::Launch, t!("instance_settings.launch").into()),
+        ]);
+        pages
+    }
+
+    fn group_title(group: Group) -> SharedString {
+        match group {
+            Group::Memory => t!("settings.memory"),
+            Group::Java => t!("instance_settings.java_runtime"),
+            Group::JvmArgs => t!("settings.jvm_args"),
+            Group::Window => t!("settings.window"),
+            Group::Commands => t!("instance_settings.commands"),
+        }
+        .into()
+    }
+
+    fn show(&mut self, page: Page, cx: &mut Context<Self>) {
+        self.page = page;
+        if page == Page::Pack
+            && self
+                .pack
+                .as_ref()
+                .is_some_and(|p| matches!(p.remote, Remote::Unchecked))
+        {
+            self.check_pack(cx);
+        }
+        cx.notify();
+    }
+
+    /// The pointer the pack is followed through, on the picked channel.
+    fn pointer(pack: &PackPanel) -> String {
+        remote::with_channel(&pack.state.source, &pack.channel)
+            .unwrap_or_else(|| pack.state.source.clone())
+    }
+
+    /// Reads what the picked channel serves, for its version and optional groups.
+    fn check_pack(&mut self, cx: &mut Context<Self>) {
+        let Some(pack) = &mut self.pack else {
+            return;
         };
-        div()
-            .id("instance-settings")
-            .size_full()
-            .overflow_y_scroll()
+        pack.remote = Remote::Checking;
+        let source = Self::pointer(pack);
+        cx.notify();
+        cx.spawn(async move |this, cx| {
+            let found = runtime::spawn(async move {
+                let store = riven_sync::Store::default_location()
+                    .ok_or_else(|| "no data directory".to_owned())?;
+                riven_sync::update::preview(&store, &riven_sources::client(), &source, None)
+                    .await
+                    .map_err(|e| e.to_string())
+            })
+            .await
+            .unwrap_or_else(|_| Err(String::new()));
+            let _ = this.update(cx, |this, cx| {
+                if let Some(pack) = &mut this.pack {
+                    pack.remote = match found {
+                        Ok(release) => {
+                            for g in &release.groups {
+                                pack.groups.entry(g.id.clone()).or_insert(g.default);
+                            }
+                            Remote::Ready(Box::new(release))
+                        }
+                        Err(e) => Remote::Failed(e.into()),
+                    };
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// Group switches that differ from what is installed, as `+id` / `-id`.
+    fn group_changes(pack: &PackPanel) -> Vec<String> {
+        pack.groups
+            .iter()
+            .filter(|(id, on)| pack.state.groups.get(*id) != Some(on))
+            .map(|(id, on)| format!("{}{id}", if *on { "+" } else { "-" }))
+            .collect()
+    }
+
+    /// Installs the pack again with the picked channel and groups, or its newer version.
+    fn apply_pack(&mut self, cx: &mut Context<Self>) {
+        let Some(pack) = &self.pack else {
+            return;
+        };
+        let request = Request {
+            source: Some(Self::pointer(pack)),
+            groups: Self::group_changes(pack),
+            ..Request::default()
+        };
+        let id = self.id.clone();
+        AppState::global(cx).update(cx, |s, cx| {
+            s.install_pack(&id, request, cx);
+            s.toast(
+                super::toast::ToastKind::Info,
+                t!("instance_settings.pack_applying"),
+                cx,
+            );
+            s.close_modal(cx);
+        });
+    }
+
+    fn render_pack(&self, cx: &mut Context<Self>) -> AnyElement {
+        let c = cx.theme().colors;
+        let mono = cx.theme().mono.clone();
+        let Some(pack) = &self.pack else {
+            return div().into_any_element();
+        };
+        let busy = AppState::global(cx)
+            .read(cx)
+            .sessions
+            .get(&self.id)
+            .is_some_and(super::session::Session::busy);
+        let view = cx.entity().downgrade();
+        let source = pack.state.source.clone();
+        let copy = source.clone();
+        let channels: Vec<MenuItem> = CHANNELS
+            .iter()
+            .map(|c| (*c).to_owned())
+            .chain(
+                (!CHANNELS.contains(&pack.channel.as_str()) && !pack.channel.is_empty())
+                    .then(|| pack.channel.clone()),
+            )
+            .map(|c| MenuItem::new(c.clone(), c))
+            .collect();
+        let has_channels = remote::channel_of(&pack.state.source).is_some();
+        let latest = match &pack.remote {
+            Remote::Ready(release) => Some(release.version.clone()),
+            _ => None,
+        };
+        let newer = latest.as_ref().is_some_and(|v| *v != pack.state.version);
+        let changes = !Self::group_changes(pack).is_empty()
+            || remote::channel_of(&pack.state.source).is_some_and(|c| c != pack.channel);
+        let status: AnyElement = match &pack.remote {
+            Remote::Unchecked => div().into_any_element(),
+            Remote::Checking => h_flex()
+                .gap(px(8.))
+                .text_color(c.muted)
+                .child(motion::spinner(
+                    "pack-check",
+                    icon(IconName::Loader, c.muted).size(px(13.)),
+                    cx,
+                ))
+                .child(t!("instance_settings.pack_checking").to_string())
+                .into_any_element(),
+            Remote::Failed(e) => div()
+                .text_color(c.warn)
+                .line_height(relative(1.4))
+                .child(e.clone())
+                .into_any_element(),
+            Remote::Ready(_) if newer => div()
+                .text_color(c.accent)
+                .child(
+                    t!(
+                        "instance_settings.pack_newer",
+                        version = latest.clone().unwrap_or_default()
+                    )
+                    .to_string(),
+                )
+                .into_any_element(),
+            Remote::Ready(_) => div()
+                .text_color(c.ok)
+                .child(t!("instance_settings.pack_current").to_string())
+                .into_any_element(),
+        };
+        let groups: Vec<AnyElement> = match &pack.remote {
+            Remote::Ready(release) => release
+                .groups
+                .iter()
+                .enumerate()
+                .map(|(i, g)| {
+                    let on = pack.groups.get(&g.id).copied().unwrap_or(g.default);
+                    let (id, view) = (g.id.clone(), view.clone());
+                    h_flex()
+                        .gap(px(12.))
+                        .px(px(18.))
+                        .py(px(12.))
+                        .when(i > 0, |r| r.border_t_1().border_color(c.row))
+                        .child(
+                            v_flex()
+                                .flex_1()
+                                .min_w_0()
+                                .child(div().font_weight(W_SEMIBOLD).child(g.name.clone()))
+                                .when_some(g.description.clone(), |col, d| {
+                                    col.child(div().text_size(px(12.)).text_color(c.muted).child(d))
+                                }),
+                        )
+                        .child(
+                            Switch::new(("pack-group", i), on)
+                                .accessible(g.name.clone())
+                                .on_change(move |on, _, cx| {
+                                    let id = id.clone();
+                                    let _ = view.update(cx, |this, cx| {
+                                        if let Some(pack) = &mut this.pack {
+                                            pack.groups.insert(id, on);
+                                        }
+                                        cx.notify();
+                                    });
+                                }),
+                        )
+                        .into_any_element()
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+        let groups_ready = matches!(pack.remote, Remote::Ready(_));
+        let own_mods = AppState::global(cx)
+            .read(cx)
+            .instance(&self.id)
+            .is_some_and(|i| i.own_mods);
+        let unlock_id = self.id.clone();
+        let pick = view.clone();
+        v_flex()
+            .gap(px(14.))
+            .child(
+                Section::new()
+                    .row(setting_row(
+                        t!("instance_settings.pack_source").to_string(),
+                        None,
+                        h_flex()
+                            .gap(px(6.))
+                            .max_w(px(380.))
+                            .child(
+                                div()
+                                    .min_w_0()
+                                    .truncate()
+                                    .font_family(mono)
+                                    .text_size(px(12.))
+                                    .text_color(c.text2)
+                                    .child(source),
+                            )
+                            .child(
+                                Button::new("pack-copy")
+                                    .ghost()
+                                    .size(ButtonSize::Xs)
+                                    .icon(IconName::Copy)
+                                    .on_click(move |_, _, cx| {
+                                        cx.write_to_clipboard(ClipboardItem::new_string(
+                                            copy.clone(),
+                                        ))
+                                    }),
+                            ),
+                        cx,
+                    ))
+                    .row(setting_row(
+                        t!("instance_settings.pack_version").to_string(),
+                        Some(t!("instance_settings.pack_version_hint").into()),
+                        h_flex()
+                            .gap(px(12.))
+                            .child(
+                                div()
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .child(pack.state.version.clone()),
+                            )
+                            .child(status)
+                            .child(
+                                Button::new("pack-check-now")
+                                    .icon(IconName::Refresh)
+                                    .label(t!("instance_settings.pack_check"))
+                                    .disabled(matches!(pack.remote, Remote::Checking))
+                                    .on_click(cx.listener(|this, _, _, cx| this.check_pack(cx))),
+                            ),
+                        cx,
+                    ))
+                    .when(has_channels, |section| {
+                        section.row(setting_row(
+                            t!("instance_settings.pack_channel").to_string(),
+                            Some(t!("instance_settings.pack_channel_hint").into()),
+                            Dropdown::new(
+                                "pack-channel",
+                                channels,
+                                Some(pack.channel.clone().into()),
+                                move |v, _, cx| {
+                                    let _ = pick.update(cx, |this, cx| {
+                                        if let Some(pack) = &mut this.pack {
+                                            pack.channel = v.to_string();
+                                        }
+                                        this.check_pack(cx);
+                                    });
+                                },
+                            )
+                            .width(px(160.)),
+                            cx,
+                        ))
+                    })
+                    .row(setting_row(
+                        t!("instance_settings.own_mods").to_string(),
+                        Some(t!("instance_settings.own_mods_hint").into()),
+                        Switch::new("own-mods", own_mods)
+                            .accessible(t!("instance_settings.own_mods"))
+                            .on_change(move |on, _, cx| {
+                                if on {
+                                    confirm_unlock(unlock_id.clone(), cx)
+                                } else {
+                                    set_own_mods(&unlock_id, false, cx)
+                                }
+                            }),
+                        cx,
+                    )),
+            )
+            .child(
+                div()
+                    .pt(px(4.))
+                    .font_weight(W_SEMIBOLD)
+                    .child(t!("instance_settings.pack_groups").to_string()),
+            )
             .child(
                 v_flex()
-                    .p(px(18.))
-                    .gap(px(14.))
-                    .max_w(px(760.))
-                    .child(heading(t!("instance_settings.instance").into()))
-                    .child(self.render_about(cx))
-                    .child(heading(t!("instance_settings.launch").into()))
-                    .children(
-                        groups.into_iter().map(|(group, title)| {
-                            self.render_group(group, title.into(), &global, cx)
-                        }),
+                    .rounded(px(10.))
+                    .border_1()
+                    .border_color(c.border)
+                    .bg(c.panel)
+                    .map(|card| {
+                        if !groups_ready {
+                            card.child(
+                                div()
+                                    .px(px(18.))
+                                    .py(px(12.))
+                                    .text_color(c.muted)
+                                    .child(t!("instance_settings.pack_groups_wait").to_string()),
+                            )
+                        } else if groups.is_empty() {
+                            card.child(
+                                div()
+                                    .px(px(18.))
+                                    .py(px(12.))
+                                    .text_color(c.muted)
+                                    .child(t!("instance_settings.pack_no_groups").to_string()),
+                            )
+                        } else {
+                            card.children(groups)
+                        }
+                    }),
+            )
+            .when(newer || changes, |col| {
+                col.child(
+                    h_flex()
+                        .gap(px(12.))
+                        .child(
+                            div()
+                                .flex_1()
+                                .text_size(px(12.))
+                                .text_color(c.muted)
+                                .child(t!("instance_settings.pack_apply_hint").to_string()),
+                        )
+                        .child(
+                            Button::new("pack-apply")
+                                .primary()
+                                .icon(IconName::Refresh)
+                                .label(if changes {
+                                    t!("instance_settings.pack_apply")
+                                } else {
+                                    t!(
+                                        "instance_settings.pack_update",
+                                        version = latest.unwrap_or_default()
+                                    )
+                                })
+                                .disabled(busy)
+                                .on_click(cx.listener(|this, _, _, cx| this.apply_pack(cx))),
+                        ),
+                )
+            })
+            .into_any_element()
+    }
+
+    fn render_nav(&self, cx: &mut Context<Self>) -> AnyElement {
+        let c = cx.theme().colors;
+        let rows = self
+            .pages()
+            .into_iter()
+            .enumerate()
+            .map(|(i, (page, label))| {
+                let on = self.page == page;
+                let overridden = page.groups().iter().any(|g| self.is_overridden(*g));
+                h_flex()
+                    .id(("settings-page", i))
+                    .h(px(32.))
+                    .px(px(10.))
+                    .gap(px(8.))
+                    .rounded(px(6.))
+                    .cursor_pointer()
+                    .map(|r| {
+                        if on {
+                            r.bg(c.sel).font_weight(W_SEMIBOLD).text_color(c.text)
+                        } else {
+                            r.text_color(c.text2).hover(|s| s.bg(c.row))
+                        }
+                    })
+                    .on_click(cx.listener(move |this, _, _, cx| this.show(page, cx)))
+                    .child(div().flex_1().truncate().child(label))
+                    .when(overridden, |r| {
+                        r.child(div().size(px(6.)).rounded_full().bg(c.accent))
+                    })
+            });
+        v_flex()
+            .w(px(NAV_WIDTH))
+            .flex_none()
+            .h_full()
+            .p(px(10.))
+            .gap(px(2.))
+            .rounded_l(px(12.))
+            .bg(c.bg)
+            .border_r_1()
+            .border_color(c.border)
+            .child(
+                div()
+                    .px(px(10.))
+                    .pt(px(6.))
+                    .pb(px(10.))
+                    .font_weight(FontWeight::BOLD)
+                    .text_size(px(15.))
+                    .truncate()
+                    .child(self.instance.name.clone()),
+            )
+            .children(rows)
+            .child(div().flex_1())
+            .child(self.render_delete(cx))
+            .into_any_element()
+    }
+
+    /// Deleting sits apart at the bottom of the side bar, away from everyday settings.
+    fn render_delete(&self, cx: &mut Context<Self>) -> AnyElement {
+        let c = cx.theme().colors;
+        let danger = super::theme::danger();
+        let busy = AppState::global(cx)
+            .read(cx)
+            .sessions
+            .get(&self.id)
+            .is_some_and(super::session::Session::busy);
+        let (id, name) = (self.id.clone(), self.instance.name.clone());
+        h_flex()
+            .id("instance-delete")
+            .h(px(32.))
+            .px(px(10.))
+            .gap(px(8.))
+            .rounded(px(6.))
+            .text_color(if busy { c.muted } else { danger })
+            .child(icon(IconName::Trash, if busy { c.muted } else { danger }).size(px(14.)))
+            .child(t!("instance.delete").to_string())
+            .map(|row| {
+                if busy {
+                    row.tooltip(ui::tooltip(t!("instance.delete_running").into()))
+                } else {
+                    row.cursor_pointer()
+                        .hover(move |s| s.bg(danger.opacity(0.12)))
+                        .on_click(move |_, _, cx| confirm_delete(id.clone(), name.clone(), cx))
+                }
+            })
+            .into_any_element()
+    }
+}
+
+impl Render for InstanceSettings {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let c = cx.theme().colors;
+        let height = (f32::from(window.viewport_size().height) - 120.).clamp(320., 640.);
+        let global = AppState::global(cx).read(cx).settings.launch.clone();
+        let (title, hint): (SharedString, Option<SharedString>) = match self.page {
+            Page::General => (t!("instance_settings.general").into(), None),
+            Page::Pack => (
+                t!("instance_settings.pack").into(),
+                Some(t!("instance_settings.pack_hint").into()),
+            ),
+            Page::Java | Page::Launch => (
+                self.pages()
+                    .into_iter()
+                    .find(|(p, _)| *p == self.page)
+                    .map(|(_, l)| l)
+                    .unwrap_or_default(),
+                Some(t!("instance_settings.launch_hint").into()),
+            ),
+        };
+        let body = match self.page {
+            Page::General => self.render_general(cx),
+            Page::Pack => self.render_pack(cx),
+            page => {
+                let cards: Vec<AnyElement> = page
+                    .groups()
+                    .iter()
+                    .map(|&group| {
+                        self.render_group(group, Self::group_title(group), &global, cx)
+                            .into_any_element()
+                    })
+                    .collect();
+                v_flex().gap(px(12.)).children(cards).into_any_element()
+            }
+        };
+        let page_key = match self.page {
+            Page::General => 0usize,
+            Page::Pack => 1,
+            Page::Java => 2usize,
+            Page::Launch => 3,
+        };
+        h_flex()
+            .h(px(height))
+            .items_start()
+            .rounded(px(12.))
+            .overflow_hidden()
+            .child(self.render_nav(cx))
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .h_full()
+                    .child(
+                        h_flex()
+                            .flex_none()
+                            .gap(px(12.))
+                            .px(px(22.))
+                            .pt(px(18.))
+                            .pb(px(12.))
+                            .child(
+                                v_flex()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .child(
+                                        div()
+                                            .font_weight(FontWeight::BOLD)
+                                            .text_size(px(17.))
+                                            .child(title),
+                                    )
+                                    .when_some(hint, |col, hint| {
+                                        col.child(
+                                            div()
+                                                .text_color(c.muted)
+                                                .line_height(relative(1.5))
+                                                .child(hint),
+                                        )
+                                    }),
+                            )
+                            .child(
+                                Button::new("settings-close")
+                                    .ghost()
+                                    .icon(IconName::Close)
+                                    .tooltip(t!("common.close"))
+                                    .on_click(|_, _, cx| {
+                                        AppState::global(cx).update(cx, |s, cx| s.close_modal(cx))
+                                    }),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .id("instance-settings-page")
+                            .flex_1()
+                            .min_h_0()
+                            .overflow_y_scroll()
+                            .child(motion::enter(
+                                ("settings-page-in", page_key),
+                                v_flex().px(px(22.)).pb(px(22.)).child(body),
+                                6.,
+                                window,
+                                cx,
+                            )),
                     ),
             )
     }
+}
+
+/// Opens the settings window of an instance, optionally on its Pack page.
+pub fn open(id: String, pack: bool, window: &mut Window, cx: &mut App) {
+    let Some(store) = AppState::global(cx).read(cx).store.clone() else {
+        return;
+    };
+    let view = cx.new(|cx| {
+        let mut view = InstanceSettings::new(id, store, window, cx);
+        if pack && view.pack.is_some() {
+            view.show(Page::Pack, cx);
+        }
+        view
+    });
+    super::dialogs::open(view.into(), WIDTH, cx);
 }
