@@ -8,6 +8,7 @@ use gpui_kit::{
 use rust_i18n::t;
 
 use super::chrome;
+use super::dev::DevView;
 use super::instance::InstanceView;
 use super::launch_bar;
 use super::settings::SettingsView;
@@ -21,6 +22,8 @@ pub struct RivenApp {
     state: Entity<AppState>,
     instance: Option<Entity<InstanceView>>,
     settings: Entity<SettingsView>,
+    /// Created the first time the developer section opens.
+    dev: Option<Entity<DevView>>,
     _state: Subscription,
 }
 
@@ -40,6 +43,7 @@ impl RivenApp {
             state,
             instance: None,
             settings,
+            dev: None,
             _state,
         };
         app.sync(window, cx);
@@ -48,6 +52,9 @@ impl RivenApp {
 
     /// Keeps the instance view in step with the selected instance.
     fn sync(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.state.read(cx).route == Route::Developer && self.dev.is_none() {
+            self.dev = Some(cx.new(|cx| DevView::new(window, cx)));
+        }
         let state = self.state.read(cx);
         let Route::Instance(id) = &state.route else {
             return;
@@ -188,17 +195,14 @@ impl RivenApp {
     fn render_content(&self, cx: &mut Context<Self>) -> AnyElement {
         match self.state.read(cx).route.clone() {
             Route::Instance(_) => match &self.instance {
-                Some(view) => view.clone().into_any_element(),
+                Some(view) => view.clone().cached(full()).into_any_element(),
                 None => div().into_any_element(),
             },
-            Route::Settings => self.settings.clone().into_any_element(),
-            Route::Developer => placeholder(
-                IconName::Code,
-                t!("developer.title").into(),
-                t!("developer.soon").into(),
-                cx,
-            )
-            .into_any_element(),
+            Route::Settings => self.settings.clone().cached(full()).into_any_element(),
+            Route::Developer => match &self.dev {
+                Some(view) => view.clone().cached(full()).into_any_element(),
+                None => div().into_any_element(),
+            },
             Route::Empty => placeholder(
                 IconName::Package,
                 t!("library.empty_title").into(),
@@ -217,6 +221,11 @@ impl RivenApp {
             .into_any_element(),
         }
     }
+}
+
+/// Screens are drawn again only when they change, not with every frame of a dialog over them.
+fn full() -> gpui_kit::StyleRefinement {
+    gpui_kit::StyleRefinement::default().size_full()
 }
 
 /// A 30 px list row of the left column; the selected one sits on a [`ui::motion::highlighted`] list.
@@ -314,7 +323,7 @@ impl Render for RivenApp {
         let actions = self.render_actions(cx);
         let title_bar = chrome::title_bar(actions, window, cx);
         let route_key = SharedString::from(format!("route:{route:?}"));
-        let body = if route == Route::Settings {
+        let body = if matches!(route, Route::Settings | Route::Developer) {
             ui::motion::enter(
                 route_key,
                 div().size_full().child(self.render_content(cx)),

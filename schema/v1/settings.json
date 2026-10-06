@@ -56,6 +56,13 @@
         "null"
       ]
     },
+    "recent_projects": {
+      "description": "Pack project folders opened in the developer section, the latest first.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "$schema": {
       "type": "string"
     },
