@@ -88,9 +88,6 @@ accounts:
   remove: Remove account
   active: Active
   use: Use
-developer:
-  title: Developer
-  soon: Pack projects, content and releases arrive with the developer section
 settings:
   general: General
   language: Language
@@ -252,3 +249,95 @@ add_mods:
   file_about: Jars from your disk are copied into the instance; the launcher cannot update them.
   pick: Choose files…
   done: Done
+dev:
+  sections: Sections
+  content: Content
+  dependencies: Dependencies
+  groups: Groups
+  releases: Releases
+  no_project: No project
+  recent: Recent
+  new: New
+  open: Open a folder with riven.json…
+  create: Create project
+  create_description: Runs riven init in the folder; the newest loader build for the version is used.
+  folder: Folder
+  no_folder: No folder chosen
+  choose: Choose…
+  pick_folder: Choose the project folder
+  pick_folder_first: Choose a folder first
+  empty_title: No pack project open
+  empty_hint: Open a folder with riven.json or create a project to edit a pack's content, check it and release it.
+  filter: Filter content
+  file: File
+  source: Source
+  side: Side
+  group: Group
+  no_group: No group
+  side_client: client
+  side_server: server
+  side_both: both
+  side_default: From the mod
+  source_auto: Auto
+  dependency: dependency
+  pinned: "Pinned: updates skip it"
+  pin: Pin version
+  update_one: Update
+  remove: Remove
+  remove_title: Remove content
+  add: Add
+  add_title: Add content
+  add_description: A Modrinth slug, search or link, a GitHub repository, a file URL or a file from disk — what riven add takes.
+  add_hint: "sodium, modrinth.com/mod/…, owner/repo, https://…/mod.jar"
+  add_n: "Add %{n}"
+  resolve: Resolve
+  resolving: Resolving…
+  ambiguous: Several projects match; pick one
+  apply: Apply
+  preview_hint: Nothing is written until you apply.
+  updates_title: Updates
+  check_updates: Check for updates
+  checking_updates: Checking…
+  update_n: "Review %{n} updates"
+  up_to_date: Everything is up to date
+  nothing_to_do: Nothing to change
+  check: Check
+  checking: Reading jar metadata…
+  check_clean: "%{n} entries, no problems"
+  recheck: Check again
+  log: Test run log
+  files: Files
+  new_file: New file
+  new_folder: New folder
+  new_path_hint: "A path inside overrides/: common/ ships to both sides, client/ and server/ to one."
+  delete_file_title: "Delete %{name}?"
+  delete_file_body: It is removed from the project folder; git can bring it back if it was committed.
+  discard_title: "Close %{name} without saving?"
+  discard_body: Your changes to this file will be lost.
+  discard: Discard
+  save: Save
+  save_hint: Save (Ctrl+S)
+  saved: "Saved %{name}"
+  read_only: Changed through the sections, not by hand
+  groups_hint: Optional parts of the pack players switch on or off when installing it.
+  groups_none: No groups yet. Add one, then put entries into it from the Content menu.
+  group_add: Add group
+  group_edit: Edit group
+  group_id: Id
+  group_name: Name
+  group_description: Description
+  group_default: On by default
+  group_bad_id: The id takes lowercase letters, digits, - and _
+  group_empty: No entries yet
+  group_members: "Entries (%{n}): %{names}"
+  group_remove_title: "Remove group %{name}?"
+  group_remove_body: Its entries stay in the pack and install for everyone.
+  dependencies_hint: What each added entry pulls in; select one to see why it is here.
+  orphans: Nothing needs these
+  why_pick: Select an entry to see why it is in the pack.
+  why_explicit: Added explicitly
+  why_dependency: Added as a dependency
+  why_paths: Pulled in by
+  why_orphan: Nothing requires it any more
+  why_needed_by: Needed by
+  why_needs: Needs

@@ -12,9 +12,8 @@ use riven_sources::{Cache, Known, Modrinth};
 use serde_json::json;
 
 use super::ImportFormat;
-use super::author::ensure_gitignore;
 use super::output::Output;
-use super::project::{PROJECT_FILE, StoreJars, game_meta, write_atomic};
+use super::project::{PROJECT_FILE, StoreJars, ensure_gitignore, game_meta, write_atomic};
 
 const PARALLEL_DOWNLOADS: usize = 8;
 
