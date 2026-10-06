@@ -2,6 +2,7 @@ mod add_mods;
 mod app;
 mod assets;
 mod chrome;
+mod dev;
 mod dialogs;
 mod instance;
 mod instance_settings;

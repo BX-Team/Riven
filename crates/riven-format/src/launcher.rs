@@ -21,6 +21,9 @@ pub struct Settings {
     pub selected_instance: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selected_account: Option<String>,
+    /// Pack project folders opened in the developer section, the latest first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recent_projects: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

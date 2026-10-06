@@ -12,7 +12,7 @@ pub use button::{Button, ButtonSize};
 pub use dialog::{Modal, modal};
 pub use field::{TextArea, TextField, textarea};
 pub use icon::{IconName, icon};
-pub use menu::{Dropdown, MenuItem};
+pub use menu::{ActionMenu, Dropdown, MenuEntry, MenuItem};
 pub use section::{Section, caption, setting_block, setting_row};
 pub use switch::Switch;
 pub use tabs::Tabs;

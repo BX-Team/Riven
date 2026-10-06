@@ -8,17 +8,19 @@ repository.workspace = true
 
 [dependencies]
 futures-util.workspace = true
+percent-encoding.workspace = true
+reqwest.workspace = true
 riven-format.workspace = true
+riven-resolve.workspace = true
 riven-sources.workspace = true
+riven-sync.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
 url.workspace = true
 zip.workspace = true
 hex.workspace = true
 sha1.workspace = true
 sha2.workspace = true
 toml = { version = "1", default-features = false, features = ["std", "serde", "parse"] }
-
-[dev-dependencies]
-tokio.workspace = true

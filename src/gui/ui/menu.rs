@@ -179,3 +179,195 @@ impl RenderOnce for Dropdown {
             })
     }
 }
+
+type OnAction = Rc<dyn Fn(&mut Window, &mut App)>;
+
+/// One line of an [`ActionMenu`].
+#[derive(Clone)]
+pub enum MenuEntry {
+    Caption(SharedString),
+    Separator,
+    Action {
+        icon: Option<IconName>,
+        label: SharedString,
+        checked: bool,
+        danger: bool,
+        disabled: bool,
+        run: OnAction,
+    },
+}
+
+impl MenuEntry {
+    pub fn action(
+        label: impl Into<SharedString>,
+        run: impl Fn(&mut Window, &mut App) + 'static,
+    ) -> Self {
+        Self::Action {
+            icon: None,
+            label: label.into(),
+            checked: false,
+            danger: false,
+            disabled: false,
+            run: Rc::new(run),
+        }
+    }
+
+    pub fn icon(mut self, name: IconName) -> Self {
+        if let Self::Action { icon, .. } = &mut self {
+            *icon = Some(name);
+        }
+        self
+    }
+
+    pub fn checked(mut self, on: bool) -> Self {
+        if let Self::Action { checked, .. } = &mut self {
+            *checked = on;
+        }
+        self
+    }
+
+    pub fn danger(mut self) -> Self {
+        if let Self::Action { danger, .. } = &mut self {
+            *danger = true;
+        }
+        self
+    }
+
+    pub fn disabled(mut self, off: bool) -> Self {
+        if let Self::Action { disabled, .. } = &mut self {
+            *disabled = off;
+        }
+        self
+    }
+}
+
+/// A trigger button opening a list of actions, with optional captions between groups.
+#[derive(IntoElement)]
+pub struct ActionMenu {
+    id: ElementId,
+    trigger: Button,
+    entries: Vec<MenuEntry>,
+    width: Pixels,
+    anchor: Anchor,
+}
+
+impl ActionMenu {
+    pub fn new(id: impl Into<ElementId>, trigger: Button, entries: Vec<MenuEntry>) -> Self {
+        Self {
+            id: id.into(),
+            trigger,
+            entries,
+            width: px(220.),
+            anchor: Anchor::TopRight,
+        }
+    }
+
+    pub fn width(mut self, width: Pixels) -> Self {
+        self.width = width;
+        self
+    }
+
+    /// Opens under the trigger's left edge instead of its right one.
+    pub fn left(mut self) -> Self {
+        self.anchor = Anchor::TopLeft;
+        self
+    }
+}
+
+impl RenderOnce for ActionMenu {
+    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+        let entries = self.entries;
+        let width = self.width;
+        Popover::new(self.id)
+            .anchor(self.anchor)
+            .offset(px(4.))
+            .trigger(self.trigger)
+            .content(move |_, window, cx| {
+                let c = cx.theme().colors;
+                let popover = cx.entity();
+                let rows: Vec<_> = entries
+                    .iter()
+                    .enumerate()
+                    .map(|(n, entry)| match entry {
+                        MenuEntry::Separator => div()
+                            .my(px(4.))
+                            .mx(px(4.))
+                            .h(px(1.))
+                            .bg(c.border)
+                            .into_any_element(),
+                        MenuEntry::Caption(text) => div()
+                            .px(px(8.))
+                            .pt(px(6.))
+                            .pb(px(2.))
+                            .text_size(px(11.))
+                            .text_color(c.muted)
+                            .child(text.clone())
+                            .into_any_element(),
+                        MenuEntry::Action {
+                            icon: glyph,
+                            label,
+                            checked,
+                            danger,
+                            disabled,
+                            run,
+                        } => {
+                            let hover = motion::hover(("action-menu-hover", n), window, cx);
+                            let bg = motion::animate(
+                                ("action-menu-bg", n),
+                                if hover.on && !disabled {
+                                    c.row
+                                } else {
+                                    c.row.opacity(0.)
+                                },
+                                window,
+                                cx,
+                            );
+                            let ink = if *danger {
+                                crate::gui::theme::danger()
+                            } else if *checked {
+                                c.text
+                            } else {
+                                c.text2
+                            };
+                            let (run, popover, disabled) =
+                                (run.clone(), popover.clone(), *disabled);
+                            hover
+                                .track(h_flex().id(n))
+                                .flex_none()
+                                .h(px(28.))
+                                .px(px(8.))
+                                .gap(px(10.))
+                                .rounded(px(6.))
+                                .bg(bg)
+                                .text_color(ink)
+                                .when(disabled, |r| r.opacity(0.5))
+                                .when(!disabled, |r| {
+                                    r.cursor_pointer().on_click(move |_, window, cx| {
+                                        popover.update(cx, |p, cx| p.dismiss(window, cx));
+                                        run(window, cx);
+                                    })
+                                })
+                                .when_some(*glyph, |r, g| r.child(icon(g, ink)))
+                                .child(div().flex_1().truncate().child(label.clone()))
+                                .when(*checked, |r| {
+                                    r.child(icon(IconName::Check, c.ok).size(px(13.)))
+                                })
+                                .into_any_element()
+                        }
+                    })
+                    .collect();
+                let list = v_flex()
+                    .ui_text(cx)
+                    .w(width)
+                    .p(px(4.))
+                    .gap(px(1.))
+                    .rounded(px(8.))
+                    .border_1()
+                    .border_color(c.border)
+                    .bg(c.panel)
+                    .shadow(vec![box_shadow(0., 12., 32., 0., hsla(0., 0., 0., 0.35))])
+                    .children(rows);
+                motion::enter("action-menu-in", list, -6., window, cx)
+            })
+    }
+}

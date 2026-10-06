@@ -253,7 +253,7 @@ pub fn deploy(
 }
 
 fn export_archive(out: &Output, ws: &Workspace, path: Option<PathBuf>) -> anyhow::Result<ExitCode> {
-    super::author::ensure_gitignore(&ws.dir)?;
+    super::project::ensure_gitignore(&ws.dir)?;
     let path = path.unwrap_or_else(|| {
         ws.dir
             .join("exports")
@@ -296,7 +296,7 @@ pub async fn export(
         Format::Mrpack => "",
         Format::Prism => "-prism",
     };
-    super::author::ensure_gitignore(&ws.dir)?;
+    super::project::ensure_gitignore(&ws.dir)?;
     let path = path.unwrap_or_else(|| {
         ws.dir.join("exports").join(format!(
             "{}-{}{suffix}.{}",
