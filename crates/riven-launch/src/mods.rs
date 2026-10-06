@@ -9,7 +9,7 @@ use sha2::{Digest, Sha512};
 
 use crate::{LaunchError, io};
 
-const DISABLED: &str = ".disabled";
+pub(crate) const DISABLED: &str = ".disabled";
 
 /// A content file in a game directory: a jar in `mods/`, a zip in `resourcepacks/`, …
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -182,6 +182,10 @@ pub fn set_enabled(file: &ContentFile, enabled: bool) -> Result<PathBuf, LaunchE
     };
     std::fs::rename(&file.path, &target).map_err(io(&file.path))?;
     Ok(target)
+}
+
+pub fn delete(file: &ContentFile) -> Result<(), LaunchError> {
+    std::fs::remove_file(&file.path).map_err(io(&file.path))
 }
 
 #[cfg(test)]

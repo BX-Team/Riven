@@ -23,6 +23,7 @@ futures-util = "0.3"
 getrandom = "0.4"
 hex = "0.4"
 lighty-launcher = { version = "26.9", features = ["vanilla", "fabric", "quilt", "neoforge", "forge", "events", "tracing"] }
+percent-encoding = "2"
 reqwest = { version = "0.13", features = ["json", "stream", "gzip"] }
 schemars = "1"
 serde = { version = "1", features = ["derive"] }
@@ -69,7 +70,7 @@ futures-util.workspace = true
 gpui-kit = { version = "=0.7.1", default-features = false, optional = true }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"], optional = true }
 indicatif = { version = "0.18", optional = true }
-percent-encoding = "2"
+percent-encoding.workspace = true
 reqwest.workspace = true
 rust-i18n = { version = "4", optional = true }
 riven-build.workspace = true

@@ -27,6 +27,10 @@
       "$ref": "#/$defs/LaunchOverrides",
       "default": {}
     },
+    "own_mods": {
+      "description": "Lets the player add their own mods to an instance installed from a pack.",
+      "type": "boolean"
+    },
     "last_played": {
       "description": "RFC 3339.",
       "type": [

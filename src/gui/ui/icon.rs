@@ -12,10 +12,12 @@ pub enum IconName {
     Copy,
     Folder,
     Loader,
+    Lock,
     More,
     Package,
     Play,
     Plus,
+    Refresh,
     Search,
     Settings,
     Stop,
@@ -29,7 +31,7 @@ pub enum IconName {
 
 impl IconName {
     #[cfg(test)]
-    pub const ALL: [IconName; 23] = [
+    pub const ALL: [IconName; 25] = [
         IconName::ArrowLeft,
         IconName::Check,
         IconName::ChevronDown,
@@ -40,10 +42,12 @@ impl IconName {
         IconName::Copy,
         IconName::Folder,
         IconName::Loader,
+        IconName::Lock,
         IconName::More,
         IconName::Package,
         IconName::Play,
         IconName::Plus,
+        IconName::Refresh,
         IconName::Search,
         IconName::Settings,
         IconName::Stop,
@@ -67,10 +71,12 @@ impl IconName {
             Self::Copy => "icons/copy.svg",
             Self::Folder => "icons/folder.svg",
             Self::Loader => "icons/loader.svg",
+            Self::Lock => "icons/lock.svg",
             Self::More => "icons/more.svg",
             Self::Package => "icons/package.svg",
             Self::Play => "icons/play.svg",
             Self::Plus => "icons/plus.svg",
+            Self::Refresh => "icons/refresh.svg",
             Self::Search => "icons/search.svg",
             Self::Settings => "icons/settings.svg",
             Self::Stop => "icons/stop.svg",
