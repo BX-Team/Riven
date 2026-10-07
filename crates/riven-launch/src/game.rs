@@ -20,6 +20,8 @@ use crate::{LaunchError, io};
 /// What a launch is busy with, in order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
+    /// Refreshing a Microsoft account's session.
+    SignIn,
     /// Checking the pack's channel and swapping changed files in.
     Pack,
     /// Reading version and loader metadata.
@@ -336,8 +338,9 @@ pub async fn play(
     let report: Report = Arc::new(report);
     let mut instance = store.load(id)?;
     if account.kind == AccountKind::Microsoft {
-        return Err(LaunchError::MicrosoftPending);
+        report(Progress::Stage(Stage::SignIn));
     }
+    let profile = crate::accounts::session(account).await?;
     update_pack(store, id, &mut instance, &report).await?;
 
     let settings = instance.overrides.resolve(defaults);
@@ -383,7 +386,6 @@ pub async fn play(
             }
         })
     };
-    let profile = UserProfile::offline(account.name.clone(), account.id.clone());
     if let Err(e) = launch(&mut version, &profile, &settings, &bus).await {
         watcher.abort();
         return Err(LaunchError::Game(e));

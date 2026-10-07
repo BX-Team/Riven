@@ -262,6 +262,15 @@ impl AppState {
 
     pub fn remove_account(&mut self, id: &str, cx: &mut Context<Self>) {
         self.accounts.accounts.retain(|a| a.id != id);
+        let forget = id.to_owned();
+        let forgot =
+            super::runtime::spawn(async move { riven_launch::accounts::forget(&forget).await });
+        cx.background_spawn(async move {
+            if let Ok(Err(e)) = forgot.await {
+                tracing::warn!("{e}");
+            }
+        })
+        .detach();
         if let Err(e) = riven_launch::accounts::save(&self.accounts) {
             self.error = Some(e.to_string());
         }

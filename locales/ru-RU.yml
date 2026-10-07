@@ -64,6 +64,7 @@ launch:
   updated: "Пак обновлён до %{version}"
   offline: Не удалось проверить пак; запущено то, что установлено
   stage:
+    sign_in: Вход в аккаунт Microsoft
     pack: Обновление пака
     metadata: Получение данных о версии
     java: Загрузка Java
@@ -76,7 +77,13 @@ accounts:
   bad_name: "3–16 латинских букв, цифр или _"
   player_name: Ник игрока
   offline_hint: Для серверов в офлайн-режиме и одиночной игры
-  microsoft_pending: Ждём одобрения лаунчера в Microsoft
+  ms_hint: Введите этот код на странице Microsoft, которая открылась в браузере.
+  ms_requesting: Запрашиваем код у Microsoft…
+  ms_waiting: Ждём, пока вы войдёте…
+  ms_copy: Скопировать код
+  ms_copied: Скопировано
+  ms_open: Открыть страницу ещё раз
+  ms_retry: Попробовать снова
   title: Аккаунты
   none: Аккаунтов пока нет
   add: Добавить аккаунт

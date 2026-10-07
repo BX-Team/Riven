@@ -64,6 +64,7 @@ launch:
   updated: "Pack updated to %{version}"
   offline: Cannot reach the pack; started with what is installed
   stage:
+    sign_in: Signing in to Microsoft
     pack: Updating the pack
     metadata: Reading version info
     java: Downloading Java
@@ -76,7 +77,13 @@ accounts:
   bad_name: "3–16 Latin letters, digits or _"
   player_name: Player name
   offline_hint: Plays on servers in offline mode and in single player
-  microsoft_pending: Waiting for Microsoft to approve the launcher
+  ms_hint: Enter this code on the Microsoft page that opened in your browser.
+  ms_requesting: Asking Microsoft for a code…
+  ms_waiting: Waiting for you to sign in…
+  ms_copy: Copy code
+  ms_copied: Copied
+  ms_open: Open the page again
+  ms_retry: Try again
   title: Accounts
   none: No accounts yet
   add: Add account

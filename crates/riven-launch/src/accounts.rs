@@ -1,9 +1,23 @@
 use std::path::PathBuf;
 
+use lighty_launcher::auth::MicrosoftAuth;
+use lighty_launcher::auth::{AuthError, AuthProvider, Authenticator as _, ExposeSecret as _};
+use lighty_launcher::auth::{SecretString, UserProfile};
 use md5::{Digest, Md5};
 use riven_format::{Account, AccountKind, Accounts};
 
 use crate::LaunchError;
+use crate::vault::Vault;
+
+/// The "Riven Launcher" app registration in Microsoft Entra; a public client, so no secret.
+const CLIENT_ID: &str = "f22b4c7a-4c72-4023-a747-0bc776d22ac1";
+
+/// What the player enters on Microsoft's page to let the launcher sign in.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeviceCode {
+    pub code: String,
+    pub url: String,
+}
 
 pub fn path() -> Result<PathBuf, LaunchError> {
     crate::config_file("accounts.json")
@@ -45,6 +59,95 @@ pub fn offline(name: &str) -> Result<Account, LaunchError> {
         name: name.to_owned(),
         kind: AccountKind::Offline,
     })
+}
+
+/// Signs in with a Microsoft account through a device code and remembers it for later launches.
+pub async fn sign_in(
+    on_code: impl Fn(DeviceCode) + Send + Sync + 'static,
+) -> Result<Account, LaunchError> {
+    let mut auth = MicrosoftAuth::new(CLIENT_ID);
+    auth.set_device_code_callback(move |code, url| {
+        on_code(DeviceCode {
+            code: code.to_owned(),
+            url: url.to_owned(),
+        })
+    });
+    let profile = auth.authenticate(None).await.map_err(auth_error)?;
+    let account = Account {
+        id: profile.uuid.clone(),
+        name: profile.username.clone(),
+        kind: AccountKind::Microsoft,
+    };
+    remember(&account.id, &profile).await?;
+    Ok(account)
+}
+
+/// A fresh game session for an account: Microsoft ones trade their saved refresh token for one.
+pub async fn session(account: &Account) -> Result<UserProfile, LaunchError> {
+    if account.kind == AccountKind::Offline {
+        return Ok(UserProfile::offline(
+            account.name.clone(),
+            account.id.clone(),
+        ));
+    }
+    let id = account.id.clone();
+    let saved = blocking(move || Vault::open().map(|v| v.get(&id))).await?;
+    let refresh = saved.ok_or_else(|| LaunchError::SignInAgain(account.name.clone()))?;
+    let mut auth = MicrosoftAuth::new(CLIENT_ID);
+    let profile = auth
+        .authenticate_with_refresh_token(&SecretString::from(refresh), None)
+        .await
+        .map_err(|e| match e {
+            AuthError::InvalidToken => LaunchError::SignInAgain(account.name.clone()),
+            e => auth_error(e),
+        })?;
+    remember(&account.id, &profile).await?;
+    Ok(profile)
+}
+
+/// Drops what is saved for an account's sign-in.
+pub async fn forget(id: &str) -> Result<(), LaunchError> {
+    let id = id.to_owned();
+    blocking(move || Vault::open()?.remove(&id)).await
+}
+
+/// Keeps the newest refresh token: Microsoft hands out a new one with every refresh.
+async fn remember(id: &str, profile: &UserProfile) -> Result<(), LaunchError> {
+    let AuthProvider::Microsoft {
+        refresh_token: Some(token),
+        ..
+    } = &profile.provider
+    else {
+        return Ok(());
+    };
+    let id = id.to_owned();
+    let token = token.expose_secret().to_owned();
+    blocking(move || Vault::open()?.set(&id, &token)).await
+}
+
+/// Keychains answer synchronously and may wait on a D-Bus round trip.
+async fn blocking<T: Send + 'static>(
+    f: impl FnOnce() -> Result<T, LaunchError> + Send + 'static,
+) -> Result<T, LaunchError> {
+    tokio::task::spawn_blocking(f)
+        .await
+        .map_err(|e| LaunchError::Vault(e.to_string()))?
+}
+
+fn auth_error(e: AuthError) -> LaunchError {
+    match e {
+        AuthError::HttpStatus { status: 403, body }
+            if body.contains("Invalid app registration") =>
+        {
+            LaunchError::SignIn("Microsoft has not approved this launcher for Minecraft yet".into())
+        }
+        AuthError::Cancelled => LaunchError::SignIn("sign-in was declined".into()),
+        AuthError::DeviceCodeExpired => LaunchError::SignIn("the code expired; try again".into()),
+        AuthError::HttpStatus { status, .. } => {
+            LaunchError::SignIn(format!("Microsoft answered HTTP {status}"))
+        }
+        e => LaunchError::SignIn(e.to_string()),
+    }
 }
 
 #[cfg(test)]
