@@ -63,6 +63,9 @@
         "type": "string"
       }
     },
+    "dev_panel": {
+      "$ref": "#/$defs/DevPanel"
+    },
     "$schema": {
       "type": "string"
     },
@@ -198,7 +201,8 @@
           "format": "uint32",
           "minimum": 0
         },
-        "maximized": {
+        "fullscreen": {
+          "description": "Starts the game fullscreen; `maximized` is the name older settings used.",
           "type": "boolean"
         }
       },
@@ -230,6 +234,24 @@
           ]
         }
       }
+    },
+    "DevPanel": {
+      "description": "The bottom panel of the developer section (Check, Git, Log).",
+      "type": "object",
+      "properties": {
+        "height": {
+          "description": "Height in logical pixels.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "hidden": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "height"
+      ]
     }
   }
 }

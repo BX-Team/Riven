@@ -219,6 +219,39 @@ impl AppState {
         );
     }
 
+    /// Installs a pack release into an instance, then starts it: the developer's test run.
+    pub fn install_and_play(
+        &mut self,
+        id: &str,
+        request: Request,
+        account: Account,
+        cx: &mut Context<Self>,
+    ) {
+        if self.sessions.get(id).is_some_and(Session::busy) {
+            return;
+        }
+        let Some(store) = self.store.clone() else {
+            return;
+        };
+        let defaults = self.settings.launch.clone();
+        let instance = id.to_owned();
+        self.run_session(
+            id,
+            move |tx| async move {
+                let report = tx.clone();
+                game::install_pack(&store, &instance, request, move |p| {
+                    let _ = report.send(p);
+                })
+                .await?;
+                game::play(&store, &instance, &account, &defaults, move |p| {
+                    let _ = tx.send(p);
+                })
+                .await
+            },
+            cx,
+        );
+    }
+
     pub fn stop(&mut self, id: &str, cx: &mut Context<Self>) {
         let Some(Phase::Running { pid, .. }) = self.sessions.get(id).map(|s| &s.phase) else {
             return;

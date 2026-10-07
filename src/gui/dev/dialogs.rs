@@ -8,12 +8,15 @@ use gpui_kit::{
     Styled as _, Subscription, WeakEntity, Window, div, px, relative,
 };
 use riven_build::author::{self, AddRequest, AuthorError};
+use riven_build::import::{ImportKind, ImportStage, Scope, import_pack};
+use riven_build::pull::Drift;
 use riven_build::workspace::Workspace;
 use riven_format::{LoaderKind, Reason, Side, SourceKind};
 use riven_resolve::Plan;
 use rust_i18n::t;
 
 use super::DevView;
+use super::git::GitOp;
 use crate::gui::dialogs::{dialog_shell, field, open};
 use crate::gui::runtime;
 use crate::gui::state::AppState;
@@ -779,7 +782,7 @@ impl GroupForm {
                     },
                     cx,
                 );
-                view.error.clone()
+                view.error.take()
             })
             .ok()
             .flatten();
@@ -875,4 +878,566 @@ pub fn open_group(
         }
     });
     open(dialog.into(), 460., cx);
+}
+
+/// "Take configs": files the test instance changed or created, copied back into `overrides/`.
+pub struct PullConfigs {
+    view: WeakEntity<DevView>,
+    workspace: Option<Workspace>,
+    game_dir: Option<PathBuf>,
+    found: Option<Result<Vec<Drift>, SharedString>>,
+    picked: Vec<bool>,
+    /// Where new files go: `common` or `client`.
+    new_scope: Scope,
+}
+
+impl PullConfigs {
+    fn new(view: WeakEntity<DevView>, cx: &mut Context<Self>) -> Self {
+        let workspace = view.upgrade().and_then(|v| v.read(cx).project.clone());
+        let game_dir = view
+            .upgrade()
+            .and_then(|v| v.read(cx).test_instance())
+            .and_then(|id| {
+                let state = AppState::global(cx);
+                let store = state.read(cx).store.clone()?;
+                Some(store.game_dir(&id))
+            });
+        if let (Some(ws), Some(dir)) = (workspace.clone(), game_dir.clone()) {
+            cx.spawn(async move |this, cx| {
+                let found = runtime::blocking(move || riven_build::pull::drift(&ws, &dir))
+                    .await
+                    .unwrap_or_else(|_| Err(AuthorError::NoDataDir));
+                let _ = this.update(cx, |this, cx| {
+                    match found {
+                        Ok(found) => {
+                            this.picked = found.iter().map(|d| !d.new).collect();
+                            this.found = Some(Ok(found));
+                        }
+                        Err(e) => this.found = Some(Err(e.to_string().into())),
+                    }
+                    cx.notify();
+                });
+            })
+            .detach();
+        }
+        Self {
+            view,
+            workspace,
+            game_dir,
+            found: None,
+            picked: Vec::new(),
+            new_scope: Scope::Common,
+        }
+    }
+
+    fn take(&mut self, cx: &mut Context<Self>) {
+        let (Some(ws), Some(dir), Some(Ok(found))) = (&self.workspace, &self.game_dir, &self.found)
+        else {
+            return;
+        };
+        let picked: Vec<Drift> = found
+            .iter()
+            .zip(&self.picked)
+            .filter(|(_, on)| **on)
+            .map(|(d, _)| Drift {
+                scope: if d.new && d.scope == Scope::Common {
+                    self.new_scope
+                } else {
+                    d.scope
+                },
+                ..d.clone()
+            })
+            .collect();
+        match riven_build::pull::take(ws, dir, &picked) {
+            Ok(n) => {
+                let _ = self.view.update(cx, |view, cx| {
+                    view.refresh_tree();
+                    view.refresh_git(cx);
+                    view.notice = Some(t!("dev.pulled", n = n).into());
+                    cx.notify();
+                });
+                close(cx);
+            }
+            Err(e) => {
+                self.found = Some(Err(e.to_string().into()));
+                cx.notify();
+            }
+        }
+    }
+}
+
+impl Render for PullConfigs {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let c = theme.colors;
+        let mono = theme.mono.clone();
+        let count = self.picked.iter().filter(|p| **p).count();
+        let body: AnyElement = match &self.found {
+            None => div()
+                .text_color(c.muted)
+                .child(t!("dev.pull_reading").to_string())
+                .into_any_element(),
+            Some(Err(e)) => div().text_color(c.warn).child(e.clone()).into_any_element(),
+            Some(Ok(found)) if found.is_empty() => div()
+                .text_color(c.muted)
+                .child(t!("dev.pull_none").to_string())
+                .into_any_element(),
+            Some(Ok(found)) => {
+                let rows = found.iter().enumerate().map(|(i, d)| {
+                    let on = self.picked.get(i).copied().unwrap_or(false);
+                    let badge = if d.new {
+                        t!("dev.pull_new").to_string()
+                    } else {
+                        d.scope.dir().to_owned()
+                    };
+                    h_flex()
+                        .id(("pull-row", i))
+                        .h(px(26.))
+                        .px(px(8.))
+                        .gap(px(10.))
+                        .rounded(px(5.))
+                        .cursor_pointer()
+                        .hover(|s| s.bg(c.row))
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            if let Some(p) = this.picked.get_mut(i) {
+                                *p = !*p;
+                            }
+                            cx.notify();
+                        }))
+                        .child(
+                            div()
+                                .size(px(15.))
+                                .flex_none()
+                                .rounded(px(4.))
+                                .border_1()
+                                .border_color(if on { c.accent } else { c.border })
+                                .when(on, |d| d.bg(c.accent))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .when(on, |d| {
+                                    d.child(
+                                        crate::gui::ui::icon(IconName::Check, c.on_accent)
+                                            .size(px(11.)),
+                                    )
+                                }),
+                        )
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .truncate()
+                                .font_family(mono.clone())
+                                .text_size(px(12.))
+                                .child(d.path.to_string()),
+                        )
+                        .child(
+                            div()
+                                .flex_none()
+                                .text_size(px(11.))
+                                .text_color(if d.new { c.ok } else { c.warn })
+                                .child(badge),
+                        )
+                });
+                let all = found.len();
+                let any_new = found.iter().any(|d| d.new);
+                let view = cx.entity().downgrade();
+                v_flex()
+                    .gap(px(10.))
+                    .child(
+                        h_flex()
+                            .gap(px(8.))
+                            .child(
+                                Button::new("pull-all")
+                                    .size(ButtonSize::Xs)
+                                    .label(t!("dev.pull_all"))
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        this.picked = vec![true; all];
+                                        cx.notify();
+                                    })),
+                            )
+                            .child(
+                                Button::new("pull-changed")
+                                    .size(ButtonSize::Xs)
+                                    .label(t!("dev.pull_changed"))
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        if let Some(Ok(found)) = &this.found {
+                                            this.picked = found.iter().map(|d| !d.new).collect();
+                                        }
+                                        cx.notify();
+                                    })),
+                            )
+                            .child(div().flex_1())
+                            .when(any_new, |row| {
+                                row.child(
+                                    div()
+                                        .text_color(c.muted)
+                                        .child(t!("dev.pull_new_to").to_string()),
+                                )
+                                .child(
+                                    Dropdown::new(
+                                        "pull-scope",
+                                        vec![
+                                            MenuItem::new("common", "common"),
+                                            MenuItem::new("client", "client"),
+                                        ],
+                                        Some(self.new_scope.dir().into()),
+                                        move |v, _, cx| {
+                                            let _ = view.update(cx, |this, cx| {
+                                                this.new_scope = if v.as_ref() == "client" {
+                                                    Scope::Client
+                                                } else {
+                                                    Scope::Common
+                                                };
+                                                cx.notify();
+                                            });
+                                        },
+                                    )
+                                    .width(px(120.)),
+                                )
+                            }),
+                    )
+                    .child(
+                        v_flex()
+                            .id("pull-list")
+                            .max_h(px(360.))
+                            .overflow_y_scroll()
+                            .gap(px(1.))
+                            .children(rows),
+                    )
+                    .into_any_element()
+            }
+        };
+        let action = Button::new("pull-take")
+            .primary()
+            .size(ButtonSize::Md)
+            .label(t!("dev.pull_take", n = count))
+            .disabled(count == 0)
+            .on_click(cx.listener(|this, _, _, cx| this.take(cx)));
+        dialog_shell(
+            t!("dev.pull"),
+            t!("dev.pull_description"),
+            body,
+            vec![cancel(), action],
+            cx,
+        )
+    }
+}
+
+pub fn open_pull(view: WeakEntity<DevView>, _: &mut Window, cx: &mut App) {
+    let dialog = cx.new(|cx| PullConfigs::new(view, cx));
+    open(dialog.into(), 620., cx);
+}
+
+/// Where a new project comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Origin {
+    Mrpack,
+    Packwiz,
+    Clone,
+}
+
+/// "Import mrpack/packwiz" and "Clone with git": a source and the folder it becomes.
+pub struct NewFrom {
+    view: WeakEntity<DevView>,
+    origin: Origin,
+    source: Entity<InputState>,
+    name: Entity<InputState>,
+    /// The name was typed by hand, so the source no longer suggests one.
+    named: bool,
+    parent: Option<PathBuf>,
+    stage: Option<SharedString>,
+    error: Option<SharedString>,
+    _subs: Vec<Subscription>,
+}
+
+fn suggested_name(origin: Origin, source: &str) -> Option<String> {
+    let source = source.trim().trim_end_matches('/');
+    match origin {
+        Origin::Clone => riven_build::git::clone_name(source),
+        Origin::Mrpack => {
+            let file = source.rsplit(['/', '\\']).next()?;
+            Some(file.trim_end_matches(".mrpack").to_owned()).filter(|n| !n.is_empty())
+        }
+        Origin::Packwiz => {
+            let source = source
+                .trim_end_matches("pack.toml")
+                .trim_end_matches(['/', '\\']);
+            source
+                .rsplit(['/', '\\'])
+                .next()
+                .map(str::to_owned)
+                .filter(|n| !n.is_empty())
+        }
+    }
+}
+
+impl NewFrom {
+    fn new(
+        view: WeakEntity<DevView>,
+        origin: Origin,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let hint = match origin {
+            Origin::Mrpack => t!("dev.from_mrpack_hint"),
+            Origin::Packwiz => t!("dev.from_packwiz_hint"),
+            Origin::Clone => t!("dev.from_clone_hint"),
+        };
+        let source = cx.new(|cx| InputState::new(window, cx).placeholder(hint.to_string()));
+        source.update(cx, |s, cx| s.focus(window, cx));
+        let name = cx.new(|cx| InputState::new(window, cx));
+        let subs = vec![
+            cx.subscribe_in(
+                &source,
+                window,
+                |this, input, event: &InputEvent, window, cx| {
+                    if let InputEvent::Change = event {
+                        this.error = None;
+                        if !this.named {
+                            let text = input.read(cx).value().to_string();
+                            let name = suggested_name(this.origin, &text).unwrap_or_default();
+                            this.name.update(cx, |s, cx| s.set_value(name, window, cx));
+                            this.named = false;
+                        }
+                        cx.notify();
+                    }
+                },
+            ),
+            cx.subscribe(&name, |this, input, event: &InputEvent, cx| {
+                if let InputEvent::Change = event {
+                    let typed = input.read(cx).value().to_string();
+                    let suggested =
+                        suggested_name(this.origin, this.source.read(cx).value().as_ref())
+                            .unwrap_or_default();
+                    this.named = typed != suggested;
+                    this.error = None;
+                    cx.notify();
+                }
+            }),
+        ];
+        let parent = view
+            .upgrade()
+            .and_then(|v| v.read(cx).project.as_ref()?.dir.parent().map(Into::into))
+            .or_else(dirs::home_dir);
+        Self {
+            view,
+            origin,
+            source,
+            name,
+            named: false,
+            parent,
+            stage: None,
+            error: None,
+            _subs: subs,
+        }
+    }
+
+    fn browse_source(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let paths = cx.prompt_for_paths(PathPromptOptions {
+            files: self.origin == Origin::Mrpack,
+            directories: self.origin == Origin::Packwiz,
+            multiple: false,
+            prompt: Some(t!("dev.choose").into()),
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let Ok(Ok(Some(paths))) = paths.await else {
+                return;
+            };
+            let Some(path) = paths.into_iter().next() else {
+                return;
+            };
+            let _ = this.update_in(cx, |this, window, cx| {
+                let text = path.display().to_string();
+                this.source
+                    .update(cx, |s, cx| s.set_value(text, window, cx));
+            });
+        })
+        .detach();
+    }
+
+    fn pick_parent(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let paths = cx.prompt_for_paths(PathPromptOptions {
+            files: false,
+            directories: true,
+            multiple: false,
+            prompt: Some(t!("dev.pick_parent").into()),
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let Ok(Ok(Some(paths))) = paths.await else {
+                return;
+            };
+            let _ = this.update(cx, |this, cx| {
+                this.parent = paths.into_iter().next();
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    fn run(&mut self, cx: &mut Context<Self>) {
+        let source = self.source.read(cx).value().trim().to_string();
+        let name = self.name.read(cx).value().trim().to_string();
+        let Some(parent) = self.parent.clone() else {
+            return;
+        };
+        if source.is_empty() || name.is_empty() || name.contains(['/', '\\']) {
+            self.error = Some(t!("dev.from_incomplete").into());
+            cx.notify();
+            return;
+        }
+        let dest = parent.join(&name);
+        if std::fs::read_dir(&dest).is_ok_and(|mut d| d.next().is_some()) {
+            self.error = Some(t!("dev.from_not_empty", path = dest.display()).into());
+            cx.notify();
+            return;
+        }
+        let kind = match self.origin {
+            Origin::Clone => {
+                let _ = self.view.update(cx, |view, cx| {
+                    let open = dest.clone();
+                    view.run_git(
+                        GitOp::Clone { url: source, dest },
+                        move |view, cx| view.open(open, cx),
+                        cx,
+                    );
+                });
+                close(cx);
+                return;
+            }
+            Origin::Mrpack => ImportKind::Mrpack,
+            Origin::Packwiz => ImportKind::Packwiz,
+        };
+        self.stage = Some(t!("dev.import_reading").into());
+        self.error = None;
+        cx.notify();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<ImportStage>();
+        let finished = runtime::spawn(async move {
+            import_pack(&dest, kind, &source, move |stage| {
+                let _ = tx.send(stage);
+            })
+            .await
+        });
+        cx.spawn(async move |this, cx| {
+            while let Some(stage) = rx.recv().await {
+                let label: SharedString = match stage {
+                    ImportStage::Reading => t!("dev.import_reading"),
+                    ImportStage::Identifying { files } => t!("dev.import_identifying", n = files),
+                    ImportStage::Downloading => t!("dev.import_downloading"),
+                    ImportStage::Writing => t!("dev.import_writing"),
+                }
+                .into();
+                if this
+                    .update(cx, |this, cx| {
+                        this.stage = Some(label);
+                        cx.notify();
+                    })
+                    .is_err()
+                {
+                    return;
+                }
+            }
+            let result = finished.await;
+            let _ = this.update(cx, |this, cx| {
+                this.stage = None;
+                match result {
+                    Ok(Ok(imported)) => {
+                        let skipped = imported.unmatched.len();
+                        let _ = this.view.update(cx, |view, cx| {
+                            view.adopt(imported.workspace, cx);
+                            if skipped > 0 {
+                                view.error = Some(t!("dev.import_skipped", n = skipped).into());
+                            }
+                        });
+                        close(cx);
+                    }
+                    Ok(Err(e)) => this.error = Some(e.to_string().into()),
+                    Err(_) => {}
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+}
+
+impl Render for NewFrom {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let c = cx.theme().colors;
+        let (title, description) = match self.origin {
+            Origin::Mrpack => (t!("dev.from_mrpack"), t!("dev.from_mrpack_description")),
+            Origin::Packwiz => (t!("dev.from_packwiz"), t!("dev.from_packwiz_description")),
+            Origin::Clone => (t!("dev.from_clone"), t!("dev.from_clone_description")),
+        };
+        let busy = self.stage.is_some();
+        let parent = self
+            .parent
+            .as_ref()
+            .map(|d| d.display().to_string())
+            .unwrap_or_else(|| t!("dev.no_folder").to_string());
+        let body = v_flex()
+            .gap(px(14.))
+            .child(field(
+                t!("dev.from_source"),
+                h_flex()
+                    .gap(px(8.))
+                    .child(div().flex_1().child(TextField::new(&self.source)))
+                    .when(self.origin != Origin::Clone, |row| {
+                        row.child(
+                            Button::new("from-browse")
+                                .icon(IconName::Folder)
+                                .tooltip(t!("dev.choose"))
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.browse_source(window, cx)
+                                })),
+                        )
+                    }),
+                cx,
+            ))
+            .child(field(
+                t!("dev.from_into"),
+                h_flex()
+                    .gap(px(8.))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .text_color(c.muted)
+                            .child(parent),
+                    )
+                    .child(
+                        Button::new("from-parent")
+                            .icon(IconName::Folder)
+                            .label(t!("dev.choose"))
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.pick_parent(window, cx)),
+                            ),
+                    ),
+                cx,
+            ))
+            .child(field(t!("dev.from_name"), TextField::new(&self.name), cx))
+            .when_some(self.stage.clone(), |col, stage| {
+                col.child(div().text_color(c.muted).child(stage))
+            })
+            .when_some(self.error.clone(), |col, e| {
+                col.child(div().text_color(c.warn).line_height(relative(1.5)).child(e))
+            });
+        let action = Button::new("from-run")
+            .primary()
+            .size(ButtonSize::Md)
+            .disabled(busy)
+            .label(match self.origin {
+                Origin::Clone => t!("dev.from_clone_run"),
+                _ => t!("dev.from_import_run"),
+            })
+            .on_click(cx.listener(|this, _, _, cx| this.run(cx)));
+        let title = title.trim_end_matches('…').to_owned();
+        dialog_shell(title, description, body, vec![cancel(), action], cx)
+    }
+}
+
+pub fn open_new_from(view: WeakEntity<DevView>, origin: Origin, window: &mut Window, cx: &mut App) {
+    let dialog = cx.new(|cx| NewFrom::new(view, origin, window, cx));
+    open(dialog.into(), 520., cx);
 }

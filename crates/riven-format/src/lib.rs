@@ -13,8 +13,8 @@ use serde_json::{Map, Value};
 
 pub use common::{Group, Hash, Hashes, InstallSide, Java, Keyed, Loader, LoaderKind, Memory, Side};
 pub use launcher::{
-    Account, AccountKind, Accounts, Appearance, GameWindow, Instance, JavaChoice, LaunchCommands,
-    LaunchOverrides, LaunchSettings, MemoryMb, Settings, ThemeMode,
+    Account, AccountKind, Accounts, Appearance, DevPanel, GameWindow, Instance, JavaChoice,
+    LaunchCommands, LaunchOverrides, LaunchSettings, MemoryMb, Settings, ThemeMode,
 };
 pub use path::{PackPath, PathError};
 pub use project::{

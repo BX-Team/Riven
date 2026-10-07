@@ -1,9 +1,12 @@
 pub mod author;
 pub mod deploy;
 pub mod export;
+pub mod git;
 pub mod glob;
 pub mod import;
 pub mod mrpack;
 pub mod packwiz;
+pub mod pull;
 pub mod release;
+pub mod ship;
 pub mod workspace;
