@@ -636,9 +636,8 @@ impl SettingsView {
                     Button::new("settings-add-microsoft")
                         .primary()
                         .size(ButtonSize::Md)
-                        .disabled(true)
-                        .tooltip(t!("accounts.microsoft_pending"))
-                        .label(t!("accounts.add_microsoft")),
+                        .label(t!("accounts.add_microsoft"))
+                        .on_click(|_, _, cx| super::dialogs::open_add_microsoft(cx)),
                 )
                 .child(
                     Button::new("settings-add-offline")

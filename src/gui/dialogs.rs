@@ -711,3 +711,165 @@ pub fn confirm_remove_account(id: String, name: String, cx: &mut App) {
         cx,
     );
 }
+
+/// "Sign in with Microsoft": shows the device code, waits for the player to enter it.
+pub struct AddMicrosoft {
+    code: Option<riven_launch::accounts::DeviceCode>,
+    error: Option<SharedString>,
+    copied: bool,
+    _task: Option<gpui_kit::Task<()>>,
+}
+
+impl AddMicrosoft {
+    fn new(cx: &mut Context<Self>) -> Self {
+        let mut this = Self {
+            code: None,
+            error: None,
+            copied: false,
+            _task: None,
+        };
+        this.start(cx);
+        this
+    }
+
+    fn start(&mut self, cx: &mut Context<Self>) {
+        self.code = None;
+        self.error = None;
+        self.copied = false;
+        let (code_tx, code_rx) = tokio::sync::oneshot::channel();
+        let code_tx = std::sync::Mutex::new(Some(code_tx));
+        let signed_in = runtime::pinned(move || async move {
+            riven_launch::accounts::sign_in(move |code| {
+                if let Some(tx) = code_tx.lock().ok().and_then(|mut t| t.take()) {
+                    let _ = tx.send(code);
+                }
+            })
+            .await
+        });
+        self._task = Some(cx.spawn(async move |this, cx| {
+            if let Ok(code) = code_rx.await {
+                let _ = this.update(cx, |this, cx| {
+                    cx.open_url(&code.url);
+                    this.code = Some(code);
+                    cx.notify();
+                });
+            }
+            let result = signed_in.await;
+            let _ = this.update(cx, |this, cx| match result {
+                Ok(Ok(account)) => AppState::global(cx).update(cx, |s, cx| {
+                    s.add_account(account, cx);
+                    s.close_modal(cx);
+                }),
+                Ok(Err(e)) => {
+                    this.error = Some(e.to_string().into());
+                    cx.notify();
+                }
+                Err(_) => {}
+            });
+        }));
+        cx.notify();
+    }
+}
+
+impl Render for AddMicrosoft {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let c = cx.theme().colors;
+        let mono = cx.theme().mono.clone();
+        let body = match (&self.error, &self.code) {
+            (Some(error), _) => div()
+                .text_color(c.warn)
+                .line_height(relative(1.5))
+                .child(error.clone())
+                .into_any_element(),
+            (None, None) => h_flex()
+                .gap(px(10.))
+                .text_color(c.muted)
+                .child(super::ui::motion::spinner(
+                    "ms-wait",
+                    super::ui::icon(super::ui::IconName::Loader, c.muted),
+                    cx,
+                ))
+                .child(t!("accounts.ms_requesting").to_string())
+                .into_any_element(),
+            (None, Some(code)) => {
+                let text = code.code.clone();
+                let url = code.url.clone();
+                v_flex()
+                    .gap(px(12.))
+                    .child(
+                        h_flex()
+                            .justify_center()
+                            .py(px(14.))
+                            .rounded(px(10.))
+                            .bg(c.bg)
+                            .border_1()
+                            .border_color(c.border)
+                            .font_family(mono.clone())
+                            .text_size(px(26.))
+                            .font_weight(FontWeight::BOLD)
+                            .child(code.code.clone()),
+                    )
+                    .child(
+                        h_flex()
+                            .gap(px(8.))
+                            .child(
+                                Button::new("ms-copy")
+                                    .outline()
+                                    .size(ButtonSize::Md)
+                                    .flex_1()
+                                    .label(if self.copied {
+                                        t!("accounts.ms_copied")
+                                    } else {
+                                        t!("accounts.ms_copy")
+                                    })
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        cx.write_to_clipboard(gpui_kit::ClipboardItem::new_string(
+                                            text.clone(),
+                                        ));
+                                        this.copied = true;
+                                        cx.notify();
+                                    })),
+                            )
+                            .child(
+                                Button::new("ms-open")
+                                    .outline()
+                                    .size(ButtonSize::Md)
+                                    .flex_1()
+                                    .label(t!("accounts.ms_open"))
+                                    .on_click(move |_, _, cx| cx.open_url(&url)),
+                            ),
+                    )
+                    .child(
+                        h_flex()
+                            .gap(px(10.))
+                            .text_color(c.muted)
+                            .child(super::ui::motion::spinner(
+                                "ms-wait",
+                                super::ui::icon(super::ui::IconName::Loader, c.muted),
+                                cx,
+                            ))
+                            .child(t!("accounts.ms_waiting").to_string()),
+                    )
+                    .into_any_element()
+            }
+        };
+        let retry = Button::new("ms-retry")
+            .primary()
+            .size(ButtonSize::Md)
+            .label(t!("accounts.ms_retry"))
+            .disabled(self.error.is_none())
+            .on_click(cx.listener(|this, _, _, cx| this.start(cx)));
+        dialog_frame(
+            t!("accounts.add_microsoft"),
+            t!("accounts.ms_hint"),
+            body,
+            retry,
+            cx,
+        )
+    }
+}
+
+pub fn open_add_microsoft(cx: &mut App) {
+    let form = cx.new(AddMicrosoft::new);
+    open(form.into(), 420., cx);
+}
