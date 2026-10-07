@@ -1,66 +1,19 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use anyhow::{Context, bail};
+use anyhow::bail;
 use console::style;
-use futures_util::{StreamExt, stream};
-use riven_build::export::{Format, needs_bytes, selected};
-use riven_format::{InstallSide, KeyPair};
-use riven_resolve::JarFetcher;
+use riven_build::ship::{self, ExportKind};
+use riven_format::InstallSide;
 use serde_json::json;
 
 use super::output::Output;
 use super::project::Workspace;
 use super::{ExportFormat, TrustCommand};
 
-const PARALLEL_DOWNLOADS: usize = 8;
-
-fn key_path(pack: &str) -> anyhow::Result<PathBuf> {
-    let dir = riven_sync::config_dir().context("cannot locate the config directory")?;
-    Ok(dir.join("keys").join(format!("{pack}.ed25519")))
-}
-
-fn load_key(pack: &str) -> anyhow::Result<Option<KeyPair>> {
-    let path = key_path(pack)?;
-    match std::fs::read_to_string(&path) {
-        Ok(text) => Ok(Some(
-            KeyPair::from_secret(&text).with_context(|| path.display().to_string())?,
-        )),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(e).with_context(|| format!("cannot read {}", path.display())),
-    }
-}
-
-fn write_secret(path: &Path, text: &str) -> anyhow::Result<()> {
-    std::fs::create_dir_all(path.parent().expect("key path has a parent"))?;
-    #[cfg(unix)]
-    {
-        use std::io::Write;
-        use std::os::unix::fs::OpenOptionsExt;
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(path)?;
-        file.write_all(text.as_bytes())?;
-    }
-    #[cfg(not(unix))]
-    std::fs::write(path, text)?;
-    Ok(())
-}
-
 pub fn keygen(out: &Output) -> anyhow::Result<ExitCode> {
     let ws = Workspace::find()?;
-    let path = key_path(&ws.project.id)?;
-    let (key, created) = match load_key(&ws.project.id)? {
-        Some(key) => (key, false),
-        None => {
-            let key = KeyPair::generate()?;
-            write_secret(&path, &key.to_secret())
-                .with_context(|| format!("cannot write {}", path.display()))?;
-            (key, true)
-        }
-    };
+    let (key, path, created) = ship::keygen(&ws.project.id)?;
     let public = key.public().to_string();
     out.emit(
         json!({ "key": public, "path": path, "created": created }),
@@ -104,27 +57,14 @@ pub fn trust(out: &Output, command: TrustCommand) -> anyhow::Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-pub async fn build(
-    out: &Output,
-    channel: &str,
-    dist: &Path,
-    unsigned: bool,
-) -> anyhow::Result<ExitCode> {
+pub fn build(out: &Output, channel: &str, dist: &Path, unsigned: bool) -> anyhow::Result<ExitCode> {
     let ws = Workspace::find()?;
     let dist = ws.dir.join(dist);
-    let key = match (load_key(&ws.project.id)?, unsigned) {
-        (_, true) => None,
-        (Some(key), false) => Some(key),
-        (None, false) => bail!(
-            "no signing key for `{}`; run `riven keygen`, or build with --unsigned",
-            ws.project.id
-        ),
-    };
+    let key = ship::signing_key(&ws.project.id, unsigned)?;
     let spinner = out.spinner("Building the release");
-    let built = riven_build::release::build_release(&ws.project, &ws.dir)?;
-    riven_build::release::write_release(&dist, &built, key.as_ref())?;
-    let pointer = riven_build::release::publish(&dist, channel, &ws.project.version, key.as_ref())?;
+    let built = ship::build(&ws, &dist, channel, key.as_ref());
     spinner.finish_and_clear();
+    let (built, pointer) = built?;
 
     let release = &built.release;
     let public = key.as_ref().map(|k| k.public().to_string());
@@ -173,7 +113,7 @@ pub fn publish(
     dist: &Path,
 ) -> anyhow::Result<ExitCode> {
     let ws = Workspace::find()?;
-    let key = load_key(&ws.project.id)?;
+    let key = ship::load_key(&ws.project.id)?;
     let dist = ws.dir.join(dist);
     let pointer = riven_build::release::publish(&dist, channel, version, key.as_ref())?;
     out.emit(json!(pointer), || {
@@ -194,23 +134,10 @@ pub fn deploy(
 ) -> anyhow::Result<ExitCode> {
     let ws = Workspace::find()?;
     let dist = ws.dir.join(dist);
-    let message = format!("deploy {} {}", ws.project.id, ws.project.version);
-    let options = riven_build::deploy::Deploy {
-        dist: &dist,
-        branch,
-        remote,
-        message: &message,
-        push,
-    };
     let spinner = out.spinner(format!("Deploying {} to `{branch}`", dist.display()));
-    let deployed = riven_build::deploy::deploy(&ws.dir, &options);
+    let shipped = ship::deploy(&ws, &dist, branch, remote, push);
     spinner.finish_and_clear();
-    let deployed = deployed?;
-    let key = load_key(&ws.project.id)?.map(|k| k.public().to_string());
-    let link = deployed.short_link.as_ref().map(|base| match &key {
-        Some(key) => format!("{base}#key={key}"),
-        None => base.clone(),
-    });
+    let ship::Shipped { deployed, link } = shipped?;
     out.emit(
         json!({
             "commit": deployed.commit,
@@ -252,31 +179,6 @@ pub fn deploy(
     Ok(ExitCode::SUCCESS)
 }
 
-fn export_archive(out: &Output, ws: &Workspace, path: Option<PathBuf>) -> anyhow::Result<ExitCode> {
-    super::project::ensure_gitignore(&ws.dir)?;
-    let path = path.unwrap_or_else(|| {
-        ws.dir
-            .join("exports")
-            .join(format!("{}-{}.riven", ws.project.id, ws.project.version))
-    });
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("cannot create {}", parent.display()))?;
-    }
-    let key = load_key(&ws.project.id)?;
-    let built = riven_build::release::build_release(&ws.project, &ws.dir)?;
-    riven_build::release::write_archive(&built, key.as_ref(), &path)?;
-    out.emit(json!({ "path": path, "blobs": built.blobs.len() }), || {
-        out.success(&format!(
-            "Exported {} ({} files, {} embedded)",
-            path.display(),
-            built.release.files.len(),
-            built.blobs.len()
-        ));
-    });
-    Ok(ExitCode::SUCCESS)
-}
-
 pub async fn export(
     out: &Output,
     format: ExportFormat,
@@ -284,61 +186,19 @@ pub async fn export(
     path: Option<PathBuf>,
 ) -> anyhow::Result<ExitCode> {
     let ws = Workspace::find()?;
-    if let ExportFormat::Riven = format {
-        return export_archive(out, &ws, path);
-    }
-    let format = match format {
-        ExportFormat::Riven => unreachable!("handled above"),
-        ExportFormat::Mrpack => Format::Mrpack,
-        ExportFormat::Prism => Format::Prism,
+    let kind = match format {
+        ExportFormat::Mrpack => ExportKind::Mrpack,
+        ExportFormat::Prism => ExportKind::Prism,
+        ExportFormat::Riven => ExportKind::Riven,
     };
-    let suffix = match format {
-        Format::Mrpack => "",
-        Format::Prism => "-prism",
-    };
-    super::project::ensure_gitignore(&ws.dir)?;
-    let path = path.unwrap_or_else(|| {
-        ws.dir.join("exports").join(format!(
-            "{}-{}{suffix}.{}",
-            ws.project.id,
-            ws.project.version,
-            format.extension()
-        ))
-    });
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("cannot create {}", parent.display()))?;
-    }
-
-    let jars = ws.jars()?;
-    let wanted: Vec<_> = selected(format, &ws.project, side)
-        .into_iter()
-        .filter(|e| needs_bytes(format, e))
-        .collect();
-    let spinner = out.spinner(format!("Fetching {} files to embed", wanted.len()));
-    let failures: Vec<String> = stream::iter(wanted)
-        .map(|entry| {
-            let jars = &jars;
-            async move {
-                jars.jar(entry)
-                    .await
-                    .err()
-                    .map(|e| format!("`{}`: {e}", entry.id))
-            }
-        })
-        .buffer_unordered(PARALLEL_DOWNLOADS)
-        .filter_map(|e| async move { e })
-        .collect()
-        .await;
-    spinner.set_message("Writing the archive");
-    let bytes = |entry: &riven_format::Entry| -> Result<Vec<u8>, String> {
-        let file = jars
-            .local_path(entry)
-            .ok_or_else(|| "not downloaded".to_owned())?;
-        std::fs::read(&file).map_err(|e| e.to_string())
-    };
-    let report = riven_build::export::export(format, &ws.project, &ws.dir, side, &bytes, &path)?;
+    let spinner = out.spinner("Exporting the pack");
+    let report = ship::export(&ws, kind, side, path).await;
     spinner.finish_and_clear();
+    let ship::ExportReport {
+        path,
+        exported: report,
+        failures,
+    } = report?;
 
     out.emit(
         json!({

@@ -1,8 +1,13 @@
 mod content;
 mod dialogs;
 mod files;
+mod git;
 mod highlight;
+mod panel;
+mod releases;
 mod sections;
+mod test;
+mod watch;
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -10,10 +15,10 @@ use std::path::{Path, PathBuf};
 use gpui_kit::base::input::{EditorState, InputEvent, InputState};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
-    AnyElement, App, AppContext as _, Context, Entity, FontWeight, InteractiveElement as _,
-    IntoElement, ParentElement as _, PathPromptOptions, Render, SharedString,
-    StatefulInteractiveElement as _, Styled as _, Subscription, UniformListScrollHandle, Window,
-    div, px,
+    AnyElement, App, AppContext as _, Context, DragMoveEvent, Entity, FontWeight,
+    InteractiveElement as _, IntoElement, ParentElement as _, PathPromptOptions, Render,
+    SharedString, StatefulInteractiveElement as _, Styled as _, Subscription,
+    UniformListScrollHandle, Window, div, px,
 };
 use riven_build::author::{AuthorError, CheckReport};
 use riven_build::workspace::{OVERRIDE_SIDES, OVERRIDES, PROJECT_FILE, TreeEntry, Workspace};
@@ -30,7 +35,6 @@ use super::ui::{
 };
 
 const RECENT: usize = 8;
-const PANEL_HEIGHT: f32 = 190.;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Section {
@@ -38,13 +42,15 @@ enum Section {
     Dependencies,
     Groups,
     Releases,
+    Git,
 }
 
-const SECTIONS: [Section; 4] = [
+const SECTIONS: [Section; 5] = [
     Section::Content,
     Section::Dependencies,
     Section::Groups,
     Section::Releases,
+    Section::Git,
 ];
 
 impl Section {
@@ -54,6 +60,7 @@ impl Section {
             Section::Dependencies => t!("dev.dependencies"),
             Section::Groups => t!("dev.groups"),
             Section::Releases => t!("dev.releases"),
+            Section::Git => "Git".into(),
         }
         .into()
     }
@@ -135,6 +142,16 @@ pub struct DevView {
     shown: Vec<usize>,
     scroll: UniformListScrollHandle,
     updates: Updates,
+    releases: releases::Releases,
+    git: git::GitState,
+    /// The bottom panel's stream, kept at the end while git output or the test log grows.
+    panel_list: UniformListScrollHandle,
+    panel_seen: usize,
+    /// The panel's height while its edge is dragged; saved to the settings on drop.
+    panel_drag: Option<f32>,
+    watch: Option<watch::Watch>,
+    /// Files changed on disk: open editors read them again on the next frame.
+    reload_files: bool,
     _subs: Vec<Subscription>,
 }
 
@@ -149,12 +166,17 @@ impl DevView {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let filter =
             cx.new(|cx| InputState::new(window, cx).placeholder(t!("dev.filter").to_string()));
-        let subs = vec![cx.subscribe(&filter, |this, _, event: &InputEvent, cx| {
-            if let InputEvent::Change = event {
-                this.refresh_rows(cx);
-                cx.notify();
-            }
-        })];
+        let subs = vec![
+            cx.subscribe(&filter, |this, _, event: &InputEvent, cx| {
+                if let InputEvent::Change = event {
+                    this.refresh_rows(cx);
+                    cx.notify();
+                }
+            }),
+            cx.observe(&AppState::global(cx), |_, _, cx| cx.notify()),
+        ];
+        let releases = releases::Releases::new(window, cx);
+        let git = git::GitState::new(window, cx);
         let mut view = Self {
             project: None,
             error: None,
@@ -173,6 +195,13 @@ impl DevView {
             shown: Vec::new(),
             scroll: UniformListScrollHandle::new(),
             updates: Updates::Unchecked,
+            releases,
+            git,
+            panel_list: UniformListScrollHandle::new(),
+            panel_seen: 0,
+            panel_drag: None,
+            watch: None,
+            reload_files: false,
             _subs: subs,
         };
         let last = AppState::global(cx)
@@ -212,7 +241,11 @@ impl DevView {
             )
         });
         let switched = self.project.as_ref().is_some_and(|old| old.dir != ws.dir);
+        let rewatch = switched || self.watch.is_none();
         self.project = Some(ws);
+        if rewatch {
+            self.watch(cx);
+        }
         self.error = None;
         self.updates = Updates::Unchecked;
         if switched {
@@ -226,8 +259,11 @@ impl DevView {
             .map(|side| format!("{OVERRIDES}/{side}"))
             .collect();
         self.refresh_tree();
+        self.refresh_dist();
         self.refresh_rows(cx);
         self.run_check(cx);
+        self.git.repo = git::Repo::Unknown;
+        self.refresh_git(cx);
         cx.notify();
     }
 
@@ -287,8 +323,10 @@ impl DevView {
                 self.error = None;
                 self.notice = None;
                 self.updates = Updates::Unchecked;
+                self.releases.changes = releases::Changes::Stale;
                 self.refresh_rows(cx);
                 self.run_check(cx);
+                self.refresh_git(cx);
             }
             Err(e) => self.error = Some(e.to_string().into()),
         }
@@ -346,6 +384,58 @@ impl DevView {
                         dialogs::open_preview(title, plan, view, window, cx);
                     }
                     Err(e) => this.error = Some(e.to_string().into()),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// Turns the last outcome and failure into notifications.
+    fn flush_messages(&mut self, cx: &mut Context<Self>) {
+        let notice = self.notice.take();
+        let error = self.error.take();
+        if notice.is_none() && error.is_none() {
+            return;
+        }
+        cx.defer(move |cx| {
+            if let Some(text) = notice {
+                super::toast::show(super::toast::ToastKind::Success, text, cx);
+            }
+            if let Some(text) = error {
+                super::toast::show(super::toast::ToastKind::Error, text, cx);
+            }
+        });
+    }
+
+    /// Runs a long operation in the background, shown in the top bar; one at a time.
+    fn job<T, E, Fut>(
+        &mut self,
+        busy: SharedString,
+        work: Fut,
+        done: impl FnOnce(&mut Self, T, &mut Context<Self>) + 'static,
+        cx: &mut Context<Self>,
+    ) where
+        T: Send + 'static,
+        E: ToString + Send + 'static,
+        Fut: Future<Output = Result<T, E>> + Send + 'static,
+    {
+        if self.busy.is_some() {
+            return;
+        }
+        self.busy = Some(busy);
+        self.error = None;
+        self.notice = None;
+        cx.notify();
+        cx.spawn(async move |this, cx| {
+            let result = runtime::spawn(async move { work.await.map_err(|e| e.to_string()) })
+                .await
+                .unwrap_or_else(|_| Err(String::new()));
+            let _ = this.update(cx, |this, cx| {
+                this.busy = None;
+                match result {
+                    Ok(value) => done(this, value, cx),
+                    Err(e) => this.error = Some(e.into()),
                 }
                 cx.notify();
             });
@@ -553,6 +643,34 @@ impl DevView {
             })
             .icon(IconName::Plus),
         );
+        for (origin, label, icon) in [
+            (
+                dialogs::Origin::Mrpack,
+                t!("dev.from_mrpack"),
+                IconName::Package,
+            ),
+            (
+                dialogs::Origin::Packwiz,
+                t!("dev.from_packwiz"),
+                IconName::Package,
+            ),
+            (
+                dialogs::Origin::Clone,
+                t!("dev.from_clone"),
+                IconName::Terminal,
+            ),
+        ] {
+            let view = view.clone();
+            let entry = MenuEntry::action(label, move |window, cx| {
+                dialogs::open_new_from(view.clone(), origin, window, cx)
+            })
+            .icon(icon);
+            entries.push(if origin == dialogs::Origin::Clone {
+                entry.disabled(!self.git.installed)
+            } else {
+                entry
+            });
+        }
         ActionMenu::new("dev-project-menu", trigger, entries)
             .width(px(420.))
             .left()
@@ -600,26 +718,7 @@ impl DevView {
                         .child(text),
                 )
             })
-            .when_some(self.notice.clone(), |row, notice| {
-                row.child(
-                    div()
-                        .min_w_0()
-                        .max_w(px(520.))
-                        .truncate()
-                        .text_color(c.muted)
-                        .child(notice),
-                )
-            })
-            .when_some(self.error.clone(), |row, error| {
-                row.child(
-                    div()
-                        .min_w_0()
-                        .max_w(px(520.))
-                        .truncate()
-                        .text_color(c.warn)
-                        .child(error),
-                )
-            })
+            .child(self.render_test_controls(cx))
     }
 
     fn render_tabs(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
@@ -684,143 +783,6 @@ impl DevView {
             }))
     }
 
-    fn render_panel(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
-        let mono = cx.theme().mono.clone();
-        let c = cx.theme().colors;
-        let tab = |panel: Panel, label: SharedString, cx: &mut Context<Self>| {
-            let on = self.panel == panel;
-            div()
-                .id(SharedString::from(format!("dev-panel-{panel:?}")))
-                .h(px(26.))
-                .px(px(10.))
-                .flex()
-                .items_center()
-                .rounded(px(5.))
-                .cursor_pointer()
-                .map(|d| {
-                    if on {
-                        d.bg(c.sel)
-                            .text_color(c.text)
-                            .font_weight(FontWeight::SEMIBOLD)
-                    } else {
-                        d.text_color(c.muted)
-                    }
-                })
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    this.panel = panel;
-                    cx.notify();
-                }))
-                .child(label)
-        };
-        let ok = |text: String| {
-            h_flex()
-                .gap(px(8.))
-                .child(div().text_color(c.ok).child("✓"))
-                .child(text)
-                .into_any_element()
-        };
-        let line = |mark: &'static str, color, text: String| {
-            h_flex()
-                .items_start()
-                .gap(px(8.))
-                .child(div().flex_none().text_color(color).child(mark))
-                .child(div().flex_1().min_w_0().child(text))
-                .into_any_element()
-        };
-        let body: Vec<AnyElement> = match self.panel {
-            Panel::Check => match &self.check {
-                Check::Idle => vec![],
-                Check::Running => vec![
-                    h_flex()
-                        .gap(px(8.))
-                        .text_color(c.muted)
-                        .child(motion::spinner(
-                            "dev-check",
-                            icon(IconName::Loader, c.muted).size(px(13.)),
-                            cx,
-                        ))
-                        .child(t!("dev.checking").to_string())
-                        .into_any_element(),
-                ],
-                Check::Failed(e) => vec![line("✕", super::theme::danger(), e.to_string())],
-                Check::Done(report) => {
-                    let n = self
-                        .project
-                        .as_ref()
-                        .map_or(0, |ws| ws.project.content.len());
-                    let mut out: Vec<AnyElement> = report
-                        .issues
-                        .iter()
-                        .cloned()
-                        .chain(report.problems.iter().map(ToString::to_string))
-                        .map(|text| line("✕", super::theme::danger(), text))
-                        .collect();
-                    out.extend(
-                        report
-                            .unreadable
-                            .iter()
-                            .map(|text| line("!", c.warn, text.clone())),
-                    );
-                    if report.is_clean() {
-                        out.insert(0, ok(t!("dev.check_clean", n = n).to_string()));
-                    }
-                    out
-                }
-            },
-            Panel::Git | Panel::Log => vec![
-                div()
-                    .text_color(c.muted)
-                    .child(t!("common.coming_soon").to_string())
-                    .into_any_element(),
-            ],
-        };
-        v_flex()
-            .flex_none()
-            .h(px(PANEL_HEIGHT))
-            .border_t_1()
-            .border_color(c.border)
-            .bg(c.panel)
-            .child(
-                h_flex()
-                    .flex_none()
-                    .gap(px(2.))
-                    .px(px(10.))
-                    .py(px(6.))
-                    .border_b_1()
-                    .border_color(c.border)
-                    .child(tab(Panel::Check, t!("dev.check").into(), cx))
-                    .child(tab(Panel::Git, "Git".into(), cx))
-                    .child(tab(Panel::Log, t!("dev.log").into(), cx))
-                    .child(div().flex_1())
-                    .child(
-                        Button::new("dev-recheck")
-                            .ghost()
-                            .size(ButtonSize::Xs)
-                            .icon(IconName::Refresh)
-                            .tooltip(t!("dev.recheck"))
-                            .disabled(matches!(self.check, Check::Running))
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.run_check(cx);
-                                cx.notify();
-                            })),
-                    ),
-            )
-            .child(
-                v_flex()
-                    .id("dev-panel-body")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .px(px(14.))
-                    .py(px(10.))
-                    .gap(px(4.))
-                    .font_family(mono)
-                    .text_size(px(12.))
-                    .text_color(c.text2)
-                    .children(body),
-            )
-    }
-
     fn render_empty(&self, cx: &mut Context<Self>) -> AnyElement {
         let view = cx.entity().downgrade();
         placeholder(
@@ -851,9 +813,6 @@ impl DevView {
                         }),
                 ),
         )
-        .when_some(self.error.clone(), |col, e| {
-            col.child(div().mt(px(6.)).text_color(cx.theme().colors.warn).child(e))
-        })
         .into_any_element()
     }
 }
@@ -861,6 +820,13 @@ impl DevView {
 impl Render for DevView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.ensure_editor(window, cx);
+        self.settle_git(window, cx);
+        self.flush_messages(cx);
+        self.reload_open_files(window, cx);
+        self.follow_stream(cx);
+        if self.active == Tab::Section(Section::Releases) {
+            self.ensure_changes(cx);
+        }
         let main: AnyElement = if self.project.is_none() {
             self.render_empty(cx)
         } else {
@@ -868,13 +834,8 @@ impl Render for DevView {
                 Tab::Section(Section::Content) => self.render_content(cx),
                 Tab::Section(Section::Groups) => self.render_groups(cx),
                 Tab::Section(Section::Dependencies) => self.render_dependencies(cx),
-                Tab::Section(other) => placeholder(
-                    IconName::Code,
-                    other.label(),
-                    t!("common.coming_soon").into(),
-                    cx,
-                )
-                .into_any_element(),
+                Tab::Section(Section::Releases) => self.render_releases(cx),
+                Tab::Section(Section::Git) => self.render_git(cx),
                 Tab::File(path) => self.render_file(&path, cx),
             };
             let tab = SharedString::from(format!("dev-section-{}", self.active.key()));
@@ -893,8 +854,15 @@ impl Render for DevView {
                 .into_any_element()
         };
         h_flex()
+            .id("dev-view")
             .size_full()
             .items_start()
+            .on_drag_move(
+                cx.listener(|this, event: &DragMoveEvent<panel::PanelResize>, _, cx| {
+                    this.drag_panel(event, cx)
+                }),
+            )
+            .on_drop(cx.listener(|this, _: &panel::PanelResize, _, cx| this.drop_panel(cx)))
             .child(self.render_nav(window, cx))
             .child(div().flex_1().min_w_0().h_full().child(main))
     }

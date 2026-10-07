@@ -46,6 +46,10 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
+# gpui and its layout engine are too slow unoptimized to judge the UI by; our crates stay debuggable.
+[profile.dev.package."*"]
+opt-level = 2
+
 [profile.release]
 codegen-units = 1
 lto = true
@@ -59,7 +63,7 @@ crate-type = ["rlib"]
 
 [features]
 default = ["gui", "cli"]
-gui = ["dep:gpui-kit", "dep:image", "dep:rust-i18n", "dep:sys-locale"]
+gui = ["dep:gpui-kit", "dep:image", "dep:notify", "dep:rust-i18n", "dep:sys-locale"]
 cli = ["dep:clap", "dep:indicatif", "dep:console"]
 
 [dependencies]
@@ -71,6 +75,7 @@ futures-util.workspace = true
 gpui-kit = { version = "=0.7.1", default-features = false, optional = true }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"], optional = true }
 indicatif = { version = "0.18", optional = true }
+notify = { version = "8", optional = true }
 percent-encoding.workspace = true
 reqwest.workspace = true
 rust-i18n = { version = "4", optional = true }

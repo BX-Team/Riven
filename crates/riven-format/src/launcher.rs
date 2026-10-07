@@ -24,6 +24,34 @@ pub struct Settings {
     /// Pack project folders opened in the developer section, the latest first.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub recent_projects: Vec<String>,
+    #[serde(default, skip_serializing_if = "DevPanel::is_default")]
+    pub dev_panel: DevPanel,
+}
+
+/// The bottom panel of the developer section (Check, Git, Log).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DevPanel {
+    /// Height in logical pixels.
+    pub height: u32,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub hidden: bool,
+}
+
+impl DevPanel {
+    pub const DEFAULT_HEIGHT: u32 = 240;
+
+    fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+impl Default for DevPanel {
+    fn default() -> Self {
+        Self {
+            height: Self::DEFAULT_HEIGHT,
+            hidden: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

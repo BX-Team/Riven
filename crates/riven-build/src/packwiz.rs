@@ -236,7 +236,8 @@ impl Packwiz {
             .iter()
             .map(|f| Ok((join(base, PackPath::new(f.file.as_str())?.as_str()), f)))
             .collect::<Result<_, Error>>()?;
-        let loaded: HashMap<String, Vec<u8>> = stream::iter(listed.iter().map(|(p, _)| p.clone()))
+        let paths: Vec<String> = listed.iter().map(|(p, _)| p.clone()).collect();
+        let loaded: HashMap<String, Vec<u8>> = stream::iter(paths)
             .map(fetch)
             .buffered(PARALLEL_READS)
             .try_collect()

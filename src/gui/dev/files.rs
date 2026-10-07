@@ -57,6 +57,7 @@ fn ancestors(path: &str) -> impl Iterator<Item = &str> {
 
 impl DevView {
     pub(super) fn refresh_tree(&mut self) {
+        self.releases.changes = super::releases::Changes::Stale;
         self.tree = match &self.project {
             Some(ws) => ws.overrides().unwrap_or_else(|e| {
                 self.error = Some(e.to_string().into());
@@ -146,8 +147,10 @@ impl DevView {
             Ok(()) => {
                 file.saved = text;
                 file.dirty = false;
+                self.releases.changes = super::releases::Changes::Stale;
                 self.error = None;
                 self.notice = Some(t!("dev.saved", name = path.file_name()).into());
+                self.refresh_git(cx);
             }
             Err(e) => self.error = Some(e.to_string().into()),
         }

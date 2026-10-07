@@ -15,7 +15,11 @@ use crate::gui::ui::{Button, ButtonSize, IconName, Switch, caption, h_flex, v_fl
 
 const DETAILS_WIDTH: f32 = 360.;
 
-fn section_head(title: SharedString, hint: SharedString, cx: &Context<DevView>) -> gpui_kit::Div {
+pub(super) fn section_head(
+    title: SharedString,
+    hint: SharedString,
+    cx: &Context<DevView>,
+) -> gpui_kit::Div {
     let c = cx.theme().colors;
     h_flex()
         .flex_none()

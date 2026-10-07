@@ -170,6 +170,27 @@ instance_settings:
   never_played: Ещё не запускался
   own_mods: Свои моды
   own_mods_hint: Добавляйте моды поверх пака. Моды пака по-прежнему обновляются вместе с ним.
+  general: Общее
+  pack: Пак
+  pack_hint: Откуда берётся пак инстанса, его канал и необязательные части.
+  launch_hint: Пока не переопределено, действуют настройки лаунчера.
+  pack_source: Ссылка
+  pack_version: Установленная версия
+  pack_version_hint: Пак также проверяет обновления при каждом нажатии «Играть».
+  pack_check: Проверить
+  pack_checking: Проверяю…
+  pack_current: Актуально
+  pack_newer: "Доступна %{version}"
+  pack_channel: Канал
+  pack_channel_hint: beta получает новые версии раньше stable
+  pack_groups: Необязательные части
+  pack_groups_wait: Читаю пак…
+  pack_no_groups: В этом паке нет необязательных частей
+  pack_apply_hint: Файлы скачаются и заменятся; прогресс — в нижней панели.
+  pack_apply: Применить изменения
+  pack_update: "Обновить до %{version}"
+  pack_applying: Обновляю пак…
+  java_runtime: Версия Java
 folders:
   instances: Инстансы
   store: Хранилище файлов
@@ -249,6 +270,28 @@ add_mods:
   file_about: Jar-файлы с диска копируются в инстанс; обновлять их лаунчер не сможет.
   pick: Выбрать файлы…
   done: Готово
+  side_required: нужен
+  side_optional: по желанию
+  side_unsupported: не нужен
+  failed: Ничего не установлено
+  pick_one: Выберите мод слева, чтобы посмотреть, что это
+  updated: "обновлён %{when}"
+  by: "автор: %{author}"
+  select: Отметить
+  selected: Отмечен
+  open_page: Открыть на Modrinth
+  link_source: Исходный код
+  link_issues: Баг-трекер
+  link_wiki: Вики
+  client: Клиент
+  server: Сервер
+  license: Лицензия
+  page_failed: Не удалось загрузить описание
+  loading_page: Загружаю описание…
+  picked: "Отмечено: %{n}"
+  clear: Снять отметки
+  progress: "Устанавливаю %{done} из %{total}: %{name}"
+  install_n: "Установить отмеченные (%{n})"
 dev:
   sections: Разделы
   content: Содержимое
@@ -341,3 +384,123 @@ dev:
   why_orphan: Её больше ничто не требует
   why_needed_by: Нужна для
   why_needs: Требует
+  releases_hint: Поднимите версию, соберите релиз в dist/, направьте на него каналы и опубликуйте на GitHub Pages.
+  version: Версия
+  version_hint: своя версия, Enter
+  version_built: уже собрана — поднимите версию перед изменениями
+  bump_patch: Патч
+  bump_minor: Минорная
+  bump_major: Мажорная
+  build: Сборка
+  sign: Подписать
+  copy_key: Скопировать публичный ключ
+  no_key: "Нет ключа подписи: установщики не отличат релизы пака от подделки."
+  keygen: Создать ключ
+  key_created: "Создан %{path}; сохраните резервную копию"
+  build_to: "Собрать %{version} → %{channel}"
+  building: Сборка релиза…
+  built: "Собран %{version}; %{channel} указывает на него"
+  changes: Изменения
+  changes_since: "Изменения с %{version}"
+  changes_loading: Сравнение с последним релизом…
+  changes_first: "Первый релиз: %{n} файлов"
+  changes_none: Те же файлы, что в последнем релизе
+  changes_more: "…и ещё %{n}"
+  built_releases: Собранные релизы
+  no_releases: В dist/ пока пусто
+  publish_to: "Опубликовать в %{channel}"
+  rollback_to: "Откатить %{channel} к этой"
+  published: "%{channel} → %{version}; выполните deploy, чтобы доставить"
+  deploy: Публикация на GitHub Pages
+  deploy_hint: Коммитит dist/ в ветку, не трогая рабочую копию; опубликованные релизы сохраняются и не меняются.
+  branch: Ветка
+  remote: Remote
+  push: Push
+  deploy_run: Опубликовать
+  deploying: Публикация…
+  deployed_pushed: "Опубликовано в %{branch} и отправлено в %{remote}"
+  deployed: "Закоммичено в %{branch}"
+  deploy_pushed: "%{branch} отправлена в %{remote}"
+  deploy_same: "%{branch} уже актуальна"
+  enable_pages: "включите Pages один раз: Settings → Pages → Deploy from a branch → %{branch}"
+  install_link: Ссылка установки
+  copy: Копировать
+  export: Экспорт
+  export_hint: Архивы для других лаунчеров и для передачи вручную, в папку exports/.
+  exporting: Экспорт…
+  exported: "Экспортирован %{name}"
+  exported_skipped: "Экспортирован %{name}; пропущено записей: %{n}"
+  open_exports: Открыть exports/
+  clear: Очистить
+  from_mrpack: Импорт .mrpack…
+  from_mrpack_description: Превращает пак Modrinth в проект riven; файлы опознаются на Modrinth, остальные остаются ссылками или локальными копиями.
+  from_mrpack_hint: путь или URL файла .mrpack
+  from_packwiz: Импорт packwiz…
+  from_packwiz_description: Переносит пак packwiz — его папку, pack.toml или URL pack.toml — в проект riven.
+  from_packwiz_hint: папка, pack.toml или его URL
+  from_clone: Клонировать через git…
+  from_clone_description: Клонирует репозиторий пака с вашими настройками git (SSH-ключи, credential helper) и открывает его.
+  from_clone_hint: "https://github.com/owner/pack.git или git@github.com:owner/pack"
+  from_source: Источник
+  from_into: В папку
+  from_name: Имя папки проекта
+  from_incomplete: Укажите источник и имя папки
+  from_not_empty: "%{path} не пуста"
+  from_import_run: Импортировать
+  from_clone_run: Клонировать
+  pick_parent: Выберите, где создать папку проекта
+  import_reading: Чтение пака…
+  import_identifying: "Поиск %{n} файлов на Modrinth…"
+  import_downloading: Загрузка файлов, которых нет на Modrinth…
+  import_writing: Запись проекта…
+  import_skipped: "%{n} файлов не удалось опознать, они пропущены"
+  git_hint: Репозиторий, в котором лежит проект.
+  git_none: Проект не в git-репозитории. Выполните git init в его папке, чтобы отслеживать изменения.
+  git_reading: Чтение репозитория…
+  git_no_upstream: без upstream; первый push выставит origin
+  git_detached: detached HEAD
+  git_pull: Pull
+  git_pull_n: "Pull %{n}"
+  git_push: Push
+  git_push_n: "Push %{n}"
+  git_pack_changes: Изменения пака с последнего коммита
+  git_pack_same: riven.json совпадает с закоммиченным
+  git_files: "Изменённые файлы (%{n})"
+  git_more: "…и ещё %{n}"
+  git_clean: Нечего коммитить
+  git_staged: в индексе
+  git_commit: Коммит
+  git_commit_n: "Закоммитить файлов: %{n}"
+  git_no_message: Сначала напишите сообщение коммита
+  git_missing: "git не найден в PATH: commit, pull и push недоступны, чтение работает."
+  git_log: История
+  git_committing: Коммит…
+  git_pulling: Pull…
+  git_pushing: Push…
+  git_cloning: Клонирование…
+  git_done: готово
+  git_committed: Закоммичено
+  git_output_empty: Здесь появится вывод commit, pull, push и clone.
+  test: Тест
+  test_hint: Установить проект в текущем виде в тестовый инстанс и запустить
+  test_stop: Остановить
+  test_name: "%{name} · тест"
+  test_no_account: Добавьте аккаунт в лаунчере, чтобы запустить тестовый инстанс
+  test_preparing: Подготовка тестового инстанса…
+  test_running: "Запущен, pid %{pid}"
+  test_exited: "Завершён с кодом %{code}"
+  test_open: Открыть тестовый инстанс
+  log_empty: Нажмите «Тест», чтобы установить проект в тестовый инстанс и запустить его; лог появится здесь.
+  pull: Забрать конфиги
+  pull_hint: Скопировать конфиги, изменённые или созданные в тестовом инстансе, в overrides/
+  pull_description: Файлы, которые игра изменила или создала в тестовом инстансе; отмеченные копируются в overrides/.
+  pull_reading: Сравнение инстанса с overrides/…
+  pull_none: Тестовый инстанс совпадает с overrides/
+  pull_new: новый
+  pull_new_to: Новые файлы в
+  pull_all: Все
+  pull_changed: Только изменённые
+  pull_take: "Забрать %{n}"
+  pulled: "Скопировано в overrides/: %{n}"
+  panel_hide: Скрыть панель
+  panel_show: Показать панель

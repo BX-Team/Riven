@@ -200,7 +200,8 @@
           "format": "uint32",
           "minimum": 0
         },
-        "maximized": {
+        "fullscreen": {
+          "description": "Starts the game fullscreen; `maximized` is the name older settings used.",
           "type": "boolean"
         }
       },
