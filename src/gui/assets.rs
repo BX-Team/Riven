@@ -11,7 +11,9 @@ macro_rules! icons {
 }
 
 icons!(
+    "arrow-down",
     "arrow-left",
+    "arrow-up",
     "check",
     "chevron-down",
     "chevron-right",

@@ -71,7 +71,7 @@ pub fn played(instance: &Instance) -> Option<String> {
     })
 }
 
-fn selected_account(st: &AppState) -> Option<Account> {
+pub(super) fn selected_account(st: &AppState) -> Option<Account> {
     st.settings
         .selected_account
         .as_ref()
@@ -80,7 +80,7 @@ fn selected_account(st: &AppState) -> Option<Account> {
         .cloned()
 }
 
-fn stage_label(stage: Stage) -> String {
+pub(super) fn stage_label(stage: Stage) -> String {
     match stage {
         Stage::Pack => t!("launch.stage.pack"),
         Stage::Metadata => t!("launch.stage.metadata"),
@@ -460,6 +460,7 @@ fn accounts_panel(
                     let remove_id = a.id.clone();
                     let remove_name = a.name.clone();
                     let dismiss = popover.clone();
+                    let picked = popover.clone();
                     let hover = ui::motion::hover(("account-hover", i), window, cx);
                     let bg = ui::motion::animate(
                         ("account-bg", i),
@@ -478,11 +479,12 @@ fn accounts_panel(
                         .rounded(px(8.))
                         .cursor_pointer()
                         .bg(bg)
-                        .on_click(move |_, _, cx| {
+                        .on_click(move |_, window, cx| {
                             let id = id.clone();
                             select.update(cx, |s, cx| {
                                 s.update_settings(|set| set.selected_account = Some(id), cx)
                             });
+                            picked.update(cx, |p, cx| p.dismiss(window, cx));
                         })
                         .child(tile(initials(&a.name), 36., 6., cx).map(|t| {
                             if active {

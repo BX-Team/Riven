@@ -338,7 +338,7 @@ async fn dispatch(command: Command, out: &Output) -> anyhow::Result<ExitCode> {
             channel,
             out: dist,
             unsigned,
-        } => release::build(out, &channel, &dist, unsigned).await,
+        } => release::build(out, &channel, &dist, unsigned),
         Command::Publish {
             channel,
             version,
