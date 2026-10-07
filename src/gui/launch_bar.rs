@@ -82,6 +82,7 @@ pub(super) fn selected_account(st: &AppState) -> Option<Account> {
 
 pub(super) fn stage_label(stage: Stage) -> String {
     match stage {
+        Stage::SignIn => t!("launch.stage.sign_in"),
         Stage::Pack => t!("launch.stage.pack"),
         Stage::Metadata => t!("launch.stage.metadata"),
         Stage::Java => t!("launch.stage.java"),
@@ -555,9 +556,14 @@ fn accounts_panel(
                         .primary()
                         .size(ButtonSize::Md)
                         .w_full()
-                        .disabled(true)
-                        .tooltip(t!("accounts.microsoft_pending"))
-                        .label(t!("accounts.add_microsoft")),
+                        .label(t!("accounts.add_microsoft"))
+                        .on_click({
+                            let popover = popover.clone();
+                            move |_, window, cx| {
+                                popover.update(cx, |p, cx| p.dismiss(window, cx));
+                                super::dialogs::open_add_microsoft(cx)
+                            }
+                        }),
                 )
                 .child(
                     Button::new("add-offline")

@@ -15,6 +15,8 @@ use crate::{LaunchError, io};
 /// What a launch is busy with, in order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
+    /// Refreshing a Microsoft account's session.
+    SignIn,
     /// Checking the pack's channel and swapping changed files in.
     Pack,
     /// Reading version and loader metadata.
@@ -235,8 +237,9 @@ pub async fn play(
     let report: Report = Arc::new(report);
     let mut instance = store.load(id)?;
     if account.kind == AccountKind::Microsoft {
-        return Err(LaunchError::MicrosoftPending);
+        report(Progress::Stage(Stage::SignIn));
     }
+    let session = crate::accounts::session(account).await?;
     update_pack(store, id, &mut instance, &report).await?;
 
     let settings = instance.overrides.resolve(defaults);
@@ -284,7 +287,7 @@ pub async fn play(
         java,
         game_dir: game_dir.clone(),
         natives_dir: store.dir(id).join("natives"),
-        session: riven_game::Session::offline(account.name.clone(), account.id.clone()),
+        session,
         min_memory_mb: settings.memory.min,
         max_memory_mb: settings.memory.max,
         jvm_args: settings.jvm_args.clone(),
