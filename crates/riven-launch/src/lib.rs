@@ -4,6 +4,7 @@ pub mod instances;
 pub mod java;
 pub mod mods;
 pub mod own;
+mod vault;
 
 use std::path::{Path, PathBuf};
 
@@ -31,8 +32,12 @@ pub enum LaunchError {
     BadJava(PathBuf),
     #[error("`{command}` failed with code {code:?}")]
     Hook { command: String, code: Option<i32> },
-    #[error("Microsoft sign-in is waiting for Mojang's approval; play with an offline account")]
-    MicrosoftPending,
+    #[error("Microsoft sign-in failed: {0}")]
+    SignIn(String),
+    #[error("{0} needs to sign in with Microsoft again")]
+    SignInAgain(String),
+    #[error("cannot keep the sign-in: {0}")]
+    Vault(String),
     #[error("cannot start the game: {0}")]
     Game(String),
     #[error(transparent)]
