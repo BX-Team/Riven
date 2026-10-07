@@ -169,6 +169,27 @@ instance_settings:
   never_played: Not played yet
   own_mods: Own mods
   own_mods_hint: Add mods on top of the pack. Its own mods still update with it.
+  general: General
+  pack: Pack
+  pack_hint: Where the instance's pack comes from, its channel and optional parts.
+  launch_hint: Until overridden, the launcher's settings apply.
+  pack_source: Link
+  pack_version: Installed version
+  pack_version_hint: The pack also checks for updates every time you press Play.
+  pack_check: Check now
+  pack_checking: Checking…
+  pack_current: Up to date
+  pack_newer: "%{version} is out"
+  pack_channel: Channel
+  pack_channel_hint: beta gets new versions before stable
+  pack_groups: Optional parts
+  pack_groups_wait: Reading the pack…
+  pack_no_groups: This pack has no optional parts
+  pack_apply_hint: Files are downloaded and swapped in; progress shows in the bar below.
+  pack_apply: Apply changes
+  pack_update: "Update to %{version}"
+  pack_applying: Updating the pack…
+  java_runtime: Java runtime
 folders:
   instances: Instances
   store: File store
@@ -246,6 +267,28 @@ add_mods:
   file_about: Jars from your disk are copied into the instance; the launcher cannot update them.
   pick: Choose files…
   done: Done
+  side_required: required
+  side_optional: optional
+  side_unsupported: not needed
+  failed: Nothing was installed
+  pick_one: Pick a mod on the left to see what it is
+  updated: "updated %{when}"
+  by: "by %{author}"
+  select: Select
+  selected: Selected
+  open_page: Open on Modrinth
+  link_source: Source
+  link_issues: Issues
+  link_wiki: Wiki
+  client: Client
+  server: Server
+  license: License
+  page_failed: Could not load the description
+  loading_page: Loading the description…
+  picked: "Selected: %{n}"
+  clear: Clear
+  progress: "Installing %{done} of %{total}: %{name}"
+  install_n: "Install selected (%{n})"
 dev:
   sections: Sections
   content: Content
@@ -338,3 +381,122 @@ dev:
   why_orphan: Nothing requires it any more
   why_needed_by: Needed by
   why_needs: Needs
+  releases_hint: Bump the version, build a release into dist/, point channels at it and publish it to GitHub Pages.
+  version: Version
+  version_hint: other version, Enter
+  version_built: already built — bump it before changing the pack
+  bump_patch: Patch
+  bump_minor: Minor
+  bump_major: Major
+  build: Build
+  sign: Sign
+  copy_key: Copy the public key
+  no_key: "No signing key: installers cannot tell this pack's releases from forgeries."
+  keygen: Create key
+  key_created: "Created %{path}; back it up"
+  build_to: "Build %{version} → %{channel}"
+  building: Building the release…
+  built: "Built %{version}; %{channel} points at it"
+  changes: Changes
+  changes_since: "Changes since %{version}"
+  changes_loading: Comparing with the last release…
+  changes_first: "First release: %{n} files"
+  changes_none: Same files as the last release
+  changes_more: "…and %{n} more"
+  built_releases: Built releases
+  no_releases: Nothing in dist/ yet
+  publish_to: "Publish to %{channel}"
+  rollback_to: "Roll %{channel} back to this"
+  published: "%{channel} → %{version}; deploy to deliver it"
+  deploy: Deploy to GitHub Pages
+  deploy_hint: Commits dist/ to a branch without touching your working tree; published releases are kept and never change.
+  branch: Branch
+  remote: Remote
+  push: Push
+  deploy_run: Deploy
+  deploying: Deploying…
+  deployed_pushed: "Deployed to %{branch} and pushed to %{remote}"
+  deployed: "Committed to %{branch}"
+  deploy_pushed: "Pushed %{branch} to %{remote}"
+  deploy_same: "%{branch} is already up to date"
+  enable_pages: "enable Pages once: Settings → Pages → Deploy from a branch → %{branch}"
+  install_link: Install link
+  copy: Copy
+  export: Export
+  export_hint: Archives for other launchers and for sharing by hand, written to exports/.
+  exporting: Exporting…
+  exported: "Exported %{name}"
+  exported_skipped: "Exported %{name}; %{n} entries left out"
+  open_exports: Open exports/
+  clear: Clear
+  from_mrpack: Import .mrpack…
+  from_mrpack_description: Turns a Modrinth pack into a riven project; files are identified on Modrinth, the rest kept as links or local copies.
+  from_mrpack_hint: path or URL of a .mrpack
+  from_packwiz: Import packwiz…
+  from_packwiz_description: Reads a packwiz pack — its folder, pack.toml, or the URL of pack.toml — into a riven project.
+  from_packwiz_hint: folder, pack.toml or its URL
+  from_clone: Clone with git…
+  from_clone_description: Clones a pack repository with your git setup (SSH keys, credential helpers) and opens it.
+  from_clone_hint: "https://github.com/owner/pack.git or git@github.com:owner/pack"
+  from_source: Source
+  from_into: Into folder
+  from_name: Project folder name
+  from_incomplete: Fill in the source and a folder name
+  from_not_empty: "%{path} is not empty"
+  from_import_run: Import
+  from_clone_run: Clone
+  pick_parent: Choose where the project folder goes
+  import_reading: Reading the pack…
+  import_identifying: "Identifying %{n} files on Modrinth…"
+  import_downloading: Downloading files that are not on Modrinth…
+  import_writing: Writing the project…
+  import_skipped: "%{n} files could not be identified and were left out"
+  git_hint: The repository the project lives in.
+  git_none: This project is not in a git repository. Run git init in its folder to track changes.
+  git_reading: Reading the repository…
+  git_no_upstream: no upstream; the first push sets origin
+  git_detached: detached HEAD
+  git_pull: Pull
+  git_pull_n: "Pull %{n}"
+  git_push: Push
+  git_push_n: "Push %{n}"
+  git_pack_changes: Pack changes since the last commit
+  git_pack_same: riven.json is as committed
+  git_files: "Changed files (%{n})"
+  git_clean: Nothing to commit
+  git_staged: staged
+  git_commit: Commit
+  git_commit_n: "Commit %{n} files"
+  git_no_message: Write a commit message first
+  git_missing: "git is not in PATH: commit, pull and push are off; reading still works."
+  git_log: History
+  git_committing: Committing…
+  git_pulling: Pulling…
+  git_pushing: Pushing…
+  git_cloning: Cloning…
+  git_done: done
+  git_committed: Committed
+  git_output_empty: Output of commit, pull, push and clone shows up here.
+  test: Test
+  test_hint: Install the project as it is now into a test instance and start it
+  test_stop: Stop
+  test_name: "%{name} · test"
+  test_no_account: Add an account in the launcher to run the test instance
+  test_preparing: Preparing the test instance…
+  test_running: "Running, pid %{pid}"
+  test_exited: "Exited with code %{code}"
+  test_open: Open the test instance
+  log_empty: Press Test to install the project into a test instance and start it; its log shows up here.
+  pull: Take configs
+  pull_hint: Copy configs changed or created in the test instance into overrides/
+  pull_description: Files the game changed or created in the test instance; the picked ones are copied into overrides/.
+  pull_reading: Comparing the instance with overrides/…
+  pull_none: The test instance matches overrides/
+  pull_new: new
+  pull_new_to: New files to
+  pull_all: All
+  pull_changed: Only changed
+  pull_take: "Take %{n}"
+  pulled: "Copied %{n} files into overrides/"
+  panel_hide: Hide the panel
+  panel_show: Show the panel

@@ -92,6 +92,32 @@ impl Instances {
         Ok(id)
     }
 
+    /// Creates an empty instance with a fixed id unless it exists; `true` when it was created.
+    pub fn ensure(
+        &self,
+        id: &str,
+        name: &str,
+        minecraft: &str,
+        loader: Option<Loader>,
+    ) -> Result<bool, LaunchError> {
+        if self.dir(id).join(INSTANCE_FILE).is_file() {
+            return Ok(false);
+        }
+        let instance = Instance {
+            name: name.to_owned(),
+            minecraft: minecraft.to_owned(),
+            loader,
+            overrides: LaunchOverrides::default(),
+            own_mods: false,
+            last_played: None,
+            play_seconds: 0,
+        };
+        let game = self.game_dir(id);
+        std::fs::create_dir_all(&game).map_err(io(&game))?;
+        self.save(id, &instance)?;
+        Ok(true)
+    }
+
     /// Copies an instance under a new name, keeping links to shared folders as links.
     pub fn duplicate(&self, id: &str, name: &str) -> Result<String, LaunchError> {
         let mut instance = self.load(id)?;

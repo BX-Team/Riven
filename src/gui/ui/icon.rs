@@ -2,7 +2,9 @@ use gpui_kit::{Hsla, Styled as _, Svg, px, svg};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IconName {
+    ArrowDown,
     ArrowLeft,
+    ArrowUp,
     Check,
     ChevronDown,
     ChevronRight,
@@ -33,8 +35,10 @@ pub enum IconName {
 
 impl IconName {
     #[cfg(test)]
-    pub const ALL: [IconName; 27] = [
+    pub const ALL: [IconName; 29] = [
+        IconName::ArrowDown,
         IconName::ArrowLeft,
+        IconName::ArrowUp,
         IconName::Check,
         IconName::ChevronDown,
         IconName::ChevronRight,
@@ -65,7 +69,9 @@ impl IconName {
 
     pub(crate) fn path(self) -> &'static str {
         match self {
+            Self::ArrowDown => "icons/arrow-down.svg",
             Self::ArrowLeft => "icons/arrow-left.svg",
+            Self::ArrowUp => "icons/arrow-up.svg",
             Self::Check => "icons/check.svg",
             Self::ChevronDown => "icons/chevron-down.svg",
             Self::ChevronRight => "icons/chevron-right.svg",
