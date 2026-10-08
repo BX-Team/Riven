@@ -235,7 +235,14 @@ async fn apply(
         });
     };
     let game_dir = store.game_dir(id);
+    let before = install::load_state(&game_dir)?.map(|s| s.version);
+    let icon = pending.icon(&files, &http).await;
     let state = pending.apply(&files, &http, &game_dir, &progress).await?;
+    if let Some(png) = icon.and_then(|p| std::fs::read(p).ok())
+        && let Err(e) = store.set_pack_icon(id, &png)
+    {
+        tracing::warn!("{e}");
+    }
     let names = crate::own::yield_to_pack(&game_dir, &release, &state.files)?;
     if !names.is_empty() {
         report(Progress::Replaced { names });

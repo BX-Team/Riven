@@ -11,6 +11,7 @@ mod launch_bar;
 mod logs;
 mod markdown;
 mod mods;
+mod new_instance;
 mod runtime;
 mod session;
 mod settings;

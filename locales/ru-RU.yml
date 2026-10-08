@@ -145,6 +145,7 @@ settings:
   wrapper_hint: Например mangohud или gamemoderun; пока не применяется — поддержка появится позже
   post_exit_hint: Выполняется после выхода из игры
 new_instance:
+  drop: Отпустите, чтобы установить пак
   title: Новый инстанс
   description: "Пустая установка игры; моды добавляются потом во вкладке «Моды» или из пака."
   name: Название
@@ -157,8 +158,8 @@ new_instance:
   pick_version: Выберите версию Minecraft
   find_version: Найти версию
   creating: Создаю…
-  empty: Пустой
-  from_pack: Пак по ссылке
+  empty: Свой
+  from_pack: Ссылка или файл
   pack_description: "Установка пака Riven по ссылке: версия Minecraft и загрузчик берутся из пака, обновления подтягиваются перед каждым запуском."
   link: Ссылка на пак
   link_hint: "https://… или gh:владелец/репозиторий"
@@ -167,7 +168,31 @@ new_instance:
   install: Установить
   files: "файлов: %{n}"
   no_data_dir: Не найден каталог данных
+  subtitle: Сборка с Modrinth, своя настройка или пак по ссылке или из файла.
+  search_packs: Поиск сборок на Modrinth
+  pick_pack: Выберите сборку слева, чтобы увидеть описание
+  version: Версия
+  loading_versions: Загрузка версий…
+  no_versions: У этой сборки нет версий для установки
+  no_file: У этой версии нет файла для скачивания
+  preparing: Готовим сборку…
+  stage_reading: Чтение сборки…
+  stage_identifying: "Ищем %{n} файлов на Modrinth…"
+  stage_downloading: Скачиваем файлы, которых нет на Modrinth…
+  stage_writing: Упаковываем файлы…
+  importing: Импорт инстанса…
+  bad_file: Выберите пак .riven, .mrpack или экспорт Prism (.zip)
+  pick_file: Выбрать файл…
+  file_about: Пак .riven, сборка Modrinth .mrpack или инстанс, экспортированный из Prism Launcher или MultiMC (.zip). Файл можно и просто перетащить на окно.
+  import_empty: Пак появится здесь после проверки
+  loader_version: Версия загрузчика
+  icon: Иконка
+  pick_icon: Выбрать изображение…
+  clear_icon: Убрать иконку
+  bad_icon: Этот файл не изображение
 instance_settings:
+  loader_pick: Minecraft, загрузчик и его версия
+  icon_change: Сменить…
   java: Java
   commands: Команды запуска
   pre_launch: Перед запуском
@@ -183,7 +208,6 @@ instance_settings:
   version: Версия
   set_by_pack: задаётся паком
   looking_up: Ищем версию загрузчика…
-  loader_build: "%{loader} %{version} — самая свежая сборка для этой версии"
   played: Время в игре
   never_played: Ещё не запускался
   own_mods: Свои моды
@@ -327,6 +351,8 @@ add_content:
     file_about: Zip-файлы с диска копируются в инстанс; обновлять их лаунчер не сможет.
     pick_one: Выберите шейдер слева, чтобы увидеть описание
 dev:
+  pack_icon: Иконка пака…
+  pack_icon_hint: icon.png; лаунчеры показывают её у инстанса
   sections: Разделы
   content: Содержимое
   dependencies: Зависимости

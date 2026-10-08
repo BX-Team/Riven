@@ -13,6 +13,8 @@ const NEOFORGE_VERSIONS: &str =
     "https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge";
 const FORGE_PROMOTIONS: &str =
     "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json";
+const FORGE_VERSIONS: &str =
+    "https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.json";
 
 /// Minecraft and mod loader version metadata.
 #[derive(Debug, Clone)]
@@ -169,6 +171,60 @@ impl GameMeta {
     }
 }
 
+impl GameMeta {
+    /// Every build of `loader` for `minecraft`, newest first.
+    pub async fn loader_versions(
+        &self,
+        loader: LoaderKind,
+        minecraft: &str,
+    ) -> Result<Vec<String>> {
+        let mut versions: Vec<String> = match loader {
+            LoaderKind::Fabric | LoaderKind::Quilt => {
+                #[derive(Deserialize)]
+                struct Entry {
+                    loader: LoaderEntry,
+                }
+                #[derive(Deserialize)]
+                struct LoaderEntry {
+                    version: String,
+                }
+                let base = if loader == LoaderKind::Fabric {
+                    FABRIC_META
+                } else {
+                    QUILT_META
+                };
+                let entries: Vec<Entry> = self.get(&format!("{base}/{minecraft}")).await?;
+                entries.into_iter().map(|e| e.loader.version).collect()
+            }
+            LoaderKind::NeoForge => {
+                #[derive(Deserialize)]
+                struct Versions {
+                    versions: Vec<String>,
+                }
+                let all: Versions = self.get(NEOFORGE_VERSIONS).await?;
+                let prefix = neoforge_prefix(minecraft);
+                all.versions
+                    .into_iter()
+                    .filter(|v| v.starts_with(&prefix))
+                    .collect()
+            }
+            LoaderKind::Forge => {
+                let mut all: std::collections::HashMap<String, Vec<String>> =
+                    self.get(FORGE_VERSIONS).await?;
+                let prefix = format!("{minecraft}-");
+                all.remove(minecraft)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|v| v.strip_prefix(&prefix).map(str::to_owned).unwrap_or(v))
+                    .collect()
+            }
+        };
+        versions.sort_by(|a, b| numeric_cmp(b, a));
+        versions.dedup();
+        Ok(versions)
+    }
+}
+
 /// NeoForge versions encode the game version: `1.21.1` → `21.1.*`, `26.1` → `26.1.0.*`.
 fn neoforge_prefix(minecraft: &str) -> String {
     let parts: Vec<&str> = minecraft.split('.').collect();
@@ -249,6 +305,17 @@ mod tests {
                 .await
                 .is_err()
         );
+        let fabric = game
+            .loader_versions(LoaderKind::Fabric, "1.21.1")
+            .await
+            .unwrap();
+        assert!(fabric.contains(&"0.19.5".to_owned()));
+        assert!(fabric.windows(2).all(|w| numeric_cmp(&w[0], &w[1]).is_ge()));
+        let neoforge = game
+            .loader_versions(LoaderKind::NeoForge, "1.21.1")
+            .await
+            .unwrap();
+        assert!(neoforge.iter().all(|v| v.starts_with("21.1.")));
     }
 
     #[tokio::test]
