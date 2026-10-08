@@ -145,6 +145,7 @@ settings:
   wrapper_hint: Such as mangohud or gamemoderun; not applied yet, support comes later
   post_exit_hint: Runs after the game exits
 new_instance:
+  drop: Drop to install the pack
   title: New instance
   description: "An empty game installation; mods come later from the Mods tab or a pack."
   name: Name
@@ -157,8 +158,8 @@ new_instance:
   pick_version: Pick a Minecraft version
   find_version: Find a version
   creating: Creating…
-  empty: Empty
-  from_pack: From a pack link
+  empty: Custom
+  from_pack: Link or file
   pack_description: "Install a Riven pack by its link: the pack picks the Minecraft version and loader, and updates come in before every launch."
   link: Pack link
   link_hint: "https://… or gh:owner/repo"
@@ -167,7 +168,31 @@ new_instance:
   install: Install
   files: "%{n} files"
   no_data_dir: Cannot locate the data directory
+  subtitle: A modpack from Modrinth, your own setup, or a pack from a link or file.
+  search_packs: Search modpacks on Modrinth
+  pick_pack: Pick a modpack on the left to see what it is
+  version: Version
+  loading_versions: Loading versions…
+  no_versions: This modpack has no versions to install
+  no_file: This version has no file to download
+  preparing: Preparing the modpack…
+  stage_reading: Reading the modpack…
+  stage_identifying: "Looking up %{n} files on Modrinth…"
+  stage_downloading: Downloading files that are not on Modrinth…
+  stage_writing: Packing the files…
+  importing: Importing the instance…
+  bad_file: Pick a .riven pack, a .mrpack or a Prism export .zip
+  pick_file: Choose a file…
+  file_about: A .riven pack, a Modrinth .mrpack, or an instance exported from Prism Launcher or MultiMC (.zip). You can also drop the file on the window.
+  import_empty: The pack shows here once it is checked
+  loader_version: Loader version
+  icon: Icon
+  pick_icon: Choose an image…
+  clear_icon: Remove the icon
+  bad_icon: That file is not an image
 instance_settings:
+  loader_pick: Minecraft, the loader and its build
+  icon_change: Change…
   java: Java
   commands: Launch commands
   pre_launch: Before launch
@@ -183,7 +208,6 @@ instance_settings:
   version: Version
   set_by_pack: set by the pack
   looking_up: Looking up the loader…
-  loader_build: "%{loader} %{version}, the newest build for this version"
   played: Play time
   never_played: Not played yet
   own_mods: Own mods
@@ -327,6 +351,8 @@ add_content:
     file_about: Zips from your disk are copied into the instance; the launcher cannot update them.
     pick_one: Pick a shader on the left to see what it is
 dev:
+  pack_icon: Pack icon…
+  pack_icon_hint: icon.png; launchers show it on the instance
   sections: Sections
   content: Content
   dependencies: Dependencies

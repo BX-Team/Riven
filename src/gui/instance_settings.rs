@@ -116,6 +116,8 @@ pub struct InstanceSettings {
     name: Entity<InputState>,
     search: Entity<InputState>,
     releases: Vec<SharedString>,
+    /// Builds of the instance's loader for its Minecraft, newest first.
+    builds: Vec<SharedString>,
     changing_version: bool,
     version_error: Option<SharedString>,
     java: Entity<JavaPicker>,
@@ -283,6 +285,7 @@ impl InstanceSettings {
             name,
             search,
             releases: Vec::new(),
+            builds: Vec::new(),
             changing_version: false,
             version_error: None,
             java,
@@ -291,8 +294,69 @@ impl InstanceSettings {
         };
         if !from_pack {
             view.load_releases(cx);
+            view.load_builds(cx);
         }
         view
+    }
+
+    fn load_builds(&mut self, cx: &mut Context<Self>) {
+        self.builds.clear();
+        let Some(loader) = self.instance.loader.clone() else {
+            return;
+        };
+        let minecraft = self.instance.minecraft.clone();
+        cx.spawn(async move |this, cx| {
+            let builds = runtime::spawn(async move {
+                super::dialogs::game_meta()
+                    .loader_versions(loader.kind, &minecraft)
+                    .await
+            })
+            .await
+            .ok()
+            .and_then(Result::ok)
+            .unwrap_or_default();
+            let _ = this.update(cx, |this, cx| {
+                this.builds = builds.into_iter().map(Into::into).collect();
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// Replaces the instance's icon with a picked image, or removes it.
+    fn pick_icon(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let picked = cx.prompt_for_paths(gpui_kit::PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: false,
+            prompt: None,
+        });
+        let (store, id) = (self.store.clone(), self.id.clone());
+        cx.spawn_in(window, async move |this, cx| {
+            let Ok(Ok(Some(paths))) = picked.await else {
+                return;
+            };
+            let Some(path) = paths.into_iter().next() else {
+                return;
+            };
+            let saved = runtime::blocking(move || {
+                let png = std::fs::read(&path)
+                    .ok()
+                    .and_then(|b| super::mods::instance_icon(&b))
+                    .ok_or_else(|| t!("new_instance.bad_icon").to_string())?;
+                store.set_icon(&id, &png).map_err(|e| e.to_string())
+            })
+            .await
+            .unwrap_or_else(|_| Err("cancelled".into()));
+            let _ = this.update(cx, |this, cx| match saved {
+                Ok(_) => AppState::global(cx).update(cx, |s, cx| s.reload_instances(cx)),
+                Err(e) => {
+                    this.version_error = Some(e.into());
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
     }
 
     fn load_releases(&mut self, cx: &mut Context<Self>) {
@@ -342,6 +406,7 @@ impl InstanceSettings {
                         this.instance.minecraft = minecraft;
                         this.instance.loader = loader;
                         this.save(cx);
+                        this.load_builds(cx);
                     }
                     Err(e) => {
                         this.version_error = Some(e.into());
@@ -491,6 +556,13 @@ impl InstanceSettings {
                 .collect();
             let pick_mc = cx.entity().downgrade();
             let pick_loader = pick_mc.clone();
+            let pick_build = pick_mc.clone();
+            let builds: Vec<MenuItem> = self
+                .builds
+                .iter()
+                .map(|b| MenuItem::new(b.clone(), b.clone()))
+                .collect();
+            let build = self.instance.loader.as_ref().map(|l| l.version.clone());
             let current_loader = self.instance.loader.as_ref().map(|l| l.kind);
             let current_mc = self.instance.minecraft.clone();
             h_flex()
@@ -524,20 +596,64 @@ impl InstanceSettings {
                     )
                     .width(px(150.)),
                 )
+                .when_some(build, |row, build| {
+                    row.child(
+                        Dropdown::new(
+                            "instance-loader-build",
+                            builds,
+                            Some(build.clone().into()),
+                            move |v, _, cx| {
+                                let _ = pick_build.update(cx, |this, cx| {
+                                    if let Some(loader) = &mut this.instance.loader {
+                                        loader.version = v.to_string();
+                                        this.save(cx);
+                                    }
+                                });
+                            },
+                        )
+                        .width(px(150.))
+                        .placeholder(build),
+                    )
+                })
                 .into_any_element()
         };
         let loader_hint = match (&self.instance.loader, self.changing_version) {
             (_, true) => Some(t!("instance_settings.looking_up").into()),
-            (Some(l), false) => Some(
-                t!(
-                    "instance_settings.loader_build",
-                    loader = super::launch_bar::loader_display(l.kind),
-                    version = l.version
-                )
-                .into(),
-            ),
-            (None, false) => None,
+            (Some(_), false) if !self.from_pack => Some(t!("instance_settings.loader_pick").into()),
+            _ => None,
         };
+        let icon_path = AppState::global(cx).read(cx).icons.get(&self.id).cloned();
+        let has_icon = icon_path.is_some();
+        let icon_row = h_flex()
+            .gap(px(10.))
+            .child(super::launch_bar::instance_tile(
+                &self.instance.name,
+                icon_path.as_ref(),
+                40.,
+                8.,
+                cx,
+            ))
+            .child(
+                Button::new("instance-icon-pick")
+                    .icon(IconName::Image)
+                    .label(t!("instance_settings.icon_change"))
+                    .on_click(cx.listener(|this, _, window, cx| this.pick_icon(window, cx))),
+            )
+            .when(has_icon, |row| {
+                let (store, id) = (self.store.clone(), self.id.clone());
+                row.child(
+                    Button::new("instance-icon-clear")
+                        .ghost()
+                        .icon(IconName::Close)
+                        .tooltip(t!("new_instance.clear_icon"))
+                        .on_click(move |_, _, cx| {
+                            if let Err(e) = store.clear_icon(&id) {
+                                tracing::warn!("{e}");
+                            }
+                            AppState::global(cx).update(cx, |s, cx| s.reload_instances(cx));
+                        }),
+                )
+            });
         let id = self.id.clone();
         let dir = self.store.dir(&self.id);
         Section::new()
@@ -558,6 +674,12 @@ impl InstanceSettings {
                     row.child(div().text_color(c.warn).child(e))
                 }),
             )
+            .row(setting_row(
+                t!("new_instance.icon").to_string(),
+                None,
+                icon_row,
+                cx,
+            ))
             .row(setting_row(
                 t!("instance_settings.played").to_string(),
                 None,

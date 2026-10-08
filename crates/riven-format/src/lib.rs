@@ -20,7 +20,7 @@ pub use path::{PackPath, PathError};
 pub use project::{
     Entry, EntryFile, FileRules, Issue, Kind, Project, Reason, Source, SourceKind, UpdatePolicy,
 };
-pub use release::{Channel, Release, ReleaseFile};
+pub use release::{Asset, Channel, Release, ReleaseFile};
 pub use sign::{KeyPair, PublicKey, SignError};
 pub use state::{OwnContent, State, StateFile, Trusted};
 

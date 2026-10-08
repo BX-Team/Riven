@@ -37,6 +37,17 @@
       },
       "default": []
     },
+    "icon": {
+      "description": "The pack's picture; launchers show it, nothing installs it.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Asset"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "$schema": {
       "type": "string"
     },
@@ -218,6 +229,32 @@
         "client",
         "server",
         "both"
+      ]
+    },
+    "Asset": {
+      "description": "A file a release references without installing it.",
+      "type": "object",
+      "properties": {
+        "size": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "hashes": {
+          "$ref": "#/$defs/Hashes"
+        },
+        "urls": {
+          "description": "Mirrors in order; relative ones resolve against the manifest URL.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "size",
+        "hashes",
+        "urls"
       ]
     }
   }

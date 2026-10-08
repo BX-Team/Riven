@@ -130,6 +130,52 @@ impl Instances {
         Ok(new_id)
     }
 
+    /// The instance's icon, `icon-<hash>.png` in its folder, when it has one.
+    pub fn icon(&self, id: &str) -> Option<PathBuf> {
+        std::fs::read_dir(self.dir(id))
+            .ok()?
+            .flatten()
+            .map(|e| e.path())
+            .find(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.starts_with("icon-") && n.ends_with(".png"))
+            })
+    }
+
+    /// Replaces the icon; the file is named by its hash so path-keyed image caches see the change.
+    pub fn set_icon(&self, id: &str, png: &[u8]) -> Result<PathBuf, LaunchError> {
+        self.write_icon(id, png, "icon")
+    }
+
+    /// The icon a pack ships; the player cannot replace it while the pack provides one.
+    pub fn set_pack_icon(&self, id: &str, png: &[u8]) -> Result<PathBuf, LaunchError> {
+        self.write_icon(id, png, "icon-pack")
+    }
+
+    pub fn has_pack_icon(&self, id: &str) -> bool {
+        self.icon(id).is_some_and(|p| {
+            p.file_name()
+                .is_some_and(|n| n.to_string_lossy().starts_with("icon-pack-"))
+        })
+    }
+
+    fn write_icon(&self, id: &str, png: &[u8], prefix: &str) -> Result<PathBuf, LaunchError> {
+        self.clear_icon(id)?;
+        let path = self
+            .dir(id)
+            .join(format!("{prefix}-{}.png", crate::short_hash(png)));
+        std::fs::write(&path, png).map_err(io(&path))?;
+        Ok(path)
+    }
+
+    pub fn clear_icon(&self, id: &str) -> Result<(), LaunchError> {
+        while let Some(old) = self.icon(id) {
+            std::fs::remove_file(&old).map_err(io(&old))?;
+        }
+        Ok(())
+    }
+
     pub fn delete(&self, id: &str) -> Result<(), LaunchError> {
         let dir = self.dir(id);
         std::fs::remove_dir_all(&dir).map_err(io(&dir))

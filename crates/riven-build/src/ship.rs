@@ -376,3 +376,36 @@ mod tests {
         assert_eq!(v, ["2.0.0", "2.0.0-beta", "1.10.0", "1.9.10", "1.9.2"]);
     }
 }
+
+#[derive(Debug, thiserror::Error)]
+pub enum ArchiveError {
+    #[error(transparent)]
+    Import(#[from] crate::import::ImportError),
+    #[error(transparent)]
+    Ship(#[from] ShipError),
+}
+
+/// Turns a `.mrpack` (path or URL) into an unsigned `.riven` archive at `out`.
+pub async fn archive_mrpack(
+    source: &str,
+    out: &Path,
+    stage: impl Fn(crate::import::ImportStage),
+) -> Result<PathBuf, ArchiveError> {
+    let work = out.with_extension("import");
+    let _ = std::fs::remove_dir_all(&work);
+    let result = async {
+        let imported =
+            crate::import::import_pack(&work, crate::import::ImportKind::Mrpack, source, stage)
+                .await?;
+        let ws = imported.workspace;
+        let built = release::build_release(&ws.project, &ws.dir).map_err(ShipError::from)?;
+        if let Some(parent) = out.parent() {
+            std::fs::create_dir_all(parent).map_err(io(parent))?;
+        }
+        release::write_archive(&built, None, out).map_err(ShipError::from)?;
+        Ok(out.to_owned())
+    }
+    .await;
+    let _ = std::fs::remove_dir_all(&work);
+    result
+}

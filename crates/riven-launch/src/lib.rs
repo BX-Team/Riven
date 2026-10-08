@@ -4,6 +4,7 @@ pub mod instances;
 pub mod java;
 pub mod mods;
 pub mod own;
+pub mod prism;
 mod vault;
 
 use std::path::{Path, PathBuf};
@@ -63,6 +64,8 @@ pub enum LaunchError {
         name: String,
         kind: riven_format::Kind,
     },
+    #[error("not a pack archive: {0}")]
+    BadArchive(String),
     #[error("`{0}` was not added by the player")]
     NotOwn(String),
 }
@@ -115,6 +118,12 @@ pub fn strip_ansi(text: &str) -> String {
         }
     }
     out
+}
+
+/// The first 16 hex digits of a SHA-256, for folder names derived from paths.
+pub(crate) fn short_hash(bytes: &[u8]) -> String {
+    use sha2::Digest as _;
+    hex::encode(sha2::Sha256::digest(bytes))[..16].to_owned()
 }
 
 /// The current UTC time as RFC 3339, `2026-10-07T14:03:00Z`.

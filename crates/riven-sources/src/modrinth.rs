@@ -97,7 +97,37 @@ impl Modrinth {
         Ok(pages.into_iter().flatten().collect())
     }
 
-    /// A project's page: its long description, categories, license and links.
+    /// Modpacks matching `query`, for `minecraft` when given, most relevant first.
+    pub async fn search_modpacks(
+        &self,
+        query: &str,
+        minecraft: Option<&str>,
+        limit: u32,
+    ) -> Result<Vec<Hit>> {
+        let mut facets = vec![vec!["project_type:modpack".to_owned()]];
+        if let Some(mc) = minecraft {
+            facets.push(vec![format!("versions:{mc}")]);
+        }
+        let url = self.url(
+            "search",
+            &[
+                ("query", query.to_owned()),
+                ("limit", limit.to_string()),
+                ("facets", json(&facets)),
+            ],
+        );
+        let response: ApiSearch = self.get(&url).await?;
+        Ok(response.hits.into_iter().map(Hit::from).collect())
+    }
+
+    /// Every version of a project, newest first.
+    pub async fn project_versions(&self, project: &str) -> Result<Vec<Version>> {
+        let url = self.url(&format!("project/{project}/version"), &[]);
+        let versions: Vec<ApiVersion> = self.get(&url).await?;
+        Ok(versions.into_iter().map(Into::into).collect())
+    }
+
+    /// A project's page: its categories, license, stats and links.
     pub async fn page(&self, id: &str) -> Result<ProjectPage> {
         let page: ApiPage = self.get(&self.url(&format!("project/{id}"), &[])).await?;
         Ok(page.into())
@@ -261,11 +291,23 @@ struct ApiHit {
     #[serde(default)]
     downloads: u64,
     icon_url: Option<String>,
+    #[serde(default)]
+    versions: Vec<String>,
+    #[serde(default)]
+    categories: Vec<String>,
 }
+
+const LOADER_CATEGORIES: [&str; 4] = ["fabric", "quilt", "forge", "neoforge"];
 
 impl From<ApiHit> for Hit {
     fn from(hit: ApiHit) -> Self {
         Self {
+            game_versions: hit.versions,
+            loaders: hit
+                .categories
+                .into_iter()
+                .filter(|c| LOADER_CATEGORIES.contains(&c.as_str()))
+                .collect(),
             id: hit.project_id,
             slug: hit.slug,
             title: hit.title,

@@ -127,6 +127,9 @@ impl AppState {
                         if exited {
                             s.reload_instances(cx);
                         }
+                        if changed {
+                            *s.revisions.entry(id.clone()).or_default() += 1;
+                        }
                     }
                     cx.notify();
                 });
@@ -146,6 +149,7 @@ impl AppState {
                         Ok(()) => {}
                     }
                 }
+                *s.revisions.entry(id.clone()).or_default() += 1;
                 s.reload_instances(cx);
             });
         })

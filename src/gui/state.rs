@@ -23,6 +23,8 @@ pub struct AppState {
     pub instances: Vec<(String, Instance)>,
     /// Installed pack version per instance id, for instances that came from a pack.
     pub packs: HashMap<String, String>,
+    /// Icon file per instance id, for instances that have one.
+    pub icons: HashMap<String, std::path::PathBuf>,
     pub accounts: Accounts,
     pub route: Route,
     /// A load or save that failed, shown until the next success.
@@ -32,11 +34,26 @@ pub struct AppState {
     pub context_menu: Option<ContextMenu>,
     /// Launches and pack installs by instance id, kept after they end for their log.
     pub sessions: HashMap<String, Session>,
+    /// Bumped when an install or update changed an instance's files, so open views read them again.
+    pub revisions: HashMap<String, u64>,
     /// `(read, to read)` while an instance's content files are hashed, by instance id.
     pub scans: HashMap<String, (usize, usize)>,
     pub(super) ticking: bool,
     pub(super) toasts: Vec<super::toast::Toast>,
     pub(super) toast_serial: u64,
+}
+
+fn read_icons(
+    store: Option<&Instances>,
+    instances: &[(String, Instance)],
+) -> HashMap<String, std::path::PathBuf> {
+    let Some(store) = store else {
+        return HashMap::new();
+    };
+    instances
+        .iter()
+        .filter_map(|(id, _)| Some((id.clone(), store.icon(id)?)))
+        .collect()
 }
 
 fn read_packs(
@@ -97,11 +114,13 @@ impl AppState {
             .map(Route::Instance)
             .unwrap_or(Route::Empty);
         let packs = read_packs(store.as_ref(), &instances);
+        let icons = read_icons(store.as_ref(), &instances);
         Self {
             settings,
             store,
             instances,
             packs,
+            icons,
             accounts,
             route,
             error,
@@ -110,6 +129,7 @@ impl AppState {
             context_menu: None,
             sessions: HashMap::new(),
             scans: HashMap::new(),
+            revisions: HashMap::new(),
             ticking: false,
             toasts: Vec::new(),
             toast_serial: 0,
@@ -140,6 +160,7 @@ impl AppState {
             }
         }
         self.packs = read_packs(self.store.as_ref(), &self.instances);
+        self.icons = read_icons(self.store.as_ref(), &self.instances);
         cx.notify();
     }
 

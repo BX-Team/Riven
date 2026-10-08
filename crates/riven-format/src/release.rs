@@ -17,6 +17,18 @@ pub struct Release {
     pub groups: Vec<Group>,
     #[serde(default, serialize_with = "sorted")]
     pub files: Vec<ReleaseFile>,
+    /// The pack's picture; launchers show it, nothing installs it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<Asset>,
+}
+
+/// A file a release references without installing it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Asset {
+    pub size: u64,
+    pub hashes: Hashes,
+    /// Mirrors in order; relative ones resolve against the manifest URL.
+    pub urls: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

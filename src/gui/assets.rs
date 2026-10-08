@@ -25,6 +25,7 @@ icons!(
     "external-link",
     "file",
     "folder",
+    "image",
     "loader",
     "lock",
     "more",
