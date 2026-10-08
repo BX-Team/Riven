@@ -612,3 +612,26 @@ dev:
   pulled: "Скопировано в overrides/: %{n}"
   panel_hide: Скрыть панель
   panel_show: Показать панель
+update:
+  title: Обновления
+  button: Обновить
+  percent: "%{percent}%"
+  available_title: "Вышел Riven %{version}"
+  current: "У вас %{version}. Riven скачает новую версию, заменит себя и перезапустится."
+  this: "Установлен Riven %{version}"
+  latest: "Riven %{version} — последняя версия"
+  check: Проверить обновления
+  checking: Ищем новую версию…
+  check_failed: "Не удалось проверить обновления: %{error}"
+  show: Показать обновление
+  install: Установить и перезапустить
+  installing: Устанавливаем…
+  downloading: "Скачано %{done} из %{total} МБ"
+  failed: "Обновление не удалось: %{error}"
+  later: Позже
+  release_page: Страница релиза
+  no_notes: У этого релиза нет описания.
+  managed: Этот Riven установлен пакетным менеджером или Nix — обновляйте его там.
+  game_running: Сначала закройте игру — перезапуск Riven оборвёт её.
+  auto: Проверять обновления при запуске
+  auto_hint: Спрашивает GitHub о новой версии при каждом запуске Riven

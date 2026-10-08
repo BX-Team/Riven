@@ -53,6 +53,14 @@ pub const LOGO: &str = "brand/riven-128.png";
 
 const BRAND: &[(&str, &[u8])] = &[(LOGO, include_bytes!("../../assets/brand/riven-128.png"))];
 
+/// The desktop entry and file type an AppImage or unpacked archive registers for itself.
+#[cfg(target_os = "linux")]
+pub const DESKTOP_ENTRY: &str = include_str!("../../packaging/linux/riven.desktop");
+#[cfg(target_os = "linux")]
+pub const MIME_INFO: &str = include_str!("../../packaging/linux/riven-mime.xml");
+#[cfg(target_os = "linux")]
+pub const ICON_512: &[u8] = include_bytes!("../../assets/brand/riven-512.png");
+
 /// The icons drawn for the design, embedded in the binary.
 pub struct Assets;
 

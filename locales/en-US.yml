@@ -612,3 +612,26 @@ dev:
   pulled: "Copied %{n} files into overrides/"
   panel_hide: Hide the panel
   panel_show: Show the panel
+update:
+  title: Updates
+  button: Update
+  percent: "%{percent}%"
+  available_title: "Riven %{version} is out"
+  current: "You have %{version}. Riven downloads the new version, replaces itself and restarts."
+  this: "This is Riven %{version}"
+  latest: "Riven %{version} is the latest version"
+  check: Check for updates
+  checking: Looking for a new version…
+  check_failed: "Cannot check for updates: %{error}"
+  show: Show the update
+  install: Install and restart
+  installing: Installing…
+  downloading: "Downloading %{done} of %{total} MB"
+  failed: "The update failed: %{error}"
+  later: Later
+  release_page: Release page
+  no_notes: This release has no notes.
+  managed: This copy of Riven was installed by a package manager or Nix; update it there.
+  game_running: Close the game first; restarting Riven would cut it off.
+  auto: Check for updates at startup
+  auto_hint: Asks GitHub for a new version each time Riven starts
