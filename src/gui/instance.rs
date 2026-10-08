@@ -106,6 +106,8 @@ pub struct InstanceView {
     mods: ModsTable,
     scroll: UniformListScrollHandle,
     logs: Entity<LogsView>,
+    configs: Entity<super::configs::ConfigsView>,
+    screenshots: Entity<super::screenshots::ScreenshotsView>,
     loading: bool,
     /// Installed from a pack, so its mods stay locked until the player allows their own.
     from_pack: bool,
@@ -134,6 +136,11 @@ impl InstanceView {
     ) -> Self {
         let game_dir = store.game_dir(&id);
         let logs = super::logs::view(id.clone(), game_dir.clone(), cx);
+        let configs = {
+            let dir = game_dir.clone();
+            cx.new(|cx| super::configs::ConfigsView::new(dir, window, cx))
+        };
+        let screenshots = cx.new(|_| super::screenshots::ScreenshotsView::new(game_dir.clone()));
         let search =
             cx.new(|cx| InputState::new(window, cx).placeholder(t!("mods.search").to_string()));
         let _search = cx.subscribe(&search, |this, input, event, cx| {
@@ -155,6 +162,8 @@ impl InstanceView {
             mods: ModsTable::default(),
             scroll: UniformListScrollHandle::new(),
             logs,
+            configs,
+            screenshots,
             loading: true,
             from_pack,
             updates: Updates::Unchecked,
@@ -186,6 +195,11 @@ impl InstanceView {
     /// Shows another tab, reading its folder when it lists other content.
     fn select(&mut self, tab: Tab, window: &mut Window, cx: &mut Context<Self>) {
         self.tab = tab;
+        match tab {
+            Tab::Configs => self.configs.update(cx, |c, cx| c.ensure_loaded(cx)),
+            Tab::Screenshots => self.screenshots.update(cx, |s, cx| s.reload(cx)),
+            _ => {}
+        }
         if let Some(kind) = tab.content()
             && kind != self.kind
         {
@@ -953,13 +967,8 @@ impl Render for InstanceView {
                 self.render_mods(cx).into_any_element()
             }
             Tab::Logs => self.logs.clone().into_any_element(),
-            other => super::app::placeholder(
-                IconName::Package,
-                other.label(),
-                t!("common.coming_soon").into(),
-                cx,
-            )
-            .into_any_element(),
+            Tab::Configs => self.configs.clone().into_any_element(),
+            Tab::Screenshots => self.screenshots.clone().into_any_element(),
         };
         let tab = TABS.iter().position(|t| *t == self.tab).unwrap_or(0);
         v_flex()

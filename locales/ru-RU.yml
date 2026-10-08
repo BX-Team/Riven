@@ -1,6 +1,5 @@
 common:
   cancel: Отмена
-  coming_soon: Скоро
   close: Закрыть
 titlebar:
   developer: Режим разработчика
@@ -27,6 +26,20 @@ instance:
   delete: Удалить инстанс
   delete_running: Сначала остановите игру
   copy_name: "%{name} (копия)"
+configs:
+  reload: Перечитать папки
+  open_outside: Открыть в другой программе
+  pick: Выберите файл слева, чтобы его изменить
+  binary: Это не текстовый файл; откройте его в другой программе через меню
+  too_big: Файл слишком большой для редактирования здесь
+screenshots:
+  open: Открыть в просмотрщике
+  copy: Копировать изображение
+  delete_title: "Удалить %{name}?"
+  delete_body: Скриншот удалится с диска.
+  count: "Скриншотов: %{n}"
+  loading: Читаем скриншоты…
+  none: Скриншотов пока нет; в игре их делает F2
 mods:
   empty_mods: Модов пока нет
   empty_resourcepacks: Ресурспаков пока нет
@@ -257,6 +270,13 @@ about:
   source: Исходный код
   copy: Скопировать сведения
 logs:
+  current: Текущий
+  crashes: Отчёты о сбоях
+  files: Логи
+  upload: Загрузить
+  uploading: Загружаем…
+  upload_hint: Загрузить на pastes.dev и скопировать ссылку; токены скрываются заранее
+  uploaded: "Ссылка скопирована: %{url}"
   session: Вывод игры
   latest: Прошлый запуск (latest.log)
   lines: "строк: %{n}"
@@ -348,6 +368,8 @@ add_content:
     file_about: Zip-файлы с диска копируются в инстанс; обновлять их лаунчер не сможет.
     pick_one: Выберите шейдер слева, чтобы увидеть описание
 dev:
+  open_file: Открыть
+  moved: "%{name} перемещён в %{to}"
   pack_icon: Иконка пака…
   pack_icon_hint: icon.png; лаунчеры показывают её у инстанса
   sections: Разделы
