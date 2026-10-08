@@ -3,6 +3,25 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
+/// Installed memory in MiB, where the system says; Linux reads `/proc/meminfo`.
+pub fn total_memory_mb() -> Option<u32> {
+    #[cfg(target_os = "linux")]
+    {
+        let text = std::fs::read_to_string("/proc/meminfo").ok()?;
+        let kb: u64 = text
+            .lines()
+            .find_map(|l| l.strip_prefix("MemTotal:"))?
+            .trim()
+            .trim_end_matches("kB")
+            .trim()
+            .parse()
+            .ok()?;
+        u32::try_from(kb / 1024).ok()
+    }
+    #[cfg(not(target_os = "linux"))]
+    None
+}
+
 /// A Java runtime found on this machine.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JavaInstall {

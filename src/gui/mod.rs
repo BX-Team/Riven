@@ -12,6 +12,7 @@ mod java_picker;
 mod launch_bar;
 mod logs;
 mod markdown;
+mod memory_slider;
 mod mods;
 mod new_instance;
 mod runtime;
@@ -23,6 +24,7 @@ mod theme;
 mod time;
 mod toast;
 mod ui;
+mod welcome;
 
 use std::process::ExitCode;
 

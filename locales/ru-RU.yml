@@ -27,6 +27,7 @@ instance:
   delete_running: Сначала остановите игру
   copy_name: "%{name} (копия)"
 configs:
+  locked: Конфиги задаёт пак; только чтение
   reload: Перечитать папки
   open_outside: Открыть в другой программе
   pick: Выберите файл слева, чтобы его изменить
@@ -40,10 +41,36 @@ screenshots:
   count: "Скриншотов: %{n}"
   loading: Читаем скриншоты…
   none: Скриншотов пока нет; в игре их делает F2
+welcome:
+  title: Добро пожаловать в Riven Launcher
+  look: Язык и оформление
+  java_title: Java и память
+  account: Аккаунт
+  java: Java
+  memory: Память для игры
+  account_hint: Войдите через Microsoft, чтобы играть на лицензионных серверах, или добавьте офлайн-ник для одиночной игры и офлайн-серверов. Это можно сделать и позже из нижней панели.
+  skip: Пропустить
+  back: Назад
+  next: Далее
+  done: Начать
+  ready: Всё готово
+  hello: "Привет, %{name}!"
+  hello_anon: Всё готово!
+  where_to_start: С чего начнём?
+  start_modrinth: Пак с Modrinth
+  start_modrinth_hint: Найдите готовый модпак и поставьте его в один клик
+  start_custom: Свой инстанс
+  start_custom_hint: Чистый Minecraft с нужным загрузчиком, моды добавите сами
+  start_import: Импорт
+  start_import_hint: "Файл .mrpack или .riven, ссылка на пак или экспорт из Prism"
+  developer_tip: Собираете свои паки? Режим разработчика включается в Настройках → Расширенные.
+memory:
+  mb: "%{n} МБ"
+  gb: "%{n} ГБ"
 mods:
   empty_mods: Модов пока нет
   empty_resourcepacks: Ресурспаков пока нет
-  empty_shaders: Шейдеров пока нет; для них нужен Iris или Oculus среди модов
+  empty_shaders: Шейдеров пока нет; для них нужен Iris среди модов
   open_page: Открыть на Modrinth
   show_file: Показать файл
   enable: Включить
@@ -102,7 +129,7 @@ accounts:
   bad_name: "3–16 латинских букв, цифр или _"
   player_name: Ник игрока
   offline_hint: Для серверов в офлайн-режиме и одиночной игры
-  ms_hint: Введите этот код на странице Microsoft, которая открылась в браузере.
+  ms_hint: Код уже скопирован — вставьте его на странице Microsoft, которая открылась в браузере.
   ms_requesting: Запрашиваем код у Microsoft…
   ms_waiting: Ждём, пока вы войдёте…
   ms_copy: Скопировать код
@@ -132,7 +159,7 @@ settings:
   java_path: Исполняемый файл Java
   java_path_hint: Найденные на компьютере Java; «Автоматически» скачивает ту, что нужна версии Minecraft
   jvm_args: Аргументы JVM
-  memory: Память, МБ
+  memory: Память
   memory_min: Минимум
   memory_max: Максимум
   window: Окно игры
@@ -144,7 +171,6 @@ settings:
   developer_mode_hint: Показывает раздел разработки — проекты паков, релизы и Git
   back: Библиотека
   java_auto: автоматически
-  memory_hint: В мегабайтах; пак может советовать больше
   launch: Запуск
   accounts: Аккаунты
   folders: Каталоги
@@ -153,7 +179,6 @@ settings:
   animations: Анимации
   animations_hint: Плавные наведения, переключатели и появление панелей
   jvm_args_hint: Добавляются к каждому запуску, через пробел
-  memory_max_hint: Пак может просить больше; с модами игре нужно около 4 ГБ
   pre_launch_hint: Выполняется до старта игры; запуск ждёт её завершения
   wrapper_hint: Например mangohud или gamemoderun; пока не применяется — поддержка появится позже
   post_exit_hint: Выполняется после выхода из игры
@@ -204,6 +229,7 @@ new_instance:
   clear_icon: Убрать иконку
   bad_icon: Этот файл не изображение
 instance_settings:
+  icon_from_pack: Задаёт пак
   loader_pick: Minecraft, загрузчик и его версия
   icon_change: Сменить…
   java: Java

@@ -8,8 +8,8 @@ use gpui_kit::{
     Styled as _, Subscription, Window, div, px, relative,
 };
 use riven_format::{
-    GameWindow, Instance, JavaChoice, LaunchCommands, LaunchSettings, Loader, LoaderKind, MemoryMb,
-    Release, State,
+    GameWindow, Instance, JavaChoice, LaunchCommands, LaunchSettings, Loader, LoaderKind, Release,
+    State,
 };
 use riven_launch::instances::Instances;
 use riven_sync::remote;
@@ -17,6 +17,7 @@ use riven_sync::update::Request;
 use rust_i18n::t;
 
 use super::java_picker::JavaPicker;
+use super::memory_slider::MemorySlider;
 use super::runtime;
 use super::state::AppState;
 use super::theme::ActiveTheme as _;
@@ -121,6 +122,7 @@ pub struct InstanceSettings {
     changing_version: bool,
     version_error: Option<SharedString>,
     java: Entity<JavaPicker>,
+    memory: Entity<MemorySlider>,
     fields: Vec<Field>,
     _subs: Vec<Subscription>,
 }
@@ -164,6 +166,21 @@ impl InstanceSettings {
         }));
 
         let view = cx.entity().downgrade();
+        let memory = {
+            let view = cx.entity().downgrade();
+            MemorySlider::new(
+                effective.memory,
+                move |m, cx| {
+                    let _ = view.update(cx, |this, cx| {
+                        if this.instance.overrides.memory.is_some() {
+                            this.instance.overrides.memory = Some(m);
+                            this.save(cx);
+                        }
+                    });
+                },
+                cx,
+            )
+        };
         let java = JavaPicker::new(
             SharedString::from(format!("java-{id}")),
             effective.java.clone(),
@@ -182,16 +199,6 @@ impl InstanceSettings {
             Input::Line(cx.new(|cx| InputState::new(window, cx).default_value(value)))
         };
         let specs: Vec<(Group, String, Input)> = vec![
-            (
-                Group::Memory,
-                t!("settings.memory_min").into(),
-                line(effective.memory.min.to_string(), window, cx),
-            ),
-            (
-                Group::Memory,
-                t!("settings.memory_max").into(),
-                line(effective.memory.max.to_string(), window, cx),
-            ),
             (
                 Group::JvmArgs,
                 t!("settings.jvm_args").into(),
@@ -289,6 +296,7 @@ impl InstanceSettings {
             changing_version: false,
             version_error: None,
             java,
+            memory,
             fields,
             _subs: subs,
         };
@@ -429,17 +437,10 @@ impl InstanceSettings {
     /// Reads the fields of every overridden group into the instance and saves it.
     fn store_fields(&mut self, cx: &mut Context<Self>) {
         let number = |s: &str, fallback: u32| s.parse().unwrap_or(fallback);
-        let memory = self.texts(Group::Memory, cx);
         let args = self.texts(Group::JvmArgs, cx);
         let window = self.texts(Group::Window, cx);
         let commands = self.texts(Group::Commands, cx);
         let o = &mut self.instance.overrides;
-        if let Some(current) = o.memory {
-            o.memory = Some(MemoryMb {
-                min: number(&memory[0], current.min),
-                max: number(&memory[1], current.max),
-            });
-        }
         if o.jvm_args.is_some() {
             o.jvm_args = Some(args[0].split_whitespace().map(str::to_owned).collect());
         }
@@ -491,10 +492,21 @@ impl InstanceSettings {
     }
 
     /// Starts overriding a group from the launcher's current value, or drops the override.
-    fn toggle(&mut self, group: Group, on: bool, global: &LaunchSettings, cx: &mut Context<Self>) {
+    fn toggle(
+        &mut self,
+        group: Group,
+        on: bool,
+        global: &LaunchSettings,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let o = &mut self.instance.overrides;
         match group {
-            Group::Memory => o.memory = on.then_some(global.memory),
+            Group::Memory => {
+                o.memory = on.then_some(global.memory);
+                let shown = o.memory.unwrap_or(global.memory);
+                self.memory.update(cx, |m, cx| m.set(shown, window, cx));
+            }
             Group::Java => o.java = on.then(|| global.java.clone()),
             Group::JvmArgs => o.jvm_args = on.then(|| global.jvm_args.clone()),
             Group::Window => o.window = on.then_some(global.window),
@@ -624,6 +636,7 @@ impl InstanceSettings {
         };
         let icon_path = AppState::global(cx).read(cx).icons.get(&self.id).cloned();
         let has_icon = icon_path.is_some();
+        let pack_icon = self.store.has_pack_icon(&self.id);
         let icon_row = h_flex()
             .gap(px(10.))
             .child(super::launch_bar::instance_tile(
@@ -633,13 +646,22 @@ impl InstanceSettings {
                 8.,
                 cx,
             ))
-            .child(
-                Button::new("instance-icon-pick")
-                    .icon(IconName::Image)
-                    .label(t!("instance_settings.icon_change"))
-                    .on_click(cx.listener(|this, _, window, cx| this.pick_icon(window, cx))),
-            )
-            .when(has_icon, |row| {
+            .when(pack_icon, |row| {
+                row.child(
+                    div()
+                        .text_color(c.muted)
+                        .child(t!("instance_settings.icon_from_pack").to_string()),
+                )
+            })
+            .when(!pack_icon, |row| {
+                row.child(
+                    Button::new("instance-icon-pick")
+                        .icon(IconName::Image)
+                        .label(t!("instance_settings.icon_change"))
+                        .on_click(cx.listener(|this, _, window, cx| this.pick_icon(window, cx))),
+                )
+            })
+            .when(has_icon && !pack_icon, |row| {
                 let (store, id) = (self.store.clone(), self.id.clone());
                 row.child(
                     Button::new("instance-icon-clear")
@@ -754,6 +776,7 @@ impl InstanceSettings {
         let label = |text: SharedString| div().text_size(px(12.)).text_color(c.muted).child(text);
         let body: AnyElement = match group {
             Group::Java => self.java.clone().into_any_element(),
+            Group::Memory => self.memory.clone().into_any_element(),
             Group::JvmArgs | Group::Commands => v_flex()
                 .gap(px(12.))
                 .children(self.fields.iter().filter(|f| f.group == group).map(|f| {
@@ -787,7 +810,6 @@ impl InstanceSettings {
                     )
                     .into_any_element()
             }
-            _ => self.field_row(group, cx),
         };
         v_flex()
             .rounded(px(10.))
@@ -820,10 +842,11 @@ impl InstanceSettings {
                         Switch::new(SharedString::from(format!("override-{}", group as u8)), on)
                             .label(t!("instance_settings.override").to_string())
                             .accessible(format!("{} {title}", t!("instance_settings.override")))
-                            .on_change(move |on, _, cx| {
+                            .on_change(move |on, window, cx| {
                                 let global = global_for_toggle.clone();
-                                let _ =
-                                    view.update(cx, |this, cx| this.toggle(group, on, &global, cx));
+                                let _ = view.update(cx, |this, cx| {
+                                    this.toggle(group, on, &global, window, cx)
+                                });
                             }),
                     ),
             )

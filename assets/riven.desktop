@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Riven Launcher
+Comment=Minecraft launcher and modpack toolkit
+Exec=riven
+Icon=riven
+Terminal=false
+Categories=Game;
+StartupWMClass=riven

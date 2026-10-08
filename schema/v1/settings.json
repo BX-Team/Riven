@@ -66,6 +66,10 @@
     "dev_panel": {
       "$ref": "#/$defs/DevPanel"
     },
+    "onboarded": {
+      "description": "The first-run setup was finished or skipped.",
+      "type": "boolean"
+    },
     "$schema": {
       "type": "string"
     },
