@@ -147,7 +147,12 @@ fn clock(seconds: u64) -> String {
 }
 
 /// A thin bar filling to `fraction`; with no total yet a short segment sweeps across instead.
-fn progress_bar(id: &str, fraction: Option<f32>, window: &mut Window, cx: &mut App) -> AnyElement {
+pub(super) fn progress_bar(
+    id: &str,
+    fraction: Option<f32>,
+    window: &mut Window,
+    cx: &mut App,
+) -> AnyElement {
     let c = cx.theme().colors;
     let track = div()
         .relative()

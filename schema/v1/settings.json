@@ -66,6 +66,10 @@
     "dev_panel": {
       "$ref": "#/$defs/DevPanel"
     },
+    "manual_updates": {
+      "description": "Riven looks for a new version only when asked, not at startup.",
+      "type": "boolean"
+    },
     "onboarded": {
       "description": "The first-run setup was finished or skipped.",
       "type": "boolean"

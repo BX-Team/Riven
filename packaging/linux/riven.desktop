@@ -2,8 +2,10 @@
 Type=Application
 Name=Riven Launcher
 Comment=Minecraft launcher and modpack toolkit
-Exec=riven
+Exec=riven %u
 Icon=riven
 Terminal=false
 Categories=Game;
+Keywords=minecraft;modpack;launcher;mods;
+MimeType=x-scheme-handler/riven;application/x-riven-pack;
 StartupWMClass=riven

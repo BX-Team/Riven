@@ -4,6 +4,7 @@ mod output;
 mod project;
 mod release;
 mod sync;
+mod upgrade;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -162,6 +163,12 @@ enum Command {
         /// Output file (default: exports/<id>-<version>.<ext>).
         #[arg(long)]
         out: Option<PathBuf>,
+    },
+    /// Update Riven itself from its GitHub releases.
+    SelfUpdate {
+        /// Only report whether a new version is out.
+        #[arg(long)]
+        check: bool,
     },
 }
 
@@ -355,5 +362,6 @@ async fn dispatch(command: Command, out: &Output) -> anyhow::Result<ExitCode> {
             side,
             out: path,
         } => release::export(out, format, side.map(Into::into), path).await,
+        Command::SelfUpdate { check } => upgrade::self_update(out, check).await,
     }
 }

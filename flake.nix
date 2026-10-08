@@ -80,6 +80,7 @@
                 ./crates
                 ./build.rs
                 ./assets
+                ./packaging
                 ./locales
               ];
             };
@@ -98,7 +99,8 @@
             postInstall = lib.optionalString (!cli) ''
               install -Dm644 assets/brand/riven.svg $out/share/icons/hicolor/scalable/apps/riven.svg
               install -Dm644 assets/brand/riven-512.png $out/share/icons/hicolor/512x512/apps/riven.png
-              install -Dm644 assets/riven.desktop $out/share/applications/riven.desktop
+              install -Dm644 packaging/linux/riven.desktop $out/share/applications/riven.desktop
+              install -Dm644 packaging/linux/riven-mime.xml $out/share/mime/packages/riven.xml
             '';
             # build.rs cannot ask git inside the sandbox; the About page shows this commit.
             RIVEN_REV = self.shortRev or self.dirtyShortRev or "unknown";

@@ -827,6 +827,7 @@ impl SettingsView {
                         ),
                 )
                 .into_any_element(),
+            updates(cx),
             section.into_any_element(),
             h_flex()
                 .gap(px(8.))
@@ -853,6 +854,51 @@ impl SettingsView {
                 .into_any_element(),
         ]
     }
+}
+
+/// Where the update check stands, the button that runs it, and whether it runs at startup.
+fn updates(cx: &App) -> AnyElement {
+    use super::updater::Update;
+    let update = &AppState::global(cx).read(cx).update;
+    let (status, button) = match update {
+        Update::Idle => (
+            t!("update.this", version = env!("CARGO_PKG_VERSION")),
+            t!("update.check"),
+        ),
+        Update::Checking => (t!("update.checking"), t!("update.check")),
+        Update::Available(r) | Update::Failed { release: r, .. } => (
+            t!("update.available_title", version = r.version),
+            t!("update.show"),
+        ),
+        Update::Downloading { release, .. } => (
+            t!("update.available_title", version = release.version),
+            t!("update.installing"),
+        ),
+    };
+    let checking = matches!(update, Update::Checking);
+    let automatic = !prefs(cx).manual_updates;
+    Section::new()
+        .row(setting_row(
+            t!("update.title").to_string(),
+            Some(status.into()),
+            Button::new("check-update")
+                .size(ButtonSize::Md)
+                .icon(IconName::Refresh)
+                .label(button)
+                .disabled(checking)
+                .on_click(|_, _, cx| super::updater::check_or_open(cx)),
+            cx,
+        ))
+        .row(setting_row(
+            t!("update.auto").to_string(),
+            Some(t!("update.auto_hint").into()),
+            Switch::new("auto-update", automatic)
+                .large()
+                .accessible(t!("update.auto").to_string())
+                .on_change(|v, _, cx| write(cx, |s| s.manual_updates = !v)),
+            cx,
+        ))
+        .into_any_element()
 }
 
 /// What a bug report needs to know about this build and machine.

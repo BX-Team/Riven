@@ -26,6 +26,9 @@ pub struct Settings {
     pub recent_projects: Vec<String>,
     #[serde(default, skip_serializing_if = "DevPanel::is_default")]
     pub dev_panel: DevPanel,
+    /// Riven looks for a new version only when asked, not at startup.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub manual_updates: bool,
     /// The first-run setup was finished or skipped.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub onboarded: bool,

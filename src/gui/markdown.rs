@@ -1,3 +1,35 @@
+use gpui_kit::{
+    AnyElement, App, FontWeight, IntoElement, ParentElement as _, Styled as _, div, px, relative,
+};
+
+use super::theme::ActiveTheme as _;
+use super::ui::h_flex;
+
+/// A Modrinth project page with its description split into blocks once.
+pub struct Described {
+    pub page: riven_sources::modrinth::ProjectPage,
+    pub about: Vec<Block>,
+}
+
+/// Blocks of a description shown before it is cut off.
+const SHOWN: usize = 80;
+
+impl Described {
+    pub fn new(page: riven_sources::modrinth::ProjectPage) -> Self {
+        let mut about = blocks(&page.body);
+        about.truncate(SHOWN);
+        Self { page, about }
+    }
+}
+
+impl std::ops::Deref for Described {
+    type Target = riven_sources::modrinth::ProjectPage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.page
+    }
+}
+
 /// A block of a project description, simplified for plain text drawing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Block {
@@ -122,6 +154,34 @@ pub fn blocks(markdown: &str) -> Vec<Block> {
     }
     flush(&mut paragraph, &mut out);
     out
+}
+
+/// Draws blocks as headings, paragraphs and bulleted items.
+pub fn view<'a>(blocks: impl IntoIterator<Item = &'a Block>, cx: &App) -> Vec<AnyElement> {
+    let c = cx.theme().colors;
+    blocks
+        .into_iter()
+        .map(|block| match block {
+            Block::Heading(text) => div()
+                .pt(px(4.))
+                .font_weight(FontWeight::SEMIBOLD)
+                .child(text.clone())
+                .into_any_element(),
+            Block::Paragraph(text) => div()
+                .text_color(c.text2)
+                .line_height(relative(1.5))
+                .child(text.clone())
+                .into_any_element(),
+            Block::Item(text) => h_flex()
+                .items_start()
+                .gap(px(8.))
+                .text_color(c.text2)
+                .line_height(relative(1.5))
+                .child(div().flex_none().child("•"))
+                .child(div().flex_1().min_w_0().child(text.clone()))
+                .into_any_element(),
+        })
+        .collect()
 }
 
 #[cfg(test)]

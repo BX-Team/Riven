@@ -10,6 +10,7 @@ mod instance;
 mod instance_settings;
 mod java_picker;
 mod launch_bar;
+mod links;
 mod logs;
 mod markdown;
 mod memory_slider;
@@ -24,6 +25,7 @@ mod theme;
 mod time;
 mod toast;
 mod ui;
+mod updater;
 mod welcome;
 
 use std::process::ExitCode;
@@ -32,22 +34,43 @@ use gpui_kit::{App, Bounds, WindowBounds, WindowOptions, px, size};
 
 use state::AppState;
 
-pub fn run() -> ExitCode {
-    gpui_kit::application()
-        .with_assets(assets::Assets)
-        .run(|cx| {
-            gpui_kit::init(cx);
-            theme::init(cx);
-            let state = AppState::init(cx);
-            let settings = state.read(cx).settings.clone();
-            set_language(settings.language.as_deref());
-            theme::apply(&settings.appearance, None, cx);
-            if settings.reduce_motion {
-                cx.set_reduce_motion(true);
-            }
-            open_main_window(cx);
-            cx.activate(true);
-        });
+/// Whether a lone argument is something for the launcher to open rather than a CLI command.
+pub fn opens(arg: &str) -> bool {
+    links::Open::parse(arg).is_some()
+}
+
+pub fn run(arg: Option<String>) -> ExitCode {
+    let open = arg.as_deref().and_then(links::Open::parse);
+    let (tx, rx) = std::sync::mpsc::channel();
+    match links::claim(open.as_ref()) {
+        links::Claim::Forwarded => return ExitCode::SUCCESS,
+        links::Claim::Primary(listener) => links::serve(listener, tx.clone()),
+        links::Claim::Alone => {}
+    }
+    let app = gpui_kit::application().with_assets(assets::Assets);
+    app.on_open_urls(move |urls| {
+        for open in urls.iter().filter_map(|u| links::Open::parse(u)) {
+            let _ = tx.send(open);
+        }
+    });
+    app.run(move |cx| {
+        gpui_kit::init(cx);
+        theme::init(cx);
+        let state = AppState::init(cx);
+        let settings = state.read(cx).settings.clone();
+        set_language(settings.language.as_deref());
+        theme::apply(&settings.appearance, None, cx);
+        if settings.reduce_motion {
+            cx.set_reduce_motion(true);
+        }
+        open_main_window(cx);
+        cx.activate(true);
+        links::listen(rx, cx);
+        links::register();
+        if let Some(open) = open {
+            cx.defer(move |cx| links::handle(open, cx));
+        }
+    });
     ExitCode::SUCCESS
 }
 
