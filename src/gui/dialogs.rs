@@ -279,8 +279,10 @@ impl AddMicrosoft {
         self._task = Some(cx.spawn(async move |this, cx| {
             if let Ok(code) = code_rx.await {
                 let _ = this.update(cx, |this, cx| {
+                    cx.write_to_clipboard(gpui_kit::ClipboardItem::new_string(code.code.clone()));
                     cx.open_url(&code.url);
                     this.code = Some(code);
+                    this.copied = true;
                     cx.notify();
                 });
             }

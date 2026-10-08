@@ -111,6 +111,73 @@ pub async fn forget(id: &str) -> Result<(), LaunchError> {
     blocking(move || Vault::open()?.remove(&id)).await
 }
 
+/// The PNG of a player's current skin, by their UUID, from Mojang's session server.
+pub async fn skin(uuid: &str) -> Result<Vec<u8>, LaunchError> {
+    use base64::Engine as _;
+    #[derive(serde::Deserialize)]
+    struct Profile {
+        properties: Vec<Property>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Property {
+        name: String,
+        value: String,
+    }
+    #[derive(serde::Deserialize)]
+    struct Textures {
+        textures: Kinds,
+    }
+    #[derive(serde::Deserialize)]
+    struct Kinds {
+        #[serde(rename = "SKIN")]
+        skin: Option<Texture>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Texture {
+        url: String,
+    }
+    let failed = |e: reqwest::Error| LaunchError::Download(e.to_string());
+    let http = riven_sources::client();
+    let url = format!(
+        "https://sessionserver.mojang.com/session/minecraft/profile/{}",
+        uuid.replace('-', "")
+    );
+    let profile: Profile = http
+        .get(url)
+        .send()
+        .await
+        .and_then(reqwest::Response::error_for_status)
+        .map_err(failed)?
+        .json()
+        .await
+        .map_err(failed)?;
+    let encoded = profile
+        .properties
+        .into_iter()
+        .find(|p| p.name == "textures")
+        .ok_or_else(|| LaunchError::Download("no textures in the profile".into()))?
+        .value;
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .map_err(|e| LaunchError::Download(e.to_string()))?;
+    let textures: Textures =
+        serde_json::from_slice(&decoded).map_err(|e| LaunchError::Download(e.to_string()))?;
+    let skin = textures
+        .textures
+        .skin
+        .ok_or_else(|| LaunchError::Download("the player has no skin".into()))?;
+    let bytes = http
+        .get(skin.url.replace("http://", "https://"))
+        .send()
+        .await
+        .and_then(reqwest::Response::error_for_status)
+        .map_err(failed)?
+        .bytes()
+        .await
+        .map_err(failed)?;
+    Ok(bytes.to_vec())
+}
+
 /// Keeps the newest refresh token: Microsoft hands out a new one with every refresh.
 async fn remember(id: &str, profile: &UserProfile) -> Result<(), LaunchError> {
     let AuthProvider::Microsoft {
