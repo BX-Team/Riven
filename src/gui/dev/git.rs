@@ -268,7 +268,7 @@ impl DevView {
             Ok(ws) => {
                 self.project = Some(ws);
                 self.forget_project_file();
-                self.refresh_tree();
+                self.refresh_tree(cx);
                 self.refresh_dist();
                 self.refresh_rows(cx);
                 self.run_check(cx);

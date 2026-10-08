@@ -2,14 +2,14 @@ mod content;
 mod dialogs;
 mod files;
 mod git;
-mod highlight;
+pub(super) mod highlight;
 mod panel;
 mod releases;
 mod sections;
 mod test;
 mod watch;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use gpui_kit::base::input::{EditorState, InputEvent, InputState};
@@ -21,12 +21,13 @@ use gpui_kit::{
     UniformListScrollHandle, Window, div, px,
 };
 use riven_build::author::{AuthorError, CheckReport};
-use riven_build::workspace::{OVERRIDE_SIDES, OVERRIDES, PROJECT_FILE, TreeEntry, Workspace};
+use riven_build::workspace::{OVERRIDE_SIDES, OVERRIDES, PROJECT_FILE, Workspace};
 use riven_format::{PackPath, Project};
 use riven_resolve::Plan;
 use rust_i18n::t;
 
 use super::app::{SIDEBAR_WIDTH, nav_row, placeholder};
+use super::file_tree::{FileTree, TreeEvent};
 use super::runtime;
 use super::state::{AppState, Route};
 use super::theme::ActiveTheme as _;
@@ -128,9 +129,8 @@ pub struct DevView {
     busy: Option<SharedString>,
     tabs: Vec<Tab>,
     active: Tab,
-    /// The `overrides/` tree and the folders shown open in it.
-    tree: Vec<TreeEntry>,
-    expanded: HashSet<String>,
+    /// The `overrides/` tree, by paths under `overrides/`.
+    tree: Entity<FileTree>,
     files: HashMap<PackPath, OpenFile>,
     /// The entry the Dependencies section explains.
     explained: Option<String>,
@@ -175,6 +175,14 @@ impl DevView {
             }),
             cx.observe(&AppState::global(cx), |_, _, cx| cx.notify()),
         ];
+        let tree = cx.new(|_| FileTree::new("dev-tree").movable());
+        let subs = {
+            let mut subs = subs;
+            subs.push(cx.subscribe(&tree, |this, _, event: &TreeEvent, cx| {
+                this.on_tree(event, cx)
+            }));
+            subs
+        };
         let releases = releases::Releases::new(window, cx);
         let git = git::GitState::new(window, cx);
         let mut view = Self {
@@ -184,8 +192,7 @@ impl DevView {
             busy: None,
             tabs: vec![Tab::Section(Section::Content)],
             active: Tab::Section(Section::Content),
-            tree: Vec::new(),
-            expanded: HashSet::new(),
+            tree,
             files: HashMap::new(),
             explained: None,
             panel: Panel::Check,
@@ -254,11 +261,12 @@ impl DevView {
             self.active = Tab::Section(Section::Content);
             self.explained = None;
         }
-        self.expanded = OVERRIDE_SIDES
-            .iter()
-            .map(|side| format!("{OVERRIDES}/{side}"))
-            .collect();
-        self.refresh_tree();
+        self.tree.update(cx, |tree, cx| {
+            for side in OVERRIDE_SIDES {
+                tree.expand(side, cx);
+            }
+        });
+        self.refresh_tree(cx);
         self.refresh_dist();
         self.refresh_rows(cx);
         self.run_check(cx);

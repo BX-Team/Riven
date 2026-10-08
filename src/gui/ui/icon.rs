@@ -15,7 +15,9 @@ pub enum IconName {
     Copy,
     ExternalLink,
     File,
+    FilePlus,
     Folder,
+    FolderPlus,
     Image,
     Loader,
     Lock,
@@ -30,6 +32,7 @@ pub enum IconName {
     Stop,
     Terminal,
     Trash,
+    Upload,
     WindowClose,
     WindowMaximize,
     WindowMinimize,
@@ -38,7 +41,7 @@ pub enum IconName {
 
 impl IconName {
     #[cfg(test)]
-    pub const ALL: [IconName; 32] = [
+    pub const ALL: [IconName; 35] = [
         IconName::ArrowDown,
         IconName::ArrowLeft,
         IconName::ArrowUp,
@@ -52,7 +55,9 @@ impl IconName {
         IconName::Copy,
         IconName::ExternalLink,
         IconName::File,
+        IconName::FilePlus,
         IconName::Folder,
+        IconName::FolderPlus,
         IconName::Image,
         IconName::Loader,
         IconName::Lock,
@@ -67,6 +72,7 @@ impl IconName {
         IconName::Stop,
         IconName::Terminal,
         IconName::Trash,
+        IconName::Upload,
         IconName::WindowClose,
         IconName::WindowMaximize,
         IconName::WindowMinimize,
@@ -88,7 +94,9 @@ impl IconName {
             Self::Copy => "icons/copy.svg",
             Self::ExternalLink => "icons/external-link.svg",
             Self::File => "icons/file.svg",
+            Self::FilePlus => "icons/file-plus.svg",
             Self::Folder => "icons/folder.svg",
+            Self::FolderPlus => "icons/folder-plus.svg",
             Self::Image => "icons/image.svg",
             Self::Loader => "icons/loader.svg",
             Self::Lock => "icons/lock.svg",
@@ -103,6 +111,7 @@ impl IconName {
             Self::Stop => "icons/stop.svg",
             Self::Terminal => "icons/terminal.svg",
             Self::Trash => "icons/trash.svg",
+            Self::Upload => "icons/upload.svg",
             Self::WindowClose => "icons/window-close.svg",
             Self::WindowMaximize => "icons/window-maximize.svg",
             Self::WindowMinimize => "icons/window-minimize.svg",

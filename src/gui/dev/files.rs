@@ -10,14 +10,15 @@ use rust_i18n::t;
 
 use super::highlight::{self, Flavor, ThemeStyles};
 use super::{DevView, OVERRIDES, OpenFile, PROJECT_FILE, Tab, dialogs};
+use crate::gui::file_tree::{Node, TreeEvent, is_image};
 use crate::gui::theme::ActiveTheme as _;
 use crate::gui::ui::{
-    ActionMenu, Button, ButtonSize, IconName, MenuEntry, caption, h_flex, icon, motion, v_flex,
+    Button, ButtonSize, IconName, MenuEntry, caption, h_flex, icon, motion, v_flex,
 };
 
 const TREE_ROW: f32 = 26.;
 
-/// One row of the file tree, lit while hovered; returns whether it is.
+/// The `riven.json` row above the tree, lit while hovered.
 fn tree_row(
     key: String,
     depth: usize,
@@ -48,23 +49,161 @@ fn project_file() -> PackPath {
     PackPath::new(PROJECT_FILE).expect("riven.json is a valid pack path")
 }
 
-/// Folders above `path` inside `overrides/`, outermost first.
-fn ancestors(path: &str) -> impl Iterator<Item = &str> {
-    path.match_indices('/')
-        .map(move |(i, _)| &path[..i])
-        .filter(|a| *a != OVERRIDES)
+/// A path under `overrides/` as the tree names it: `common/config/a.toml`.
+fn in_tree(path: &PackPath) -> Option<&str> {
+    path.as_str()
+        .strip_prefix(OVERRIDES)
+        .and_then(|rest| rest.strip_prefix('/'))
+}
+
+fn from_tree(path: &str) -> Option<PackPath> {
+    PackPath::new(format!("{OVERRIDES}/{path}")).ok()
 }
 
 impl DevView {
-    pub(super) fn refresh_tree(&mut self) {
+    pub(super) fn refresh_tree(&mut self, cx: &mut Context<Self>) {
         self.releases.changes = super::releases::Changes::Stale;
-        self.tree = match &self.project {
+        let entries = match &self.project {
             Some(ws) => ws.overrides().unwrap_or_else(|e| {
                 self.error = Some(e.to_string().into());
                 Vec::new()
             }),
             None => Vec::new(),
         };
+        let nodes = entries
+            .iter()
+            .filter_map(|e| {
+                Some(Node {
+                    path: in_tree(&e.path)?.to_owned(),
+                    dir: e.dir,
+                })
+            })
+            .collect();
+        self.tree.update(cx, |tree, cx| tree.set_nodes(nodes, cx));
+    }
+
+    pub(super) fn on_tree(&mut self, event: &TreeEvent, cx: &mut Context<Self>) {
+        match event {
+            TreeEvent::Open(path) => {
+                if let Some(path) = from_tree(path) {
+                    self.open_file(path, cx);
+                }
+            }
+            TreeEvent::Menu { node, position } => {
+                let entries = self.tree_menu(node.as_ref(), cx);
+                crate::gui::file_tree::open_menu(*position, entries, cx);
+            }
+            TreeEvent::Move { from, to } => self.move_path(from, to, cx),
+        }
+    }
+
+    /// What a right click on a tree node offers; files make new ones next to themselves.
+    fn tree_menu(&self, node: Option<&Node>, cx: &mut Context<Self>) -> Vec<MenuEntry> {
+        let view = cx.entity().downgrade();
+        let folder = match node {
+            Some(n) if n.dir => n.path.clone(),
+            Some(n) => n.parent().to_owned(),
+            None => "common".to_owned(),
+        };
+        let mut menu = Vec::new();
+        if let Some(n) = node.filter(|n| !n.dir) {
+            let (view, path) = (view.clone(), n.path.clone());
+            menu.push(
+                MenuEntry::action(t!("dev.open_file"), move |_, cx| {
+                    if let Some(path) = from_tree(&path) {
+                        let _ = view.update(cx, |this, cx| this.open_file(path, cx));
+                    }
+                })
+                .icon(IconName::File),
+            );
+        }
+        for make_folder in [false, true] {
+            let (view, at) = (view.clone(), folder.clone());
+            let label = if make_folder {
+                t!("dev.new_folder")
+            } else {
+                t!("dev.new_file")
+            };
+            menu.push(
+                MenuEntry::action(label, move |window, cx| {
+                    dialogs::open_new_path(
+                        view.clone(),
+                        format!("{OVERRIDES}/{at}/"),
+                        make_folder,
+                        window,
+                        cx,
+                    )
+                })
+                .icon(if make_folder {
+                    IconName::FolderPlus
+                } else {
+                    IconName::FilePlus
+                }),
+            );
+        }
+        let Some(node) = node else {
+            return menu;
+        };
+        if let Some(full) = self
+            .project
+            .as_ref()
+            .and_then(|ws| ws.override_path(&from_tree(&node.path)?).ok())
+        {
+            menu.push(
+                MenuEntry::action(t!("mods.show_file"), move |_, cx| cx.reveal_path(&full))
+                    .icon(IconName::Folder),
+            );
+        }
+        menu.push(MenuEntry::Separator);
+        let path = node.path.clone();
+        menu.push(
+            MenuEntry::action(t!("dev.remove"), move |_, cx| {
+                if let Some(key) = from_tree(&path) {
+                    let _ = view.update(cx, |this, cx| this.confirm_delete(key, cx));
+                }
+            })
+            .icon(IconName::Trash)
+            .danger(),
+        );
+        menu
+    }
+
+    /// Moves a file or folder dropped on another folder; open tabs follow the move.
+    fn move_path(&mut self, from: &str, to: &str, cx: &mut Context<Self>) {
+        let (Some(ws), Some(source), Some(into)) = (&self.project, from_tree(from), from_tree(to))
+        else {
+            return;
+        };
+        if to.is_empty() || source.as_str().rsplit_once('/').map(|(p, _)| p) == Some(into.as_str())
+        {
+            return;
+        }
+        match ws.move_override(&source, &into) {
+            Ok(moved) => {
+                let prefix = format!("{}/", source.as_str());
+                let open: Vec<PackPath> = self
+                    .tabs
+                    .iter()
+                    .filter_map(|t| match t {
+                        Tab::File(p) if *p == source || p.as_str().starts_with(&prefix) => {
+                            Some(p.clone())
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                for path in open {
+                    self.drop_tab(Tab::File(path), cx);
+                }
+                self.refresh_tree(cx);
+                let shown = in_tree(&moved).unwrap_or_default().to_owned();
+                self.tree.update(cx, |tree, cx| tree.reveal(&shown, cx));
+                self.notice = Some(t!("dev.moved", name = moved.file_name(), to = to).into());
+                self.error = None;
+                self.refresh_git(cx);
+            }
+            Err(e) => self.error = Some(e.to_string().into()),
+        }
+        cx.notify();
     }
 
     pub(super) fn open_file(&mut self, path: PackPath, cx: &mut Context<Self>) {
@@ -76,7 +215,7 @@ impl DevView {
         let Tab::File(path) = self.active.clone() else {
             return;
         };
-        if self.files.contains_key(&path) {
+        if self.files.contains_key(&path) || is_image(path.as_str()) {
             return;
         }
         let Some(ws) = &self.project else {
@@ -174,13 +313,15 @@ impl DevView {
             ws.create_override(&path)
         }
         .map_err(|e| e.to_string())?;
-        for dir in ancestors(path.as_str()) {
-            self.expanded.insert(dir.to_owned());
+        self.refresh_tree(cx);
+        if let Some(shown) = in_tree(&path).map(str::to_owned) {
+            self.tree.update(cx, |tree, cx| {
+                tree.reveal(&shown, cx);
+                if folder {
+                    tree.expand(&shown, cx);
+                }
+            });
         }
-        if folder {
-            self.expanded.insert(path.as_str().to_owned());
-        }
-        self.refresh_tree();
         if !folder {
             self.open_file(path, cx);
         }
@@ -211,7 +352,7 @@ impl DevView {
         for tab in gone {
             self.drop_tab(tab, cx);
         }
-        self.refresh_tree();
+        self.refresh_tree(cx);
         cx.notify();
     }
 
@@ -241,7 +382,12 @@ impl DevView {
             Tab::File(p) => Some(p.as_str().to_owned()),
             Tab::Section(_) => None,
         };
-        let mut rows: Vec<AnyElement> = Vec::new();
+        let in_overrides = match &self.active {
+            Tab::File(p) => in_tree(p).map(str::to_owned),
+            Tab::Section(_) => None,
+        };
+        self.tree
+            .update(cx, |tree, cx| tree.set_active(in_overrides, cx));
         let project = project_file();
         let (top, _) = tree_row(
             PROJECT_FILE.into(),
@@ -250,112 +396,10 @@ impl DevView {
             window,
             cx,
         );
-        rows.push(
-            top.child(icon(IconName::File, c.muted).size(px(13.)))
-                .child(div().truncate().child(PROJECT_FILE))
-                .on_click(cx.listener(move |this, _, _, cx| this.open_file(project.clone(), cx)))
-                .into_any_element(),
-        );
-        for entry in &self.tree {
-            let path = entry.path.as_str();
-            if !ancestors(path).all(|a| self.expanded.contains(a)) {
-                continue;
-            }
-            let depth = ancestors(path).count();
-            let open = self.expanded.contains(path);
-            let (r, lit) = tree_row(
-                path.to_owned(),
-                depth,
-                active.as_deref() == Some(path),
-                window,
-                cx,
-            );
-            let key = entry.path.clone();
-            let glyph = match (entry.dir, open) {
-                (true, true) => IconName::ChevronDown,
-                (true, false) => IconName::ChevronRight,
-                (false, _) => IconName::File,
-            };
-            let dir = entry.dir;
-            let mut menu = Vec::new();
-            if dir {
-                for folder in [false, true] {
-                    let (view, at) = (view.clone(), key.as_str().to_owned());
-                    let label = if folder {
-                        t!("dev.new_folder")
-                    } else {
-                        t!("dev.new_file")
-                    };
-                    menu.push(
-                        MenuEntry::action(label, move |window, cx| {
-                            dialogs::open_new_path(
-                                view.clone(),
-                                format!("{at}/"),
-                                folder,
-                                window,
-                                cx,
-                            )
-                        })
-                        .icon(if folder {
-                            IconName::Folder
-                        } else {
-                            IconName::Plus
-                        }),
-                    );
-                }
-            }
-            {
-                let key = key.clone();
-                let view = view.clone();
-                menu.push(
-                    MenuEntry::action(t!("dev.remove"), move |_, cx| {
-                        let key = key.clone();
-                        let _ = view.update(cx, |this, cx| this.confirm_delete(key, cx));
-                    })
-                    .icon(IconName::Trash)
-                    .danger(),
-                );
-            }
-            rows.push(
-                r.child(
-                    h_flex()
-                        .flex_1()
-                        .min_w_0()
-                        .h_full()
-                        .gap(px(6.))
-                        .child(icon(glyph, c.muted).size(px(13.)))
-                        .child(div().truncate().child(entry.path.file_name().to_owned()))
-                        .on_mouse_down(
-                            gpui_kit::MouseButton::Left,
-                            cx.listener(move |this, _, _, cx| {
-                                if dir {
-                                    let k = key.as_str().to_owned();
-                                    if !this.expanded.remove(&k) {
-                                        this.expanded.insert(k);
-                                    }
-                                    cx.notify();
-                                } else {
-                                    this.open_file(key.clone(), cx);
-                                }
-                            }),
-                        ),
-                )
-                .child(
-                    div().flex_none().when(!lit, |d| d.invisible()).child(
-                        ActionMenu::new(
-                            SharedString::from(format!("tree-menu-{path}")),
-                            Button::new(SharedString::from(format!("tree-more-{path}")))
-                                .ghost()
-                                .size(ButtonSize::Xs)
-                                .icon(IconName::More),
-                            menu,
-                        )
-                        .width(px(190.)),
-                    ),
-                )
-                .into_any_element(),
-            );
-        }
+        let top = top
+            .child(icon(IconName::File, c.muted).size(px(13.)))
+            .child(div().truncate().child(PROJECT_FILE))
+            .on_click(cx.listener(move |this, _, _, cx| this.open_file(project.clone(), cx)));
         let new_file = view.clone();
         v_flex()
             .flex_1()
@@ -385,15 +429,67 @@ impl DevView {
                     ),
             )
             .child(
-                v_flex()
-                    .id("dev-tree")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
+                div()
+                    .flex_none()
                     .font_family(mono)
                     .text_size(px(12.))
-                    .gap(px(1.))
-                    .children(rows),
+                    .child(top),
+            )
+            .child(div().flex_1().min_h_0().child(self.tree.clone()))
+            .into_any_element()
+    }
+
+    /// A picture tab: the image at its size, scaled down to fit, over a checkerboard-free backdrop.
+    fn render_image(&self, path: &PackPath, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme();
+        let c = theme.colors;
+        let full = self
+            .project
+            .as_ref()
+            .and_then(|ws| ws.override_path(path).ok());
+        let size = full
+            .as_ref()
+            .and_then(|p| image::image_dimensions(p).ok())
+            .map(|(w, h)| format!("{w}×{h}"))
+            .unwrap_or_default();
+        v_flex()
+            .size_full()
+            .child(
+                h_flex()
+                    .flex_none()
+                    .gap(px(10.))
+                    .px(px(14.))
+                    .py(px(6.))
+                    .border_b_1()
+                    .border_color(c.row)
+                    .font_family(theme.mono.clone())
+                    .text_size(px(12.))
+                    .text_color(c.muted)
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .child(path.as_str().to_owned()),
+                    )
+                    .child(size),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .p(px(24.))
+                    .bg(c.bg)
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .children(full.map(|p| {
+                        use gpui_kit::StyledImage as _;
+                        gpui_kit::img(p)
+                            .max_w_full()
+                            .max_h_full()
+                            .object_fit(gpui_kit::ObjectFit::ScaleDown)
+                    })),
             )
             .into_any_element()
     }
@@ -403,6 +499,9 @@ impl DevView {
         let theme = cx.theme();
         let c = theme.colors;
         let mono = theme.mono.clone();
+        if is_image(path.as_str()) {
+            return self.render_image(path, cx);
+        }
         let Some(file) = self.files.get(path) else {
             return div().into_any_element();
         };
