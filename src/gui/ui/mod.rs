@@ -1,4 +1,6 @@
 mod button;
+mod context_menu;
+pub mod copy;
 mod dialog;
 mod field;
 mod icon;
@@ -9,6 +11,8 @@ mod switch;
 mod tabs;
 
 pub use button::{Button, ButtonSize};
+pub use context_menu::{ContextMenu, context_menu};
+pub use copy::copy_button;
 pub use dialog::{Modal, modal};
 pub use field::{TextArea, TextField, textarea};
 pub use icon::{IconName, icon};

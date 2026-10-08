@@ -15,6 +15,8 @@ instance:
   vanilla: Ванилла
   open_folder: Открыть папку
   tabs:
+    resourcepacks: Ресурспаки
+    shaders: Шейдеры
     mods: Моды
     configs: Конфиги
     logs: Логи
@@ -26,12 +28,20 @@ instance:
   delete_running: Сначала остановите игру
   copy_name: "%{name} (копия)"
 mods:
+  empty_mods: Модов пока нет
+  empty_resourcepacks: Ресурспаков пока нет
+  empty_shaders: Шейдеров пока нет; для них нужен Iris или Oculus среди модов
+  open_page: Открыть на Modrinth
+  show_file: Показать файл
+  enable: Включить
+  disable: Выключить
+  actions: Действия
+  search_files: "Поиск среди файлов: %{n}"
   name: Название
   version: Версия
   modified: Изменён
   search: Поиск модов
   search_count: "Поиск среди %{n} модов"
-  reading: Читаю файлы…
   locked: Моды задаёт пак; свои моды можно разрешить в настройках инстанса
   add: Добавить
   needs_loader: В ванильный инстанс моды не ставятся; выберите загрузчик в настройках
@@ -64,6 +74,7 @@ launch:
   installed: "Пак %{version} установлен"
   updated: "Пак обновлён до %{version}"
   offline: Не удалось проверить пак; запущено то, что установлено
+  scanning: Чтение файлов инстанса
   stage:
     sign_in: Вход в аккаунт Microsoft
     pack: Обновление пака
@@ -299,6 +310,22 @@ add_mods:
   clear: Снять отметки
   progress: "Устанавливаю %{done} из %{total}: %{name}"
   install_n: "Установить отмеченные (%{n})"
+add_content:
+  description: "Minecraft %{minecraft}"
+  resourcepack:
+    title: Добавить ресурспаки
+    search: Поиск ресурспаков на Modrinth
+    link_hint: https://…/pack.zip
+    link_about: Прямая ссылка на zip ресурспака или его страница на Modrinth.
+    file_about: Zip-файлы с диска копируются в инстанс; обновлять их лаунчер не сможет.
+    pick_one: Выберите ресурспак слева, чтобы увидеть описание
+  shader:
+    title: Добавить шейдеры
+    search: Поиск шейдеров на Modrinth
+    link_hint: https://…/shaders.zip
+    link_about: Прямая ссылка на zip шейдерпака или его страница на Modrinth.
+    file_about: Zip-файлы с диска копируются в инстанс; обновлять их лаунчер не сможет.
+    pick_one: Выберите шейдер слева, чтобы увидеть описание
 dev:
   sections: Разделы
   content: Содержимое

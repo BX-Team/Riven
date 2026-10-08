@@ -5,7 +5,7 @@ use riven_format::{Account, Accounts, Instance, Settings};
 use riven_launch::instances::Instances;
 
 use super::session::Session;
-use super::ui::Modal;
+use super::ui::{ContextMenu, MenuEntry, Modal};
 
 /// The screen shown next to the sidebar.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,8 +29,11 @@ pub struct AppState {
     pub error: Option<String>,
     pub modal: Option<Modal>,
     modal_serial: u64,
+    pub context_menu: Option<ContextMenu>,
     /// Launches and pack installs by instance id, kept after they end for their log.
     pub sessions: HashMap<String, Session>,
+    /// `(read, to read)` while an instance's content files are hashed, by instance id.
+    pub scans: HashMap<String, (usize, usize)>,
     pub(super) ticking: bool,
     pub(super) toasts: Vec<super::toast::Toast>,
     pub(super) toast_serial: u64,
@@ -104,7 +107,9 @@ impl AppState {
             error,
             modal: None,
             modal_serial: 0,
+            context_menu: None,
             sessions: HashMap::new(),
+            scans: HashMap::new(),
             ticking: false,
             toasts: Vec::new(),
             toast_serial: 0,
@@ -207,6 +212,28 @@ impl AppState {
             closing: false,
         });
         cx.notify();
+    }
+
+    /// Opens a menu at the pointer, replacing one already open.
+    pub fn open_context_menu(
+        &mut self,
+        position: gpui_kit::Point<Pixels>,
+        entries: Vec<MenuEntry>,
+        cx: &mut Context<Self>,
+    ) {
+        self.modal_serial += 1;
+        self.context_menu = Some(ContextMenu {
+            position,
+            entries,
+            serial: self.modal_serial,
+        });
+        cx.notify();
+    }
+
+    pub fn close_context_menu(&mut self, cx: &mut Context<Self>) {
+        if self.context_menu.take().is_some() {
+            cx.notify();
+        }
     }
 
     /// Fades the modal out, then drops it.

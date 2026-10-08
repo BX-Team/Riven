@@ -95,9 +95,12 @@ fn stamp(file: &ContentFile) -> u64 {
         .map_or(0, |d| d.as_nanos() as u64)
 }
 
-/// Details of each file, in order; files unchanged since the last call come from a cache, the
-/// others are read on a few threads so the machine stays responsive.
-pub fn details_cached(game_dir: &Path, files: &[ContentFile]) -> Vec<Option<Details>> {
+/// Details of each file in order, reading only changed ones on a few threads; `progress` gets `(read, to read)`.
+pub fn details_cached(
+    game_dir: &Path,
+    files: &[ContentFile],
+    progress: &(dyn Fn(usize, usize) + Sync),
+) -> Vec<Option<Details>> {
     let path = riven_sync::install::riven_dir(game_dir).join(DETAILS_CACHE);
     let mut cache: HashMap<String, Remembered> = std::fs::read(&path)
         .ok()
@@ -120,17 +123,26 @@ pub fn details_cached(game_dir: &Path, files: &[ContentFile]) -> Vec<Option<Deta
         .map_or(2, |n| n.get() / 2)
         .clamp(1, 4);
     let chunk = missing.len().div_ceil(threads);
+    let total = missing.len();
+    let done = std::sync::atomic::AtomicUsize::new(0);
+    progress(0, total);
     let read: Vec<(usize, Details)> = std::thread::scope(|scope| {
+        let done = &done;
         let workers: Vec<_> = missing
             .chunks(chunk)
             .map(|part| {
                 scope.spawn(move || {
                     part.iter()
-                        .filter_map(|&i| match details(&files[i].path) {
-                            Ok(d) => Some((i, d)),
-                            Err(e) => {
-                                tracing::debug!("{e}");
-                                None
+                        .filter_map(|&i| {
+                            let found = details(&files[i].path);
+                            let n = done.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+                            progress(n, total);
+                            match found {
+                                Ok(d) => Some((i, d)),
+                                Err(e) => {
+                                    tracing::debug!("{e}");
+                                    None
+                                }
                             }
                         })
                         .collect::<Vec<_>>()
@@ -200,7 +212,10 @@ mod tests {
         let jar = game.join("mods/a.jar");
         let read = || {
             let files = scan(&game, "mods").unwrap();
-            details_cached(&game, &files).remove(0).unwrap().sha512
+            details_cached(&game, &files, &|_, _| {})
+                .remove(0)
+                .unwrap()
+                .sha512
         };
         std::fs::write(&jar, "one").unwrap();
         let first = read();
