@@ -29,6 +29,7 @@ thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 url.workspace = true
+zip.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 junction = "1"

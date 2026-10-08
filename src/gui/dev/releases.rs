@@ -23,6 +23,7 @@ use crate::gui::ui::{
 
 const BASE_CHANNELS: [&str; 2] = ["stable", "beta"];
 const SHOWN_CHANGES: usize = 40;
+const ICON_FILE: &str = "icon.png";
 
 /// What the next build changes against the newest built release.
 pub(super) enum Changes {
@@ -47,6 +48,8 @@ pub(super) struct Releases {
     pub(super) changes: Changes,
     link: Option<String>,
     exported: Option<PathBuf>,
+    /// The pack icon as read from the project, drawn from memory so a new one shows at once.
+    icon: Option<std::sync::Arc<gpui_kit::Image>>,
     version: Entity<InputState>,
     branch: Entity<InputState>,
     remote: Entity<InputState>,
@@ -79,6 +82,7 @@ impl Releases {
             changes: Changes::Stale,
             link: None,
             exported: None,
+            icon: None,
             version,
             branch,
             remote,
@@ -115,6 +119,68 @@ impl DevView {
             .map(|k| k.public().to_string());
         r.sign = r.key.is_some();
         r.changes = Changes::Stale;
+        r.icon = ws
+            .project
+            .icon
+            .as_ref()
+            .and_then(|p| std::fs::read(ws.dir.join(p.as_str())).ok())
+            .map(|bytes| {
+                std::sync::Arc::new(gpui_kit::Image::from_bytes(
+                    gpui_kit::ImageFormat::Png,
+                    bytes,
+                ))
+            });
+    }
+
+    /// Makes a picked image the pack icon: `icon.png` next to `riven.json`.
+    fn pick_pack_icon(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(dir) = self.project.as_ref().map(|ws| ws.dir.clone()) else {
+            return;
+        };
+        let picked = cx.prompt_for_paths(gpui_kit::PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: false,
+            prompt: None,
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let Ok(Ok(Some(paths))) = picked.await else {
+                return;
+            };
+            let Some(path) = paths.into_iter().next() else {
+                return;
+            };
+            let target = dir.join(ICON_FILE);
+            let written = crate::gui::runtime::blocking(move || {
+                let png = std::fs::read(&path)
+                    .ok()
+                    .and_then(|b| crate::gui::mods::pack_icon(&b))
+                    .ok_or_else(|| t!("new_instance.bad_icon").to_string())?;
+                std::fs::write(&target, png).map_err(|e| format!("{}: {e}", target.display()))
+            })
+            .await
+            .unwrap_or_else(|_| Err("cancelled".into()));
+            let _ = this.update(cx, |this, cx| match written {
+                Ok(()) => {
+                    this.edit(
+                        |p| {
+                            p.icon = Some(
+                                riven_format::PackPath::new(ICON_FILE)
+                                    .expect("static path is valid"),
+                            );
+                            Ok(())
+                        },
+                        cx,
+                    );
+                    this.refresh_dist();
+                }
+                Err(e) => {
+                    this.error = Some(e.into());
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
     }
 
     /// Works out what the next build changes, once per project state.
@@ -354,6 +420,55 @@ impl DevView {
                                 .child(t!("dev.version_built").to_string()),
                         )
                     }),
+            )
+            .child(
+                h_flex()
+                    .gap(px(10.))
+                    .child(match &self.releases.icon {
+                        Some(image) => gpui_kit::img(image.clone())
+                            .size(px(40.))
+                            .rounded(px(8.))
+                            .into_any_element(),
+                        None => crate::gui::launch_bar::instance_tile(
+                            &ws.project.name,
+                            None,
+                            40.,
+                            8.,
+                            cx,
+                        ),
+                    })
+                    .child(
+                        Button::new("pack-icon")
+                            .icon(IconName::Image)
+                            .label(t!("dev.pack_icon"))
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.pick_pack_icon(window, cx)),
+                            ),
+                    )
+                    .when(self.releases.icon.is_some(), |row| {
+                        row.child(
+                            Button::new("pack-icon-clear")
+                                .ghost()
+                                .icon(IconName::Close)
+                                .tooltip(t!("new_instance.clear_icon"))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.edit(
+                                        |p| {
+                                            p.icon = None;
+                                            Ok(())
+                                        },
+                                        cx,
+                                    );
+                                    this.refresh_dist();
+                                })),
+                        )
+                    })
+                    .child(
+                        div()
+                            .text_size(px(12.))
+                            .text_color(c.muted)
+                            .child(t!("dev.pack_icon_hint").to_string()),
+                    ),
             )
             .child(
                 h_flex()

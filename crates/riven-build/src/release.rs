@@ -250,6 +250,23 @@ pub fn build_release(project: &Project, repo: &Path) -> Result<Built, Error> {
         }
     }
 
+    let icon = match &project.icon {
+        Some(path) => {
+            let blob = read_blob(&repo.join(path.as_str()))?;
+            let asset = riven_format::Asset {
+                size: blob.size,
+                hashes: riven_format::Hashes {
+                    sha512: Some(blob.sha512.clone()),
+                    ..Default::default()
+                },
+                urls: vec![blob_url(&blob.sha512)],
+            };
+            blobs.insert(blob.sha512.clone(), blob);
+            Some(asset)
+        }
+        None => None,
+    };
+
     Ok(Built {
         release: Release {
             id: project.id.clone(),
@@ -260,6 +277,7 @@ pub fn build_release(project: &Project, repo: &Path) -> Result<Built, Error> {
             java: project.java.clone(),
             groups: project.groups.clone(),
             files,
+            icon,
         },
         blobs: blobs.into_values().collect(),
     })

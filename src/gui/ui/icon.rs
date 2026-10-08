@@ -16,6 +16,7 @@ pub enum IconName {
     ExternalLink,
     File,
     Folder,
+    Image,
     Loader,
     Lock,
     More,
@@ -37,7 +38,7 @@ pub enum IconName {
 
 impl IconName {
     #[cfg(test)]
-    pub const ALL: [IconName; 31] = [
+    pub const ALL: [IconName; 32] = [
         IconName::ArrowDown,
         IconName::ArrowLeft,
         IconName::ArrowUp,
@@ -52,6 +53,7 @@ impl IconName {
         IconName::ExternalLink,
         IconName::File,
         IconName::Folder,
+        IconName::Image,
         IconName::Loader,
         IconName::Lock,
         IconName::More,
@@ -87,6 +89,7 @@ impl IconName {
             Self::ExternalLink => "icons/external-link.svg",
             Self::File => "icons/file.svg",
             Self::Folder => "icons/folder.svg",
+            Self::Image => "icons/image.svg",
             Self::Loader => "icons/loader.svg",
             Self::Lock => "icons/lock.svg",
             Self::More => "icons/more.svg",

@@ -28,6 +28,27 @@ pub fn initials(name: &str) -> SharedString {
     letters.to_uppercase().into()
 }
 
+/// An instance's picture: its icon, or its initials on a tile.
+pub fn instance_tile(
+    name: &str,
+    icon: Option<&std::path::PathBuf>,
+    size: f32,
+    radius: f32,
+    cx: &App,
+) -> AnyElement {
+    match icon {
+        Some(path) => gpui_kit::img(path.clone())
+            .size(px(size))
+            .flex_none()
+            .rounded(px(radius))
+            .into_any_element(),
+        None => tile(initials(name), size, radius, cx)
+            .text_color(cx.theme().colors.accent)
+            .text_size(px((size * 0.32).max(11.)))
+            .into_any_element(),
+    }
+}
+
 pub fn loader_display(kind: riven_format::LoaderKind) -> &'static str {
     match kind {
         riven_format::LoaderKind::Fabric => "Fabric",
@@ -366,11 +387,7 @@ pub fn render(
                 .flex_1()
                 .min_w_0()
                 .gap(px(12.))
-                .child(
-                    tile(initials(&instance.name), 44., 9., cx)
-                        .text_color(c.accent)
-                        .text_size(px(14.)),
-                )
+                .child(instance_tile(&instance.name, st.icons.get(id), 44., 9., cx))
                 .child(
                     v_flex()
                         .min_w_0()

@@ -1,9 +1,9 @@
 use gpui_kit::base::Selectable as _;
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
-    AnyElement, App, AppContext as _, Context, Entity, FontWeight, InteractiveElement as _,
-    IntoElement, ParentElement as _, Render, SharedString, StatefulInteractiveElement as _,
-    Styled as _, Subscription, Window, div, px, relative,
+    AnyElement, App, AppContext as _, Context, Entity, ExternalPaths, FontWeight,
+    InteractiveElement as _, IntoElement, ParentElement as _, Render, SharedString,
+    StatefulInteractiveElement as _, Styled as _, Subscription, Window, div, px, relative,
 };
 use rust_i18n::t;
 
@@ -114,17 +114,24 @@ impl RivenApp {
         let c = cx.theme().colors;
         let state = self.state.read(cx);
         let route = state.route.clone();
-        let entries: Vec<(String, String, bool)> = state
+        let entries: Vec<(String, String, bool, Option<std::path::PathBuf>)> = state
             .instances
             .iter()
-            .map(|(id, i)| (id.clone(), i.name.clone(), state.packs.contains_key(id)))
+            .map(|(id, i)| {
+                (
+                    id.clone(),
+                    i.name.clone(),
+                    state.packs.contains_key(id),
+                    state.icons.get(id).cloned(),
+                )
+            })
             .collect();
         let selected = entries
             .iter()
             .position(|(id, ..)| route == Route::Instance(id.clone()));
         let mut rows: Vec<AnyElement> = entries
             .into_iter()
-            .map(|(id, name, has_pack)| {
+            .map(|(id, name, has_pack, icon)| {
                 let target = Route::Instance(id.clone());
                 let active = route == target;
                 let handle = self.state.clone();
@@ -134,13 +141,26 @@ impl RivenApp {
                     window,
                     cx,
                 )
-                .child(div().size(px(8.)).flex_none().rounded(px(4.)).map(|d| {
-                    if has_pack {
-                        d.bg(c.ok)
-                    } else {
-                        d.border_1().border_color(c.muted)
-                    }
-                }))
+                .child(match icon {
+                    Some(path) => gpui_kit::img(path)
+                        .size(px(18.))
+                        .flex_none()
+                        .rounded(px(4.))
+                        .into_any_element(),
+                    None => div()
+                        .size(px(8.))
+                        .mx(px(5.))
+                        .flex_none()
+                        .rounded(px(4.))
+                        .map(|d| {
+                            if has_pack {
+                                d.bg(c.ok)
+                            } else {
+                                d.border_1().border_color(c.muted)
+                            }
+                        })
+                        .into_any_element(),
+                })
                 .child(div().truncate().child(name))
                 .on_click(move |_, _, cx| Self::navigate(&handle, target.clone(), cx))
                 .into_any_element()
@@ -150,7 +170,7 @@ impl RivenApp {
             nav_row("new-instance", false, window, cx)
                 .text_color(c.muted)
                 .child(format!("+ {}", t!("sidebar.new_instance")))
-                .on_click(|_, window, cx| super::dialogs::open_new_instance(window, cx))
+                .on_click(|_, window, cx| super::new_instance::open(window, cx))
                 .into_any_element(),
         );
         let list = ui::motion::highlighted(
@@ -216,11 +236,59 @@ impl RivenApp {
                     .icon(IconName::Plus)
                     .label(t!("sidebar.new_instance"))
                     .mt(px(8.))
-                    .on_click(|_, window, cx| super::dialogs::open_new_instance(window, cx)),
+                    .on_click(|_, window, cx| super::new_instance::open(window, cx)),
             )
             .into_any_element(),
         }
     }
+}
+
+/// A tinted frame over the window while a file is dragged over it; dropping a pack installs it.
+fn drop_zone(cx: &App) -> impl IntoElement {
+    let c = cx.theme().colors;
+    div()
+        .id("drop-zone")
+        .absolute()
+        .inset_0()
+        .flex()
+        .items_center()
+        .justify_center()
+        .border_2()
+        .border_color(c.accent)
+        .bg(c.accent.opacity(0.08))
+        .opacity(0.)
+        .drag_over::<ExternalPaths>(|style, _, _, _| style.opacity(1.))
+        .on_drop(|paths: &ExternalPaths, window, cx| {
+            let Some(path) = paths.paths().first() else {
+                return;
+            };
+            let ext = path
+                .extension()
+                .map(|e| e.to_string_lossy().to_lowercase())
+                .unwrap_or_default();
+            if matches!(ext.as_str(), "riven" | "mrpack" | "zip") {
+                super::new_instance::open_file(path, window, cx);
+            } else {
+                AppState::global(cx).update(cx, |s, cx| {
+                    s.toast(
+                        super::toast::ToastKind::Error,
+                        t!("new_instance.bad_file").to_string(),
+                        cx,
+                    )
+                });
+            }
+        })
+        .child(
+            div()
+                .px(px(18.))
+                .py(px(12.))
+                .rounded(px(10.))
+                .bg(c.panel)
+                .border_1()
+                .border_color(c.border)
+                .font_weight(FontWeight::SEMIBOLD)
+                .child(t!("new_instance.drop").to_string()),
+        )
 }
 
 /// Screens are drawn again only when they change, not with every frame of a dialog over them.
@@ -384,6 +452,7 @@ impl Render for RivenApp {
                     ))
             })
             .child(toasts)
+            .child(drop_zone(cx))
             .when_some(context, |root, menu| {
                 let state = self.state.clone();
                 root.child(ui::context_menu(
