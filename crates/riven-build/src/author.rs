@@ -87,6 +87,8 @@ pub enum AuthorError {
     EmptyVersion,
     #[error("`{0}` is not a file under overrides/")]
     NotOverride(PackPath),
+    #[error("cannot move `{0}` into itself")]
+    MoveInto(PackPath),
     #[error("`{0}` is not a text file")]
     Binary(PackPath),
 }

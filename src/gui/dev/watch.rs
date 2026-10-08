@@ -106,7 +106,7 @@ impl DevView {
                 _ => {}
             }
         }
-        self.refresh_tree();
+        self.refresh_tree(cx);
         self.reload_files = true;
         self.refresh_git(cx);
         cx.notify();

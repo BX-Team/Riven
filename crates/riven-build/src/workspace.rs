@@ -175,6 +175,29 @@ impl Workspace {
         std::fs::create_dir_all(&full).map_err(io(&full))
     }
 
+    /// Moves a file or folder into another folder under `overrides/<side>/`, keeping its name.
+    pub fn move_override(&self, from: &PackPath, into: &PackPath) -> Result<PackPath, AuthorError> {
+        let nested = into.as_str() == from.as_str()
+            || into.as_str().starts_with(&format!("{}/", from.as_str()));
+        if nested {
+            return Err(AuthorError::MoveInto(from.clone()));
+        }
+        let side_or_deeper = into.as_str().matches('/').count() >= 1;
+        if !side_or_deeper {
+            return Err(AuthorError::NotOverride(into.clone()));
+        }
+        let target = PackPath::new(format!("{}/{}", into.as_str(), from.file_name()))?;
+        let (source, dest) = (self.override_path(from)?, self.override_path(&target)?);
+        if !self.override_path(into)?.is_dir() {
+            return Err(AuthorError::NotOverride(into.clone()));
+        }
+        if dest.exists() {
+            return Err(AuthorError::Exists(dest));
+        }
+        std::fs::rename(&source, &dest).map_err(io(&source))?;
+        Ok(target)
+    }
+
     /// Deletes a file, or a folder with everything in it.
     pub fn delete_override(&self, path: &PackPath) -> Result<(), AuthorError> {
         let full = self.override_path(path)?;
@@ -458,6 +481,45 @@ mod tests {
                 ("overrides/common/config/a.toml".to_owned(), false),
             ]
         );
+        let _ = std::fs::remove_dir_all(&ws.dir);
+    }
+
+    #[test]
+    fn moves_stay_inside_sides_and_never_nest() {
+        let ws = workspace("move");
+        let path = |p: &str| PackPath::new(p).unwrap();
+        let config = path("overrides/common/config");
+        ws.write_override(&path("overrides/common/config/a.toml"), "a")
+            .unwrap();
+        ws.create_override_dir(&path("overrides/client")).unwrap();
+        assert!(matches!(
+            ws.move_override(&config, &path("overrides/common/config/sub")),
+            Err(AuthorError::MoveInto(_))
+        ));
+        assert!(matches!(
+            ws.move_override(&config, &config),
+            Err(AuthorError::MoveInto(_))
+        ));
+        assert!(matches!(
+            ws.move_override(&config, &path("overrides")),
+            Err(AuthorError::NotOverride(_))
+        ));
+        let moved = ws
+            .move_override(
+                &path("overrides/common/config/a.toml"),
+                &path("overrides/client"),
+            )
+            .unwrap();
+        assert_eq!(moved.as_str(), "overrides/client/a.toml");
+        ws.write_override(&path("overrides/common/config/a.toml"), "b")
+            .unwrap();
+        assert!(matches!(
+            ws.move_override(
+                &path("overrides/common/config/a.toml"),
+                &path("overrides/client")
+            ),
+            Err(AuthorError::Exists(_))
+        ));
         let _ = std::fs::remove_dir_all(&ws.dir);
     }
 

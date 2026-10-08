@@ -1,6 +1,5 @@
 common:
   cancel: Cancel
-  coming_soon: Coming soon
   close: Close
 titlebar:
   developer: Developer mode
@@ -27,6 +26,20 @@ instance:
   delete: Delete instance
   delete_running: Stop the game first
   copy_name: "%{name} (copy)"
+configs:
+  reload: Read the folders again
+  open_outside: Open in another app
+  pick: Pick a file on the left to edit it
+  binary: This file is not text; open it in another app from its menu
+  too_big: This file is too large to edit here
+screenshots:
+  open: Open in the image viewer
+  copy: Copy image
+  delete_title: "Delete %{name}?"
+  delete_body: The screenshot is deleted from the disk.
+  count: "Screenshots: %{n}"
+  loading: Reading screenshots…
+  none: No screenshots yet; press F2 in the game to take one
 mods:
   empty_mods: No mods yet
   empty_resourcepacks: No resource packs yet
@@ -260,6 +273,13 @@ about:
   source: Source code
   copy: Copy details
 logs:
+  current: Current
+  crashes: Crash reports
+  files: Logs
+  upload: Upload
+  uploading: Uploading…
+  upload_hint: Upload to pastes.dev and copy the link; tokens are hidden first
+  uploaded: "Link copied: %{url}"
   session: Game output
   latest: Last run (latest.log)
   lines: "%{n} lines"
@@ -351,6 +371,8 @@ add_content:
     file_about: Zips from your disk are copied into the instance; the launcher cannot update them.
     pick_one: Pick a shader on the left to see what it is
 dev:
+  open_file: Open
+  moved: "Moved %{name} to %{to}"
   pack_icon: Pack icon…
   pack_icon_hint: icon.png; launchers show it on the instance
   sections: Sections
