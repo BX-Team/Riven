@@ -27,6 +27,7 @@ instance:
   delete_running: Stop the game first
   copy_name: "%{name} (copy)"
 configs:
+  locked: The pack sets these; read only
   reload: Read the folders again
   open_outside: Open in another app
   pick: Pick a file on the left to edit it
@@ -40,10 +41,25 @@ screenshots:
   count: "Screenshots: %{n}"
   loading: Reading screenshots…
   none: No screenshots yet; press F2 in the game to take one
+welcome:
+  title: Welcome to Riven Launcher
+  look: Language and look
+  java_title: Java and memory
+  account: Account
+  java: Java
+  memory: Memory for the game
+  account_hint: Sign in with Microsoft to play on licensed servers, or add an offline name for single player and offline servers. You can do this later from the bar at the bottom.
+  skip: Skip
+  back: Back
+  next: Next
+  done: Done
+memory:
+  mb: "%{n} MB"
+  gb: "%{n} GB"
 mods:
   empty_mods: No mods yet
   empty_resourcepacks: No resource packs yet
-  empty_shaders: No shaders yet; they need Iris or Oculus among the mods
+  empty_shaders: No shaders yet; they need Iris among the mods
   open_page: Open on Modrinth
   show_file: Show the file
   enable: Turn on
@@ -101,7 +117,7 @@ accounts:
   bad_name: "3–16 Latin letters, digits or _"
   player_name: Player name
   offline_hint: Plays on servers in offline mode and in single player
-  ms_hint: Enter this code on the Microsoft page that opened in your browser.
+  ms_hint: The code is already copied; paste it on the Microsoft page that opened in your browser.
   ms_requesting: Asking Microsoft for a code…
   ms_waiting: Waiting for you to sign in…
   ms_copy: Copy code
@@ -131,7 +147,7 @@ settings:
   java_path: Java executable
   java_path_hint: Java found on this computer; Automatic downloads the one the Minecraft version needs
   jvm_args: JVM arguments
-  memory: Memory, MB
+  memory: Memory
   memory_min: Minimum
   memory_max: Maximum
   window: Game window
@@ -143,7 +159,6 @@ settings:
   developer_mode_hint: Shows the developer section for pack projects, releases and Git
   back: Library
   java_auto: automatic
-  memory_hint: In megabytes; the pack may recommend more
   launch: Launch
   accounts: Accounts
   folders: Folders
@@ -152,7 +167,6 @@ settings:
   animations: Animations
   animations_hint: Smooth hover, switches and opening panels
   jvm_args_hint: Added to every launch, separated by spaces
-  memory_max_hint: Packs may ask for more; the game needs about 4 GB with mods
   pre_launch_hint: Runs before the game starts; the launch waits for it
   wrapper_hint: Such as mangohud or gamemoderun; not applied yet, support comes later
   post_exit_hint: Runs after the game exits
@@ -203,6 +217,7 @@ new_instance:
   clear_icon: Remove the icon
   bad_icon: That file is not an image
 instance_settings:
+  icon_from_pack: Set by the pack
   loader_pick: Minecraft, the loader and its build
   icon_change: Change…
   java: Java

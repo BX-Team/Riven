@@ -25,6 +25,8 @@ pub struct AppState {
     pub packs: HashMap<String, String>,
     /// Icon file per instance id, for instances that have one.
     pub icons: HashMap<String, std::path::PathBuf>,
+    /// The head of each Microsoft account's skin, by account id, once fetched.
+    pub skins: HashMap<String, std::path::PathBuf>,
     pub accounts: Accounts,
     pub route: Route,
     /// A load or save that failed, shown until the next success.
@@ -41,6 +43,26 @@ pub struct AppState {
     pub(super) ticking: bool,
     pub(super) toasts: Vec<super::toast::Toast>,
     pub(super) toast_serial: u64,
+}
+
+/// A skin head saved earlier for an account, `<id>-<hash>.png`.
+fn cached_skin(dir: &std::path::Path, id: &str) -> Option<std::path::PathBuf> {
+    std::fs::read_dir(dir)
+        .ok()?
+        .flatten()
+        .map(|e| e.path())
+        .find(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with(&format!("{id}-")))
+        })
+}
+
+/// A stable hash for file names that change with their contents.
+fn fnv(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf29ce484222325, |h, b| {
+        (h ^ u64::from(*b)).wrapping_mul(0x100000001b3)
+    })
 }
 
 fn read_icons(
@@ -121,6 +143,7 @@ impl AppState {
             instances,
             packs,
             icons,
+            skins: HashMap::new(),
             accounts,
             route,
             error,
@@ -297,6 +320,57 @@ impl AppState {
             .unwrap_or(Route::Empty)
     }
 
+    /// Shows the cached skin heads of Microsoft accounts, then fetches them again in the background.
+    pub fn load_skins(&mut self, cx: &mut Context<Self>) {
+        let Some(dir) = super::mods::cache_dir().map(|d| d.join("skins")) else {
+            return;
+        };
+        let ids: Vec<String> = self
+            .accounts
+            .accounts
+            .iter()
+            .filter(|a| a.kind == riven_format::AccountKind::Microsoft)
+            .map(|a| a.id.clone())
+            .collect();
+        for id in &ids {
+            if let Some(path) = cached_skin(&dir, id) {
+                self.skins.insert(id.clone(), path);
+            }
+        }
+        cx.notify();
+        for id in ids {
+            let dir = dir.clone();
+            let fetched = super::runtime::spawn(async move {
+                let skin = riven_launch::accounts::skin(&id).await.ok()?;
+                let head = super::mods::skin_head(&skin)?;
+                std::fs::create_dir_all(&dir).ok()?;
+                let path = dir.join(format!("{id}-{:016x}.png", fnv(&head)));
+                if !path.is_file() {
+                    for old in std::fs::read_dir(&dir).ok()?.flatten() {
+                        if old
+                            .file_name()
+                            .to_string_lossy()
+                            .starts_with(&format!("{id}-"))
+                        {
+                            let _ = std::fs::remove_file(old.path());
+                        }
+                    }
+                    std::fs::write(&path, head).ok()?;
+                }
+                Some((id, path))
+            });
+            cx.spawn(async move |this, cx| {
+                if let Ok(Some((id, path))) = fetched.await {
+                    let _ = this.update(cx, |s, cx| {
+                        s.skins.insert(id, path);
+                        cx.notify();
+                    });
+                }
+            })
+            .detach();
+        }
+    }
+
     /// Adds an account, or replaces the one with the same id, and selects it.
     pub fn add_account(&mut self, account: Account, cx: &mut Context<Self>) {
         let id = account.id.clone();
@@ -306,6 +380,7 @@ impl AppState {
             self.error = Some(e.to_string());
         }
         self.update_settings(|s| s.selected_account = Some(id), cx);
+        self.load_skins(cx);
     }
 
     pub fn remove_account(&mut self, id: &str, cx: &mut Context<Self>) {
