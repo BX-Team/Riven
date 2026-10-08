@@ -13,6 +13,7 @@ pub enum IconName {
     Code,
     Compass,
     Copy,
+    ExternalLink,
     File,
     Folder,
     Loader,
@@ -21,6 +22,7 @@ pub enum IconName {
     Package,
     Play,
     Plus,
+    Power,
     Refresh,
     Search,
     Settings,
@@ -35,7 +37,7 @@ pub enum IconName {
 
 impl IconName {
     #[cfg(test)]
-    pub const ALL: [IconName; 29] = [
+    pub const ALL: [IconName; 31] = [
         IconName::ArrowDown,
         IconName::ArrowLeft,
         IconName::ArrowUp,
@@ -47,6 +49,7 @@ impl IconName {
         IconName::Code,
         IconName::Compass,
         IconName::Copy,
+        IconName::ExternalLink,
         IconName::File,
         IconName::Folder,
         IconName::Loader,
@@ -55,6 +58,7 @@ impl IconName {
         IconName::Package,
         IconName::Play,
         IconName::Plus,
+        IconName::Power,
         IconName::Refresh,
         IconName::Search,
         IconName::Settings,
@@ -80,6 +84,7 @@ impl IconName {
             Self::Code => "icons/code.svg",
             Self::Compass => "icons/compass.svg",
             Self::Copy => "icons/copy.svg",
+            Self::ExternalLink => "icons/external-link.svg",
             Self::File => "icons/file.svg",
             Self::Folder => "icons/folder.svg",
             Self::Loader => "icons/loader.svg",
@@ -88,6 +93,7 @@ impl IconName {
             Self::Package => "icons/package.svg",
             Self::Play => "icons/play.svg",
             Self::Plus => "icons/plus.svg",
+            Self::Power => "icons/power.svg",
             Self::Refresh => "icons/refresh.svg",
             Self::Search => "icons/search.svg",
             Self::Settings => "icons/settings.svg",

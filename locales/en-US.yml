@@ -15,6 +15,8 @@ instance:
   vanilla: Vanilla
   open_folder: Open folder
   tabs:
+    resourcepacks: Resource packs
+    shaders: Shaders
     mods: Mods
     configs: Configs
     logs: Logs
@@ -26,12 +28,20 @@ instance:
   delete_running: Stop the game first
   copy_name: "%{name} (copy)"
 mods:
+  empty_mods: No mods yet
+  empty_resourcepacks: No resource packs yet
+  empty_shaders: No shaders yet; they need Iris or Oculus among the mods
+  open_page: Open on Modrinth
+  show_file: Show the file
+  enable: Turn on
+  disable: Turn off
+  actions: Actions
+  search_files: "Search %{n} files"
   name: Name
   version: Version
   modified: Modified
   search: Search mods
   search_count: "Search among %{n} mods"
-  reading: Reading files…
   locked: Mods come from the pack; own mods can be allowed in the instance settings
   add: Add
   needs_loader: Vanilla instances cannot have mods; pick a loader in Settings
@@ -64,6 +74,7 @@ launch:
   installed: "Pack %{version} installed"
   updated: "Pack updated to %{version}"
   offline: Cannot reach the pack; started with what is installed
+  scanning: Reading the instance files
   stage:
     sign_in: Signing in to Microsoft
     pack: Updating the pack
@@ -299,6 +310,22 @@ add_mods:
   clear: Clear
   progress: "Installing %{done} of %{total}: %{name}"
   install_n: "Install selected (%{n})"
+add_content:
+  description: "Minecraft %{minecraft}"
+  resourcepack:
+    title: Add resource packs
+    search: Search resource packs on Modrinth
+    link_hint: https://…/pack.zip
+    link_about: A direct link to a resource pack zip, or its page on Modrinth.
+    file_about: Zips from your disk are copied into the instance; the launcher cannot update them.
+    pick_one: Pick a resource pack on the left to see what it is
+  shader:
+    title: Add shaders
+    search: Search shaders on Modrinth
+    link_hint: https://…/shaders.zip
+    link_about: A direct link to a shader pack zip, or its page on Modrinth.
+    file_about: Zips from your disk are copied into the instance; the launcher cannot update them.
+    pick_one: Pick a shader on the left to see what it is
 dev:
   sections: Sections
   content: Content

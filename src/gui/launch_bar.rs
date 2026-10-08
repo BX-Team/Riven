@@ -151,6 +151,37 @@ fn progress_bar(id: &str, fraction: Option<f32>, window: &mut Window, cx: &mut A
     }
 }
 
+/// Content files being read, while nothing else runs.
+fn scanning(id: &str, done: usize, total: usize, window: &mut Window, cx: &mut App) -> AnyElement {
+    let c = cx.theme().colors;
+    let fraction = (total > 0).then(|| done as f32 / total as f32);
+    v_flex()
+        .min_w_0()
+        .gap(px(6.))
+        .child(
+            h_flex()
+                .gap(px(8.))
+                .child(
+                    div()
+                        .flex_1()
+                        .text_size(px(12.))
+                        .text_color(c.text2)
+                        .truncate()
+                        .child(t!("launch.scanning").to_string()),
+                )
+                .child(
+                    div()
+                        .flex_none()
+                        .text_size(px(11.))
+                        .font_family(cx.theme().mono.clone())
+                        .text_color(c.muted)
+                        .child(format!("{done} / {total}")),
+                ),
+        )
+        .child(progress_bar(id, fraction, window, cx))
+        .into_any_element()
+}
+
 fn status(
     id: &str,
     phase: Option<Phase>,
@@ -309,7 +340,14 @@ pub fn render(
     let session = st.sessions.get(id);
     let phase = session.map(|s| s.phase.clone());
     let notice = session.and_then(|s| s.notice.clone());
-    let status = status(id, phase, notice, pack, played(&instance), window, cx);
+    let scan = st.scans.get(id).copied();
+    let busy = phase
+        .as_ref()
+        .is_some_and(|p| matches!(p, Phase::Working { .. } | Phase::Running { .. }));
+    let status = match scan {
+        Some((done, total)) if !busy => scanning(id, done, total, window, cx),
+        _ => status(id, phase, notice, pack, played(&instance), window, cx),
+    };
     let st = state.read(cx);
     let session = st.sessions.get(id);
     let button = play_button(state, id, session, account.clone(), cx);

@@ -180,7 +180,7 @@ impl RenderOnce for Dropdown {
     }
 }
 
-type OnAction = Rc<dyn Fn(&mut Window, &mut App)>;
+pub(crate) type OnAction = Rc<dyn Fn(&mut Window, &mut App)>;
 
 /// One line of an [`ActionMenu`].
 #[derive(Clone)]
@@ -283,91 +283,103 @@ impl RenderOnce for ActionMenu {
             .offset(px(4.))
             .trigger(self.trigger)
             .content(move |_, window, cx| {
-                let c = cx.theme().colors;
                 let popover = cx.entity();
-                let rows: Vec<_> = entries
-                    .iter()
-                    .enumerate()
-                    .map(|(n, entry)| match entry {
-                        MenuEntry::Separator => div()
-                            .my(px(4.))
-                            .mx(px(4.))
-                            .h(px(1.))
-                            .bg(c.border)
-                            .into_any_element(),
-                        MenuEntry::Caption(text) => div()
-                            .px(px(8.))
-                            .pt(px(6.))
-                            .pb(px(2.))
-                            .text_size(px(11.))
-                            .text_color(c.muted)
-                            .child(text.clone())
-                            .into_any_element(),
-                        MenuEntry::Action {
-                            icon: glyph,
-                            label,
-                            checked,
-                            danger,
-                            disabled,
-                            run,
-                        } => {
-                            let hover = motion::hover(("action-menu-hover", n), window, cx);
-                            let bg = motion::animate(
-                                ("action-menu-bg", n),
-                                if hover.on && !disabled {
-                                    c.row
-                                } else {
-                                    c.row.opacity(0.)
-                                },
-                                window,
-                                cx,
-                            );
-                            let ink = if *danger {
-                                crate::gui::theme::danger()
-                            } else if *checked {
-                                c.text
-                            } else {
-                                c.text2
-                            };
-                            let (run, popover, disabled) =
-                                (run.clone(), popover.clone(), *disabled);
-                            hover
-                                .track(h_flex().id(n))
-                                .flex_none()
-                                .h(px(28.))
-                                .px(px(8.))
-                                .gap(px(10.))
-                                .rounded(px(6.))
-                                .bg(bg)
-                                .text_color(ink)
-                                .when(disabled, |r| r.opacity(0.5))
-                                .when(!disabled, |r| {
-                                    r.cursor_pointer().on_click(move |_, window, cx| {
-                                        popover.update(cx, |p, cx| p.dismiss(window, cx));
-                                        run(window, cx);
-                                    })
-                                })
-                                .when_some(*glyph, |r, g| r.child(icon(g, ink)))
-                                .child(div().flex_1().truncate().child(label.clone()))
-                                .when(*checked, |r| {
-                                    r.child(icon(IconName::Check, c.ok).size(px(13.)))
-                                })
-                                .into_any_element()
-                        }
-                    })
-                    .collect();
-                let list = v_flex()
-                    .ui_text(cx)
-                    .w(width)
-                    .p(px(4.))
-                    .gap(px(1.))
-                    .rounded(px(8.))
-                    .border_1()
-                    .border_color(c.border)
-                    .bg(c.panel)
-                    .shadow(vec![box_shadow(0., 12., 32., 0., hsla(0., 0., 0., 0.35))])
-                    .children(rows);
+                let dismiss: OnAction =
+                    Rc::new(move |window, cx| popover.update(cx, |p, cx| p.dismiss(window, cx)));
+                let list = menu_panel(&entries, width, dismiss, window, cx);
                 motion::enter("action-menu-in", list, -6., window, cx)
             })
     }
+}
+
+/// The card of a menu: its entries, each closing the menu through `dismiss` before running.
+pub fn menu_panel(
+    entries: &[MenuEntry],
+    width: Pixels,
+    dismiss: OnAction,
+    window: &mut Window,
+    cx: &mut App,
+) -> gpui_kit::Div {
+    let c = cx.theme().colors;
+    let rows: Vec<_> = entries
+        .iter()
+        .enumerate()
+        .map(|(n, entry)| match entry {
+            MenuEntry::Separator => div()
+                .my(px(4.))
+                .mx(px(4.))
+                .h(px(1.))
+                .bg(c.border)
+                .into_any_element(),
+            MenuEntry::Caption(text) => div()
+                .px(px(8.))
+                .pt(px(6.))
+                .pb(px(2.))
+                .text_size(px(11.))
+                .text_color(c.muted)
+                .child(text.clone())
+                .into_any_element(),
+            MenuEntry::Action {
+                icon: glyph,
+                label,
+                checked,
+                danger,
+                disabled,
+                run,
+            } => {
+                let hover = motion::hover(("action-menu-hover", n), window, cx);
+                let bg = motion::animate(
+                    ("action-menu-bg", n),
+                    if hover.on && !disabled {
+                        c.row
+                    } else {
+                        c.row.opacity(0.)
+                    },
+                    window,
+                    cx,
+                );
+                let ink = if *danger {
+                    crate::gui::theme::danger()
+                } else if *checked {
+                    c.text
+                } else {
+                    c.text2
+                };
+                let (run, dismiss, disabled) = (run.clone(), dismiss.clone(), *disabled);
+                hover
+                    .track(h_flex().id(n))
+                    .flex_none()
+                    .h(px(28.))
+                    .px(px(8.))
+                    .gap(px(10.))
+                    .rounded(px(6.))
+                    .bg(bg)
+                    .text_color(ink)
+                    .when(disabled, |r| r.opacity(0.5))
+                    .when(!disabled, |r| {
+                        r.cursor_pointer().on_click(move |_, window, cx| {
+                            dismiss(window, cx);
+                            run(window, cx);
+                        })
+                    })
+                    .when_some(*glyph, |r, g| r.child(icon(g, ink)))
+                    .child(div().flex_1().truncate().child(label.clone()))
+                    .when(*checked, |r| {
+                        r.child(icon(IconName::Check, c.ok).size(px(13.)))
+                    })
+                    .into_any_element()
+            }
+        })
+        .collect();
+    v_flex()
+        .ui_text(cx)
+        .w(width)
+        .p(px(4.))
+        .gap(px(1.))
+        .rounded(px(8.))
+        .border_1()
+        .border_color(c.border)
+        .bg(c.panel)
+        .shadow(vec![box_shadow(0., 12., 32., 0., hsla(0., 0., 0., 0.35))])
+        .children(rows)
 }
