@@ -83,6 +83,8 @@ pub fn title_bar(actions: AnyElement, window: &mut Window, cx: &mut App) -> AnyE
                         window.show_window_menu(e.position)
                     })
                 })
+                .gap(px(8.))
+                .child(gpui_kit::img(super::assets::LOGO).size(px(20.)).flex_none())
                 .child(
                     div()
                         .font_weight(FontWeight::BOLD)

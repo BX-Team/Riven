@@ -28,6 +28,26 @@ pub fn initials(name: &str) -> SharedString {
     letters.to_uppercase().into()
 }
 
+/// An account's picture: the head of its skin once fetched, or its initials on a tile.
+pub fn account_tile(
+    name: &str,
+    id: Option<&str>,
+    size: f32,
+    radius: f32,
+    cx: &App,
+) -> gpui_kit::Div {
+    let skin = id.and_then(|id| AppState::global(cx).read(cx).skins.get(id).cloned());
+    match skin {
+        Some(path) => div()
+            .size(px(size))
+            .flex_none()
+            .rounded(px(radius))
+            .overflow_hidden()
+            .child(gpui_kit::img(path).size_full()),
+        None => tile(initials(name), size, radius, cx),
+    }
+}
+
 /// An instance's picture: its icon, or its initials on a tile.
 pub fn instance_tile(
     name: &str,
@@ -436,7 +456,7 @@ fn account_button(
         .rounded(px(8.))
         .gap(px(8.))
         .child(
-            tile(initials(&name), 22., 5., cx)
+            account_tile(&name, account.map(|a| a.id.as_str()), 22., 5., cx)
                 .text_size(px(11.))
                 .font_weight(gpui_kit::FontWeight::BOLD),
         )
@@ -542,7 +562,7 @@ fn accounts_panel(
                             });
                             picked.update(cx, |p, cx| p.dismiss(window, cx));
                         })
-                        .child(tile(initials(&a.name), 36., 6., cx).map(|t| {
+                        .child(account_tile(&a.name, Some(&a.id), 36., 6., cx).map(|t| {
                             if active {
                                 t.bg(c.muted.opacity(0.3))
                             } else {

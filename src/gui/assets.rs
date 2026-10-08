@@ -48,6 +48,11 @@ icons!(
     "window-restore",
 );
 
+/// The launcher's own picture, drawn in lists and the About page.
+pub const LOGO: &str = "brand/riven-128.png";
+
+const BRAND: &[(&str, &[u8])] = &[(LOGO, include_bytes!("../../assets/brand/riven-128.png"))];
+
 /// The icons drawn for the design, embedded in the binary.
 pub struct Assets;
 
@@ -55,6 +60,7 @@ impl AssetSource for Assets {
     fn load(&self, path: &str) -> Result<Option<Cow<'static, [u8]>>> {
         Ok(ICONS
             .iter()
+            .chain(BRAND)
             .find(|(p, _)| *p == path)
             .map(|(_, bytes)| Cow::Borrowed(*bytes)))
     }
@@ -62,6 +68,7 @@ impl AssetSource for Assets {
     fn list(&self, path: &str) -> Result<Vec<SharedString>> {
         Ok(ICONS
             .iter()
+            .chain(BRAND)
             .filter(|(p, _)| p.starts_with(path))
             .map(|(p, _)| (*p).into())
             .collect())

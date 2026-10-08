@@ -148,6 +148,8 @@ pub struct Theme {
     pub colors: Palette,
     pub font: SharedString,
     pub mono: SharedString,
+    /// Whether the palette in use is one of the dark ones.
+    pub dark: bool,
     fade: Option<Fade>,
 }
 
@@ -228,6 +230,7 @@ pub fn init(cx: &mut App) {
         colors: Palette::from_hex(DARK[0].colors),
         font: ui_font(cx),
         mono: mono_font(cx),
+        dark: true,
         fade: None,
     };
     tracing::debug!("fonts: ui {}, mono {}", theme.font, theme.mono);
@@ -256,6 +259,7 @@ pub fn apply(appearance: &Appearance, window: Option<&mut Window>, cx: &mut App)
     let to = Palette::from_hex(spec.colors);
     let animate = !cx.reduce_motion() && !cx.windows().is_empty();
     let theme = cx.global_mut::<Theme>();
+    theme.dark = dark;
     if animate {
         theme.fade = Some(Fade {
             from: theme.colors,
@@ -295,8 +299,9 @@ pub fn tick(window: &mut Window, cx: &mut App) {
         theme.fade = None;
     }
     sync_base(&colors, dark, cx);
-    // A plain animation frame would keep cached screens in the old colors.
-    window.refresh();
+    // A refresh during drawing is ignored, and an animation frame alone keeps cached screens in
+    // the old colors: ask for a full redraw from the next frame instead.
+    window.on_next_frame(|window, _| window.refresh());
 }
 
 /// gpui-base paints carets, selections, placeholders and scrollbars from its own tokens.

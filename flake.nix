@@ -95,6 +95,11 @@
             runtimeDependencies = lib.optionals (!cli) runtimeLibs;
             # The workspace tests run in CI; here they would only repeat it.
             doCheck = false;
+            postInstall = lib.optionalString (!cli) ''
+              install -Dm644 assets/brand/riven.svg $out/share/icons/hicolor/scalable/apps/riven.svg
+              install -Dm644 assets/brand/riven-512.png $out/share/icons/hicolor/512x512/apps/riven.png
+              install -Dm644 assets/riven.desktop $out/share/applications/riven.desktop
+            '';
             # build.rs cannot ask git inside the sandbox; the About page shows this commit.
             RIVEN_REV = self.shortRev or self.dirtyShortRev or "unknown";
             meta = {

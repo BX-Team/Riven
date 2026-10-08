@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d3f9e"/><stop offset="1" stop-color="#0a1633"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#bfe0ff"/><stop offset="1" stop-color="#5b9dff"/>
+    </linearGradient>
+    <clipPath id="sq"><rect width="512" height="512" rx="116"/></clipPath>
+  </defs>
+  <g clip-path="url(#sq)">
+    <rect width="512" height="512" fill="url(#bg)"/>
+    <path d="M-20 360 C 60 330 110 250 140 190 C 175 120 250 92 312 104 C 380 118 420 170 410 230 C 402 278 352 300 318 280 C 292 265 298 228 326 222 C 300 205 262 214 246 244 C 222 290 248 350 310 368 C 380 388 450 360 532 330 L 532 532 L -20 532 Z" fill="url(#wave)"/>
+    <path d="M-20 420 C 80 400 150 430 250 425 C 350 420 430 395 532 400 L 532 532 L -20 532 Z" fill="#2f6ff0" opacity="0.85"/>
+    <path d="M-20 465 C 90 450 170 475 270 470 C 370 465 440 450 532 455 L 532 532 L -20 532 Z" fill="#163a8f"/>
+  </g>
+</svg>

@@ -26,6 +26,9 @@ pub struct Settings {
     pub recent_projects: Vec<String>,
     #[serde(default, skip_serializing_if = "DevPanel::is_default")]
     pub dev_panel: DevPanel,
+    /// The first-run setup was finished or skipped.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub onboarded: bool,
 }
 
 /// The bottom panel of the developer section (Check, Git, Log).

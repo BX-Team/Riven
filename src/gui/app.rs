@@ -50,6 +50,8 @@ impl RivenApp {
             _state,
         };
         app.sync(window, cx);
+        cx.defer(super::welcome::open_if_new);
+        AppState::global(cx).update(cx, |s, cx| s.load_skins(cx));
         app
     }
 

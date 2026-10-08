@@ -12,13 +12,13 @@ use rust_i18n::t;
 
 use super::app::{SIDEBAR_WIDTH, nav_row};
 use super::java_picker::JavaPicker;
-use super::launch_bar::initials;
+use super::memory_slider::MemorySlider;
 use super::runtime;
 use super::state::AppState;
 use super::theme::{self, ActiveTheme as _};
 use super::ui::{
     self, Button, ButtonSize, Dropdown, IconName, MenuItem, Section, Switch, TextArea, TextField,
-    W_SEMIBOLD, caption, h_flex, icon, setting_block, setting_row, tile, v_flex,
+    W_SEMIBOLD, caption, h_flex, icon, setting_block, setting_row, v_flex,
 };
 
 const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
@@ -62,8 +62,6 @@ impl Page {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Text {
     JvmArgs,
-    MemoryMin,
-    MemoryMax,
     Width,
     Height,
     PreLaunch,
@@ -71,7 +69,7 @@ enum Text {
     PostExit,
 }
 
-const FIELDS: [Text; 4] = [Text::MemoryMin, Text::MemoryMax, Text::Width, Text::Height];
+const FIELDS: [Text; 2] = [Text::Width, Text::Height];
 
 /// Settings that can grow long, edited in multi-line fields.
 const AREAS: [Text; 4] = [
@@ -87,8 +85,6 @@ impl Text {
         let opt = |v: &Option<String>| v.clone().unwrap_or_default();
         match self {
             Text::JvmArgs => l.jvm_args.join(" "),
-            Text::MemoryMin => l.memory.min.to_string(),
-            Text::MemoryMax => l.memory.max.to_string(),
             Text::Width => l.window.width.to_string(),
             Text::Height => l.window.height.to_string(),
             Text::PreLaunch => opt(&l.commands.pre_launch),
@@ -103,8 +99,6 @@ impl Text {
         let opt = || (!value.is_empty()).then(|| value.to_owned());
         match self {
             Text::JvmArgs => l.jvm_args = value.split_whitespace().map(str::to_owned).collect(),
-            Text::MemoryMin => l.memory.min = number(l.memory.min),
-            Text::MemoryMax => l.memory.max = number(l.memory.max),
             Text::Width => l.window.width = number(l.window.width),
             Text::Height => l.window.height = number(l.window.height),
             Text::PreLaunch => l.commands.pre_launch = opt(),
@@ -225,19 +219,20 @@ pub struct SettingsView {
     fields: Vec<(Text, Entity<InputState>)>,
     areas: Vec<(Text, Entity<TextareaState>)>,
     java: Entity<JavaPicker>,
+    memory: Entity<MemorySlider>,
     sizes: Option<Vec<(Folder, u64)>>,
     _subs: Vec<Subscription>,
 }
 
-fn prefs(cx: &App) -> &Prefs {
+pub(super) fn prefs(cx: &App) -> &Prefs {
     &AppState::global(cx).read(cx).settings
 }
 
-fn write(cx: &mut App, edit: impl FnOnce(&mut Prefs)) {
+pub(super) fn write(cx: &mut App, edit: impl FnOnce(&mut Prefs)) {
     AppState::global(cx).update(cx, |state, cx| state.update_settings(edit, cx));
 }
 
-fn reapply_theme(cx: &mut App) {
+pub(super) fn reapply_theme(cx: &mut App) {
     let appearance = prefs(cx).appearance.clone();
     theme::apply(&appearance, None, cx);
 }
@@ -281,11 +276,17 @@ impl SettingsView {
             |choice, cx| write(cx, |s| s.launch.java = choice),
             cx,
         );
+        let memory = MemorySlider::new(
+            prefs(cx).launch.memory,
+            |m, cx| write(cx, |s| s.launch.memory = m),
+            cx,
+        );
         Self {
             page: Page::General,
             fields,
             areas,
             java,
+            memory,
             sizes: None,
             _subs: subs,
         }
@@ -501,23 +502,15 @@ impl SettingsView {
                     cx,
                 ))
                 .row(setting_block(
+                    t!("settings.memory").to_string(),
+                    None,
+                    self.memory.clone(),
+                    cx,
+                ))
+                .row(setting_block(
                     t!("settings.jvm_args").to_string(),
                     Some(t!("settings.jvm_args_hint").into()),
                     TextArea::new(self.area(Text::JvmArgs)),
-                    cx,
-                ))
-                .into_any_element(),
-            Section::new()
-                .row(setting_row(
-                    t!("settings.memory_min").to_string(),
-                    Some(t!("settings.memory_hint").into()),
-                    TextField::new(self.field(Text::MemoryMin)).w(px(120.)),
-                    cx,
-                ))
-                .row(setting_row(
-                    t!("settings.memory_max").to_string(),
-                    Some(t!("settings.memory_max_hint").into()),
-                    TextField::new(self.field(Text::MemoryMax)).w(px(120.)),
                     cx,
                 ))
                 .into_any_element(),
@@ -608,7 +601,10 @@ impl SettingsView {
                     .gap(px(12.))
                     .px(px(18.))
                     .py(px(12.))
-                    .child(tile(initials(&a.name), 36., 6., cx).text_color(c.accent))
+                    .child(
+                        super::launch_bar::account_tile(&a.name, Some(&a.id), 36., 6., cx)
+                            .text_color(c.accent),
+                    )
                     .child(
                         v_flex()
                             .flex_1()
@@ -814,12 +810,7 @@ impl SettingsView {
         vec![
             h_flex()
                 .gap(px(16.))
-                .child(
-                    tile("R".into(), 56., 12., cx)
-                        .bg(c.accent)
-                        .text_color(c.on_accent)
-                        .text_size(px(24.)),
-                )
+                .child(gpui_kit::img(super::assets::LOGO).size(px(56.)).flex_none())
                 .child(
                     v_flex()
                         .gap(px(2.))
@@ -910,7 +901,7 @@ fn group_title(text: SharedString, cx: &App) -> AnyElement {
 }
 
 /// One row of theme cards; picking a card also switches to its mode unless the system decides.
-fn theme_picker(
+pub(super) fn theme_picker(
     title: SharedString,
     list: &'static [theme::Spec],
     current: &str,

@@ -276,6 +276,25 @@ pub fn pack_icon(bytes: &[u8]) -> Option<Vec<u8>> {
     png_thumbnail(bytes, 256)
 }
 
+/// The face of a skin with its hat layer on top, scaled up without blur, as PNG bytes.
+pub fn skin_head(skin: &[u8]) -> Option<Vec<u8>> {
+    use image::imageops::{self, FilterType};
+    let skin = image::load_from_memory(skin).ok()?.to_rgba8();
+    if skin.width() < 64 || skin.height() < 32 {
+        return None;
+    }
+    let mut face = imageops::crop_imm(&skin, 8, 8, 8, 8).to_image();
+    let hat = imageops::crop_imm(&skin, 40, 8, 8, 8).to_image();
+    // Old skins fill the hat area opaque; the game then treats the layer as empty, and so do we.
+    if hat.pixels().any(|p| p[3] < 255) {
+        imageops::overlay(&mut face, &hat, 0, 0);
+    }
+    let big = imageops::resize(&face, 64, 64, FilterType::Nearest);
+    let mut out = std::io::Cursor::new(Vec::new());
+    big.write_to(&mut out, image::ImageFormat::Png).ok()?;
+    Some(out.into_inner())
+}
+
 fn png_thumbnail(bytes: &[u8], side: u32) -> Option<Vec<u8>> {
     let image = image::load_from_memory(bytes).ok()?;
     let small = image.thumbnail(side, side);
