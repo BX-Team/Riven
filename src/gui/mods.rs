@@ -29,6 +29,8 @@ pub struct ModRow {
     pub title: SharedString,
     pub version: SharedString,
     pub icon: Option<PathBuf>,
+    /// The Modrinth project, once known, for its page.
+    pub project: Option<String>,
     /// The file name of a newer version, once updates were checked.
     pub update: Option<SharedString>,
 }
@@ -47,6 +49,7 @@ impl ModRow {
             title: stem.into(),
             version: SharedString::default(),
             icon: None,
+            project: None,
             update: None,
         }
     }
@@ -126,8 +129,8 @@ impl ModsTable {
     }
 }
 
-/// Lists `mods/`, named after the files until their metadata is read.
-pub fn scan_rows(game_dir: &Path) -> Vec<ModRow> {
+/// Lists a content folder, named after the files until their metadata is read.
+pub fn scan_rows(game_dir: &Path, folder: &str) -> Vec<ModRow> {
     let warn = |e: &dyn std::fmt::Display| tracing::warn!("{e}");
     let pack: HashSet<String> = riven_sync::install::load_state(game_dir)
         .inspect_err(|e| warn(e))
@@ -135,35 +138,47 @@ pub fn scan_rows(game_dir: &Path) -> Vec<ModRow> {
         .flatten()
         .map(|s| s.files.into_keys().map(|p| p.as_str().to_owned()).collect())
         .unwrap_or_default();
-    let own: HashMap<String, String> = riven_launch::own::load(game_dir)
+    let own: HashMap<String, (String, Option<String>)> = riven_launch::own::load(game_dir)
         .inspect_err(|e| warn(e))
         .unwrap_or_default()
         .content
         .into_iter()
-        .map(|e| (e.file.path.as_str().to_owned(), e.id))
+        .map(|e| {
+            let project = match e.source {
+                riven_format::Source::Modrinth { project, .. } => Some(project),
+                _ => None,
+            };
+            (e.file.path.as_str().to_owned(), (e.id, project))
+        })
         .collect();
-    riven_launch::mods::scan(game_dir, "mods")
+    riven_launch::mods::scan(game_dir, folder)
         .unwrap_or_else(|e| {
             warn(&e);
             vec![]
         })
         .into_iter()
         .map(|file| {
-            let path = format!("mods/{}", file.name);
+            let path = format!("{folder}/{}", file.name);
             let origin = match own.get(&path) {
                 _ if pack.contains(&path) => Origin::Pack,
-                Some(id) => Origin::Own(id.clone()),
+                Some((id, _)) => Origin::Own(id.clone()),
                 None => Origin::Manual,
             };
-            ModRow::new(file, origin)
+            let mut row = ModRow::new(file, origin);
+            row.project = own.get(&path).and_then(|(_, p)| p.clone());
+            row
         })
         .collect()
 }
 
 /// Hashes the files and reads each jar's own name and version; unchanged files come from a cache.
-pub fn describe(game_dir: &Path, mut rows: Vec<ModRow>) -> Vec<ModRow> {
+pub fn describe(
+    game_dir: &Path,
+    mut rows: Vec<ModRow>,
+    progress: &(dyn Fn(usize, usize) + Sync),
+) -> Vec<ModRow> {
     let files: Vec<ContentFile> = rows.iter().map(|r| r.file.clone()).collect();
-    let found = riven_launch::mods::details_cached(game_dir, &files);
+    let found = riven_launch::mods::details_cached(game_dir, &files, progress);
     for (row, details) in rows.iter_mut().zip(found) {
         let Some(details) = details else {
             continue;
@@ -177,8 +192,9 @@ pub fn describe(game_dir: &Path, mut rows: Vec<ModRow>) -> Vec<ModRow> {
     rows
 }
 
-/// What Modrinth knows about a file: the project's title and its cached icon.
+/// What Modrinth knows about a file: the project, its title and its cached icon.
 pub struct Identified {
+    pub project: String,
     pub title: String,
     pub icon: Option<PathBuf>,
 }
@@ -221,7 +237,15 @@ pub async fn identify(hashes: Vec<(String, String)>) -> HashMap<String, Identifi
                     None => None,
                 };
                 let title = m.info.title.clone();
-                (sha512, Identified { title, icon })
+                let project = m.info.id.clone();
+                (
+                    sha512,
+                    Identified {
+                        project,
+                        title,
+                        icon,
+                    },
+                )
             }
         })
         .buffer_unordered(PARALLEL_ICONS)
