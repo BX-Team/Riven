@@ -54,10 +54,23 @@ pub enum LaunchError {
     BadLink(String),
     #[error("cannot download: {0}")]
     Download(String),
-    #[error("`{0}` is not a mod jar")]
-    NotAMod(String),
+    #[error("`{name}` is not a {}", kind_name(*kind))]
+    WrongKind {
+        name: String,
+        kind: riven_format::Kind,
+    },
     #[error("`{0}` was not added by the player")]
     NotOwn(String),
+}
+
+fn kind_name(kind: riven_format::Kind) -> &'static str {
+    match kind {
+        riven_format::Kind::Mod => "mod jar",
+        riven_format::Kind::ResourcePack => "resource pack",
+        riven_format::Kind::ShaderPack => "shader pack",
+        riven_format::Kind::DataPack => "data pack",
+        riven_format::Kind::File => "file",
+    }
 }
 
 /// Links a folder to another: a symlink, or on Windows a junction, which needs no admin rights.

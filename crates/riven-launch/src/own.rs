@@ -123,6 +123,10 @@ impl JarFetcher for GameJars {
 pub struct Workbench {
     game_dir: PathBuf,
     project: Project,
+    /// Mods stay the pack's until the player allows their own; packs and shaders never lock.
+    mods_locked: bool,
+    /// No loader: resource packs and shaders only, under a stand-in loader nothing filters by.
+    vanilla: bool,
     own: OwnContent,
     modrinth: Modrinth,
     jars: GameJars,
@@ -142,10 +146,12 @@ impl Workbench {
     async fn read(store: &Instances, id: &str, others: bool) -> Result<Self, LaunchError> {
         let instance = store.load(id)?;
         let game_dir = store.game_dir(id);
-        if !editable(&instance, &game_dir) {
-            return Err(LaunchError::Locked);
-        }
-        let loader = instance.loader.clone().ok_or(LaunchError::NoLoader)?;
+        let mods_locked = !editable(&instance, &game_dir);
+        let vanilla = instance.loader.is_none();
+        let loader = instance.loader.clone().unwrap_or(riven_format::Loader {
+            kind: riven_format::LoaderKind::Fabric,
+            version: String::new(),
+        });
         let own = load(&game_dir)?;
         let data = riven_sync::data_dir().ok_or(LaunchError::NoDir("data"))?;
         let modrinth = Modrinth::new(riven_sources::client())
@@ -159,7 +165,7 @@ impl Workbench {
         let scan_dir = game_dir.clone();
         let others = tokio::task::spawn_blocking(move || -> Result<_, LaunchError> {
             let mut out = Vec::new();
-            if !others {
+            if !others || vanilla {
                 return Ok(out);
             }
             for file in mods::scan(&scan_dir, "mods")? {
@@ -281,6 +287,8 @@ impl Workbench {
         Ok(Self {
             game_dir,
             project,
+            mods_locked,
+            vanilla,
             own,
             modrinth,
             jars,
@@ -315,13 +323,23 @@ impl Workbench {
         Planner::new(&self.modrinth, &self.jars, &self.project)
     }
 
-    /// Plans a Modrinth project with everything it requires that the instance lacks.
-    pub async fn add(&self, project: &str) -> Result<Plan, LaunchError> {
-        Ok(self.planner().add(project, &AddOptions::default()).await?)
+    /// Refuses a plan that brings mods where they cannot go.
+    fn allowed(&self, plan: Plan) -> Result<Plan, LaunchError> {
+        let mods = plan.add.iter().any(|e| e.kind == Kind::Mod);
+        match () {
+            _ if mods && self.vanilla => Err(LaunchError::NoLoader),
+            _ if mods && self.mods_locked => Err(LaunchError::Locked),
+            _ => Ok(plan),
+        }
     }
 
-    /// Plans a mod jar behind a direct link.
-    pub async fn add_url(&self, url: &str) -> Result<Plan, LaunchError> {
+    /// Plans a Modrinth project with everything it requires that the instance lacks.
+    pub async fn add(&self, project: &str) -> Result<Plan, LaunchError> {
+        self.allowed(self.planner().add(project, &AddOptions::default()).await?)
+    }
+
+    /// Plans a file of `kind` behind a direct link.
+    pub async fn add_url(&self, url: &str, kind: Kind) -> Result<Plan, LaunchError> {
         let name = url::Url::parse(url)
             .ok()
             .filter(|u| matches!(u.scheme(), "http" | "https"))
@@ -351,12 +369,12 @@ impl Workbench {
         let source = Source::Url {
             url: url.to_owned(),
         };
-        self.add_direct(source, &name, &file, Some(url.to_owned()))
+        self.add_direct(source, &name, &file, Some(url.to_owned()), kind)
             .await
     }
 
-    /// Plans a mod jar from the player's disk; its bytes are kept in the store.
-    pub async fn add_file(&self, path: &Path) -> Result<Plan, LaunchError> {
+    /// Plans a file of `kind` from the player's disk; its bytes are kept in the store.
+    pub async fn add_file(&self, path: &Path, kind: Kind) -> Result<Plan, LaunchError> {
         let bytes = tokio::fs::read(path).await.map_err(io(path))?;
         let name = path
             .file_name()
@@ -366,7 +384,7 @@ impl Workbench {
         let placeholder = Source::Local {
             path: PackPath::new("mods/placeholder.jar").expect("static path is valid"),
         };
-        self.add_direct(placeholder, &name, &file, None).await
+        self.add_direct(placeholder, &name, &file, None, kind).await
     }
 
     async fn add_direct(
@@ -375,15 +393,19 @@ impl Workbench {
         name: &str,
         file: &Downloaded,
         url: Option<String>,
+        kind: Kind,
     ) -> Result<Plan, LaunchError> {
         let mut entry = riven_resolve::direct_entry(&self.project, source, name, file, url)?;
-        if entry.kind != Kind::Mod {
-            return Err(LaunchError::NotAMod(name.to_owned()));
+        if entry.kind != kind {
+            return Err(LaunchError::WrongKind {
+                name: name.to_owned(),
+                kind,
+            });
         }
         if let Source::Local { path } = &mut entry.source {
             *path = entry.file.path.clone();
         }
-        Ok(self.planner().add_entry(entry).await?)
+        self.allowed(self.planner().add_entry(entry).await?)
     }
 
     /// Newer versions of the player's Modrinth mods.
@@ -394,6 +416,7 @@ impl Workbench {
             .iter()
             .filter(|e| matches!(e.source, Source::Modrinth { .. }))
             .filter(|e| e.update == UpdatePolicy::Follow)
+            .filter(|e| !(self.mods_locked && e.kind == Kind::Mod))
             .map(|e| e.id.clone())
             .collect();
         if ids.is_empty() {
@@ -404,8 +427,11 @@ impl Workbench {
 
     /// Plans removing one of the player's mods and the dependencies nothing else needs.
     pub fn remove(&self, id: &str) -> Result<Plan, LaunchError> {
-        if !self.own.content.iter().any(|e| e.id == id) {
+        let Some(entry) = self.own.content.iter().find(|e| e.id == id) else {
             return Err(LaunchError::NotOwn(id.to_owned()));
+        };
+        if self.mods_locked && entry.kind == Kind::Mod {
+            return Err(LaunchError::Locked);
         }
         Ok(self.planner().remove(id, false)?)
     }

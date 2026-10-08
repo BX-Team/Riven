@@ -12,7 +12,7 @@ use gpui_kit::{
     StatefulInteractiveElement as _, Styled as _, Subscription, UniformListScrollHandle,
     WeakEntity, Window, div, img, px, relative, uniform_list,
 };
-use riven_format::{Reason, Source as EntrySource};
+use riven_format::{Kind, Reason, Source as EntrySource};
 use riven_launch::LaunchError;
 use riven_launch::instances::Instances;
 use riven_launch::own::Workbench;
@@ -97,6 +97,7 @@ struct Shown {
 /// The project page on the right; a view of its own so hovering the list does not relay it out.
 struct Details {
     add: WeakEntity<AddMods>,
+    kind: Kind,
     shown: Option<Shown>,
     height: f32,
 }
@@ -104,6 +105,7 @@ struct Details {
 /// The "Add mods" dialog of an instance.
 pub struct AddMods {
     id: String,
+    kind: Kind,
     view: WeakEntity<InstanceView>,
     target: Option<Target>,
     mode: Mode,
@@ -176,6 +178,7 @@ async fn install_project(store: &Instances, id: &str, project: &str) -> Result<P
 async fn install(
     store: Instances,
     id: String,
+    kind: Kind,
     job: Job,
     progress: mpsc::UnboundedSender<(usize, usize, String)>,
 ) -> Result<Outcome, LaunchError> {
@@ -199,7 +202,7 @@ async fn install(
             let bench = Workbench::open(&store, &id).await?;
             let plan = match modrinth_slug(&link) {
                 Some(slug) => bench.add(&slug).await?,
-                None => bench.add_url(&link).await?,
+                None => bench.add_url(&link, kind).await?,
             };
             bench.apply(&plan).await?;
             outcome.plans.push(plan);
@@ -207,7 +210,7 @@ async fn install(
         Job::Files(paths) => {
             for path in paths {
                 let bench = Workbench::open(&store, &id).await?;
-                let plan = bench.add_file(&path).await?;
+                let plan = bench.add_file(&path, kind).await?;
                 bench.apply(&plan).await?;
                 outcome.plans.push(plan);
             }
@@ -267,26 +270,57 @@ fn support_label(support: Support) -> SharedString {
     .into()
 }
 
+/// The dialog's wording for a kind of content; `key` is one of the per-kind keys.
+fn copy(kind: Kind, key: &str) -> SharedString {
+    let text = match (kind, key) {
+        (Kind::ResourcePack, "title") => t!("add_content.resourcepack.title"),
+        (Kind::ResourcePack, "search") => t!("add_content.resourcepack.search"),
+        (Kind::ResourcePack, "link_hint") => t!("add_content.resourcepack.link_hint"),
+        (Kind::ResourcePack, "link_about") => t!("add_content.resourcepack.link_about"),
+        (Kind::ResourcePack, "file_about") => t!("add_content.resourcepack.file_about"),
+        (Kind::ResourcePack, "pick_one") => t!("add_content.resourcepack.pick_one"),
+        (Kind::ShaderPack, "title") => t!("add_content.shader.title"),
+        (Kind::ShaderPack, "search") => t!("add_content.shader.search"),
+        (Kind::ShaderPack, "link_hint") => t!("add_content.shader.link_hint"),
+        (Kind::ShaderPack, "link_about") => t!("add_content.shader.link_about"),
+        (Kind::ShaderPack, "file_about") => t!("add_content.shader.file_about"),
+        (Kind::ShaderPack, "pick_one") => t!("add_content.shader.pick_one"),
+        (_, "title") => t!("add_mods.title"),
+        (_, "search") => t!("add_mods.search"),
+        (_, "link_hint") => t!("add_mods.link_hint"),
+        (_, "link_about") => t!("add_mods.link_about"),
+        (_, "file_about") => t!("add_mods.file_about"),
+        _ => t!("add_mods.pick_one"),
+    };
+    text.into()
+}
+
 impl AddMods {
     fn new(
         id: String,
+        kind: Kind,
         view: WeakEntity<InstanceView>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let target = AppState::global(cx).read(cx).instance(&id).and_then(|i| {
+            let loader = match &i.loader {
+                Some(loader) => loader.kind,
+                None if kind == Kind::Mod => return None,
+                // Packs and shaders are not filtered by loader.
+                None => riven_format::LoaderKind::Fabric,
+            };
             Some(Target {
                 minecraft: i.minecraft.clone(),
-                loader: i.loader.as_ref()?.kind,
-                kind: riven_format::Kind::Mod,
+                loader,
+                kind,
             })
         });
         let query =
-            cx.new(|cx| InputState::new(window, cx).placeholder(t!("add_mods.search").to_string()));
+            cx.new(|cx| InputState::new(window, cx).placeholder(copy(kind, "search").to_string()));
         query.update(cx, |s, cx| s.focus(window, cx));
-        let link = cx.new(|cx| {
-            InputState::new(window, cx).placeholder(t!("add_mods.link_hint").to_string())
-        });
+        let link = cx
+            .new(|cx| InputState::new(window, cx).placeholder(copy(kind, "link_hint").to_string()));
         let subs = vec![
             cx.subscribe(&query, |this, _, event: &InputEvent, cx| {
                 if let InputEvent::Change = event {
@@ -302,11 +336,13 @@ impl AddMods {
         let add = cx.entity().downgrade();
         let details = cx.new(|_| Details {
             add,
+            kind,
             shown: None,
             height: 0.,
         });
         let mut this = Self {
             id,
+            kind,
             view,
             target,
             mode: Mode::Modrinth,
@@ -515,7 +551,7 @@ impl AddMods {
         cx.notify();
         let id = self.id.clone();
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let done = runtime::spawn(install(store, id, job, tx));
+        let done = runtime::spawn(install(store, id, self.kind, job, tx));
         cx.spawn_in(window, async move |this, cx| {
             while let Some(step) = rx.recv().await {
                 let alive = this.update(cx, |this, cx| {
@@ -809,7 +845,7 @@ impl AddMods {
                 div()
                     .text_color(c.muted)
                     .line_height(relative(1.5))
-                    .child(t!("add_mods.link_about").to_string()),
+                    .child(copy(self.kind, "link_about")),
             )
             .child(
                 h_flex().child(
@@ -838,7 +874,7 @@ impl AddMods {
                 div()
                     .text_color(c.muted)
                     .line_height(relative(1.5))
-                    .child(t!("add_mods.file_about").to_string()),
+                    .child(copy(self.kind, "file_about")),
             )
             .child(
                 h_flex().child(
@@ -952,7 +988,7 @@ impl Render for Details {
                 .justify_center()
                 .items_center()
                 .text_color(c.muted)
-                .child(t!("add_mods.pick_one").to_string())
+                .child(copy(self.kind, "pick_one"))
                 .into_any_element();
         };
         let hit = &shown.hit;
@@ -1202,8 +1238,14 @@ impl Render for AddMods {
         );
         let content = match self.mode {
             Mode::Modrinth => self.render_modrinth(height, cx),
-            Mode::Link => self.render_link(cx),
-            Mode::File => self.render_file(cx),
+            Mode::Link => div()
+                .h(px(height))
+                .child(self.render_link(cx))
+                .into_any_element(),
+            Mode::File => div()
+                .h(px(height))
+                .child(self.render_file(cx))
+                .into_any_element(),
         };
         let body = v_flex()
             .gap(px(14.))
@@ -1211,11 +1253,12 @@ impl Render for AddMods {
             .child(content)
             .child(self.render_status(cx));
         let about = match &self.target {
-            Some(target) => t!(
+            Some(target) if self.kind == Kind::Mod => t!(
                 "add_mods.description",
                 minecraft = target.minecraft,
                 loader = super::launch_bar::loader_display(target.loader)
             ),
+            Some(target) => t!("add_content.description", minecraft = target.minecraft),
             None => t!("mods.needs_loader"),
         };
         let picked = self.selected.len();
@@ -1237,11 +1280,17 @@ impl Render for AddMods {
                     .on_click(cx.listener(|this, _, window, cx| this.install_selected(window, cx))),
             );
         }
-        super::dialogs::dialog_shell(t!("add_mods.title"), about, body, buttons, cx)
+        super::dialogs::dialog_shell(copy(self.kind, "title"), about, body, buttons, cx)
     }
 }
 
-pub fn open(id: String, view: WeakEntity<InstanceView>, window: &mut Window, cx: &mut App) {
-    let dialog = cx.new(|cx| AddMods::new(id, view, window, cx));
+pub fn open(
+    id: String,
+    kind: Kind,
+    view: WeakEntity<InstanceView>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let dialog = cx.new(|cx| AddMods::new(id, kind, view, window, cx));
     super::dialogs::open(dialog.into(), WIDTH, cx);
 }

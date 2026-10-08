@@ -316,6 +316,7 @@ impl Render for RivenApp {
         let st = self.state.read(cx);
         let route = st.route.clone();
         let modal = st.modal.clone();
+        let context = st.context_menu.clone();
         let bar = match &route {
             Route::Instance(id) => Some(launch_bar::render(&self.state, id, window, cx)),
             _ => None,
@@ -374,13 +375,23 @@ impl Render for RivenApp {
             .children(edges)
             .when_some(modal, |root, m| {
                 // The dialog is deferred above this layer; without it hover and scroll reach the screen.
-                root.child(div().absolute().inset_0().occlude()).child(ui::modal(
-                    &m,
-                    move |_, cx| state.update(cx, |s, cx| s.close_modal(cx)),
+                root.child(div().absolute().inset_0().occlude())
+                    .child(ui::modal(
+                        &m,
+                        move |_, cx| state.update(cx, |s, cx| s.close_modal(cx)),
+                        window,
+                        cx,
+                    ))
+            })
+            .child(toasts)
+            .when_some(context, |root, menu| {
+                let state = self.state.clone();
+                root.child(ui::context_menu(
+                    &menu,
+                    move |_, cx| state.update(cx, |s, cx| s.close_context_menu(cx)),
                     window,
                     cx,
                 ))
             })
-            .child(toasts)
     }
 }

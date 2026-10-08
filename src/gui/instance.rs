@@ -6,9 +6,11 @@ use gpui_kit::base::input::{InputEvent, InputState};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
     App, AppContext as _, Context, Entity, FontWeight, InteractiveElement as _, IntoElement,
-    ParentElement as _, Render, SharedString, StatefulInteractiveElement as _, Styled as _,
-    Subscription, UniformListScrollHandle, Window, div, img, px, uniform_list,
+    MouseButton, ParentElement as _, Render, SharedString, StatefulInteractiveElement as _,
+    Styled as _, Subscription, UniformListScrollHandle, WeakEntity, Window, div, img, px,
+    uniform_list,
 };
+use riven_format::Kind;
 use rust_i18n::t;
 
 use riven_launch::instances::Instances;
@@ -22,28 +24,59 @@ use super::state::AppState;
 use super::theme::ActiveTheme as _;
 use super::time;
 use super::ui::{
-    Button, IconName, Switch, Tabs, TextField, h_flex, icon, motion, scrollbar, tooltip, v_flex,
+    ActionMenu, Button, IconName, MenuEntry, Switch, Tabs, TextField, h_flex, icon, motion,
+    scrollbar, tooltip, v_flex,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Tab {
     Mods,
+    ResourcePacks,
+    Shaders,
     Configs,
     Logs,
     Screenshots,
 }
 
-const TABS: [Tab; 4] = [Tab::Mods, Tab::Configs, Tab::Logs, Tab::Screenshots];
+const TABS: [Tab; 6] = [
+    Tab::Mods,
+    Tab::ResourcePacks,
+    Tab::Shaders,
+    Tab::Configs,
+    Tab::Logs,
+    Tab::Screenshots,
+];
 
 impl Tab {
     fn label(self) -> SharedString {
         match self {
             Tab::Mods => t!("instance.tabs.mods"),
+            Tab::ResourcePacks => t!("instance.tabs.resourcepacks"),
+            Tab::Shaders => t!("instance.tabs.shaders"),
             Tab::Configs => t!("instance.tabs.configs"),
             Tab::Logs => t!("instance.tabs.logs"),
             Tab::Screenshots => t!("instance.tabs.screenshots"),
         }
         .into()
+    }
+
+    /// The content kind a tab lists, for the tabs that list content files.
+    fn content(self) -> Option<Kind> {
+        match self {
+            Tab::Mods => Some(Kind::Mod),
+            Tab::ResourcePacks => Some(Kind::ResourcePack),
+            Tab::Shaders => Some(Kind::ShaderPack),
+            _ => None,
+        }
+    }
+}
+
+/// The game folder a content kind lives in.
+fn folder(kind: Kind) -> &'static str {
+    match kind {
+        Kind::ResourcePack => "resourcepacks",
+        Kind::ShaderPack => "shaderpacks",
+        _ => "mods",
     }
 }
 
@@ -67,6 +100,8 @@ pub struct InstanceView {
     version: Option<SharedString>,
     game_dir: PathBuf,
     tab: Tab,
+    /// The content kind the table holds.
+    kind: Kind,
     search: Entity<InputState>,
     mods: ModsTable,
     scroll: UniformListScrollHandle,
@@ -113,6 +148,7 @@ impl InstanceView {
             version,
             game_dir,
             tab: Tab::Mods,
+            kind: Kind::Mod,
             search,
             mods: ModsTable::default(),
             scroll: UniformListScrollHandle::new(),
@@ -131,36 +167,96 @@ impl InstanceView {
         view
     }
 
-    /// Reads `mods/` again, then fills in titles and icons from Modrinth.
+    /// Shows another tab, reading its folder when it lists other content.
+    fn select(&mut self, tab: Tab, window: &mut Window, cx: &mut Context<Self>) {
+        self.tab = tab;
+        if let Some(kind) = tab.content()
+            && kind != self.kind
+        {
+            self.kind = kind;
+            self.mods.set_rows(Vec::new());
+            self.notice = None;
+            self.reload(window, cx);
+        }
+        cx.notify();
+    }
+
+    /// Reads the content folder again, then fills in titles and icons from Modrinth.
     pub fn reload(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.loading = true;
         self.from_pack = riven_launch::own::from_pack(&self.game_dir);
         self.updates = Updates::Unchecked;
         let dir = self.game_dir.clone();
         let game_dir = dir.clone();
+        let kind = self.kind;
+        let id = self.id.clone();
         cx.spawn_in(window, async move |this, cx| {
-            let rows = runtime::blocking(move || mods::scan_rows(&dir))
+            let rows = runtime::blocking(move || mods::scan_rows(&dir, folder(kind)))
                 .await
                 .unwrap_or_default();
             let _ = this.update_in(cx, |this, window, cx| {
+                if this.kind != kind {
+                    return;
+                }
                 if this.mods.rows().is_empty() {
                     this.shown_at = Some(Instant::now());
                 }
                 this.set_rows(rows.clone());
-                let hint = t!("mods.search_count", n = rows.len()).to_string();
+                let hint = match kind {
+                    Kind::Mod => t!("mods.search_count", n = rows.len()),
+                    _ => t!("mods.search_files", n = rows.len()),
+                }
+                .to_string();
                 this.search
                     .update(cx, |s, cx| s.set_placeholder(hint, window, cx));
                 cx.notify();
             });
-            let rows = runtime::blocking(move || mods::describe(&game_dir, rows))
-                .await
-                .unwrap_or_default();
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+            let described = runtime::blocking(move || {
+                mods::describe(&game_dir, rows, &move |done, total| {
+                    let _ = tx.send((done, total));
+                })
+            });
+            let state = cx.update(|_, cx| AppState::global(cx)).ok();
+            let mut shown = 0;
+            while let Some((done, total)) = rx.recv().await {
+                if done < total && done < shown + total.div_ceil(50) {
+                    continue;
+                }
+                shown = done;
+                if let Some(state) = &state {
+                    let id = id.clone();
+                    let _ = cx.update(|_, cx| {
+                        state.update(cx, |s, cx| {
+                            if done < total {
+                                s.scans.insert(id, (done, total));
+                            } else {
+                                s.scans.remove(&id);
+                            }
+                            cx.notify();
+                        })
+                    });
+                }
+            }
+            if let Some(state) = &state {
+                let _ = cx.update(|_, cx| {
+                    state.update(cx, |s, cx| {
+                        if s.scans.remove(&id).is_some() {
+                            cx.notify();
+                        }
+                    })
+                });
+            }
+            let rows = described.await.unwrap_or_default();
             let hashes: Vec<(String, String)> = rows
                 .iter()
                 .filter_map(|r| r.details.as_ref())
                 .map(|d| (d.sha512.clone(), d.sha1.clone()))
                 .collect();
             let _ = this.update(cx, |this, cx| {
+                if this.kind != kind {
+                    return;
+                }
                 this.loading = false;
                 this.set_rows(rows);
                 cx.notify();
@@ -172,6 +268,9 @@ impl InstanceView {
                 return;
             }
             let _ = this.update(cx, |this, cx| {
+                if this.kind != kind {
+                    return;
+                }
                 let mut rows = this.mods.rows().to_vec();
                 for row in &mut rows {
                     let Some(details) = &row.details else {
@@ -180,6 +279,7 @@ impl InstanceView {
                     if let Some(hit) = found.get(&details.sha512) {
                         row.title = hit.title.clone().into();
                         row.icon = hit.icon.clone();
+                        row.project = Some(hit.project.clone());
                     }
                 }
                 this.set_rows(rows);
@@ -197,7 +297,7 @@ impl InstanceView {
             _ => None,
         };
         for row in &mut rows {
-            let path = format!("mods/{}", row.file.name);
+            let path = format!("{}/{}", folder(self.kind), row.file.name);
             row.update = plan
                 .and_then(|p| {
                     p.update
@@ -209,9 +309,10 @@ impl InstanceView {
         self.mods.set_rows(rows);
     }
 
-    /// Whether the player may change this instance's mods.
+    /// Packs and shaders are always editable; mods only in own instances and unlocked pack ones.
     fn editable(&self, cx: &App) -> bool {
-        !self.from_pack
+        self.kind != Kind::Mod
+            || !self.from_pack
             || AppState::global(cx)
                 .read(cx)
                 .instance(&self.id)
@@ -407,11 +508,8 @@ impl InstanceView {
                 "instance-tabs",
                 TABS.iter().map(|t| t.label()).collect(),
                 selected,
-                move |ix, _, cx| {
-                    let _ = view.update(cx, |this, cx| {
-                        this.tab = TABS[ix];
-                        cx.notify();
-                    });
+                move |ix, window, cx| {
+                    let _ = view.update(cx, |this, cx| this.select(TABS[ix], window, cx));
                 },
             ))
             .child({
@@ -466,18 +564,19 @@ impl InstanceView {
                 }));
             out.push(if ready { button.primary() } else { button }.into_any_element());
         }
-        let has_loader = self.has_loader(cx);
+        let can_add = self.kind != Kind::Mod || self.has_loader(cx);
         let view = cx.entity().downgrade();
         let id = self.id.clone();
+        let kind = self.kind;
         out.push(
             Button::new("add-mods")
                 .primary()
                 .icon(IconName::Plus)
                 .label(t!("mods.add"))
-                .disabled(!has_loader)
-                .when(!has_loader, |b| b.tooltip(t!("mods.needs_loader")))
+                .disabled(!can_add)
+                .when(!can_add, |b| b.tooltip(t!("mods.needs_loader")))
                 .on_click(move |_, window, cx| {
-                    super::add_mods::open(id.clone(), view.clone(), window, cx)
+                    super::add_mods::open(id.clone(), kind, view.clone(), window, cx)
                 })
                 .into_any_element(),
         );
@@ -486,8 +585,8 @@ impl InstanceView {
 
     fn render_mods(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let c = cx.theme().colors;
-        let dir = self.game_dir.join("mods");
-        let busy = self.loading || self.working;
+        let dir = self.game_dir.join(folder(self.kind));
+        let busy = self.working;
         let actions = self.render_mod_actions(cx);
         v_flex()
             .flex_1()
@@ -506,18 +605,13 @@ impl InstanceView {
                             .w(px(280.)),
                     )
                     .when(busy, |row| {
-                        row.child(
-                            h_flex()
-                                .flex_none()
-                                .gap(px(8.))
-                                .text_color(c.muted)
-                                .child(motion::spinner(
-                                    "mods-spinner",
-                                    icon(IconName::Loader, c.muted).size(px(14.)),
-                                    cx,
-                                ))
-                                .when(self.loading, |r| r.child(t!("mods.reading").to_string())),
-                        )
+                        row.child(h_flex().flex_none().gap(px(8.)).text_color(c.muted).child(
+                            motion::spinner(
+                                "mods-spinner",
+                                icon(IconName::Loader, c.muted).size(px(14.)),
+                                cx,
+                            ),
+                        ))
                     })
                     .child(div().flex_1().min_w_0().truncate().when_some(
                         self.notice.clone(),
@@ -532,7 +626,10 @@ impl InstanceView {
                             .ghost()
                             .icon(IconName::Folder)
                             .tooltip(t!("instance.open_folder"))
-                            .on_click(move |_, _, cx| cx.open_with_system(&dir)),
+                            .on_click(move |_, _, cx| {
+                                let _ = std::fs::create_dir_all(&dir);
+                                cx.open_with_system(&dir)
+                            }),
                     ),
             )
             .child(self.render_table_head(cx))
@@ -554,7 +651,26 @@ impl InstanceView {
                         .size_full()
                         .track_scroll(&self.scroll),
                     )
-                    .child(scrollbar(&self.scroll)),
+                    .child(scrollbar(&self.scroll))
+                    .when(self.mods.len() == 0 && !self.loading, |area| {
+                        area.child(
+                            div()
+                                .absolute()
+                                .inset_0()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .text_color(c.muted)
+                                .child(
+                                    match self.kind {
+                                        Kind::ResourcePack => t!("mods.empty_resourcepacks"),
+                                        Kind::ShaderPack => t!("mods.empty_shaders"),
+                                        _ => t!("mods.empty_mods"),
+                                    }
+                                    .to_string(),
+                                ),
+                        )
+                    }),
             )
     }
 
@@ -603,10 +719,57 @@ impl InstanceView {
                 SortBy::Modified,
                 cx,
             )))
-            .when(self.editable(cx), |h| h.child(div().w(px(ACTIONS_WIDTH))))
+            .child(div().w(px(ACTIONS_WIDTH)))
     }
 
-    /// The switch and delete button of a row, or a lock for files the pack manages.
+    /// A row's menu: its page and file, plus switch and removal for the player's own files.
+    fn row_menu(&self, row: &ModRow, view: WeakEntity<Self>, cx: &App) -> Vec<MenuEntry> {
+        let mut entries = Vec::new();
+        if let Some(project) = row.project.clone() {
+            entries.push(
+                MenuEntry::action(t!("mods.open_page"), move |_, cx| {
+                    cx.open_url(&format!("https://modrinth.com/project/{project}"))
+                })
+                .icon(IconName::ExternalLink),
+            );
+        }
+        let path = row.file.path.clone();
+        entries.push(
+            MenuEntry::action(t!("mods.show_file"), move |_, cx| cx.reveal_path(&path))
+                .icon(IconName::Folder),
+        );
+        if row.origin == Origin::Pack || !self.editable(cx) {
+            return entries;
+        }
+        let on = !row.file.enabled;
+        let (toggled, removed, remove_view) = (row.clone(), row.clone(), view.clone());
+        entries.push(
+            MenuEntry::action(
+                if on {
+                    t!("mods.enable")
+                } else {
+                    t!("mods.disable")
+                },
+                move |window, cx| {
+                    let _ = view.update(cx, |this, cx| this.set_enabled(&toggled, on, window, cx));
+                },
+            )
+            .icon(IconName::Power)
+            .disabled(self.working),
+        );
+        entries.push(MenuEntry::Separator);
+        entries.push(
+            MenuEntry::action(t!("mods.delete"), move |window, cx| {
+                let _ = remove_view.update(cx, |this, cx| this.remove(&removed, window, cx));
+            })
+            .icon(IconName::Trash)
+            .danger()
+            .disabled(self.working),
+        );
+        entries
+    }
+
+    /// The switch, or a lock for files the pack manages, and the "⋯" menu of a row.
     fn render_row_actions(
         &self,
         ix: usize,
@@ -614,39 +777,33 @@ impl InstanceView {
         cx: &mut Context<Self>,
     ) -> gpui_kit::AnyElement {
         let c = cx.theme().colors;
-        let cell = h_flex().w(px(ACTIONS_WIDTH)).justify_end().gap(px(6.));
-        if row.origin == Origin::Pack {
-            return cell
-                .child(
-                    div()
-                        .id(("pack-lock", ix))
-                        .px(px(7.))
-                        .child(icon(IconName::Lock, c.muted).size(px(14.)))
-                        .tooltip(tooltip(t!("mods.from_pack").into())),
-                )
-                .into_any_element();
-        }
-        let toggled = row.clone();
-        let removed = row.clone();
         let view = cx.entity().downgrade();
-        cell.child(
+        let menu = ActionMenu::new(
+            ("mod-menu", ix),
+            Button::new(("mod-more", ix))
+                .ghost()
+                .icon(IconName::More)
+                .tooltip(t!("mods.actions")),
+            self.row_menu(row, view.clone(), cx),
+        );
+        let cell = h_flex().w(px(ACTIONS_WIDTH)).justify_end().gap(px(6.));
+        let lead = if row.origin == Origin::Pack || !self.editable(cx) {
+            div()
+                .id(("pack-lock", ix))
+                .px(px(7.))
+                .child(icon(IconName::Lock, c.muted).size(px(14.)))
+                .tooltip(tooltip(t!("mods.from_pack").into()))
+                .into_any_element()
+        } else {
+            let toggled = row.clone();
             Switch::new(("mod-switch", ix), row.file.enabled)
                 .accessible(row.title.clone())
                 .on_change(move |on, window, cx| {
                     let _ = view.update(cx, |this, cx| this.set_enabled(&toggled, on, window, cx));
-                }),
-        )
-        .child(
-            Button::new(("mod-remove", ix))
-                .ghost()
-                .icon(IconName::Trash)
-                .tooltip(t!("mods.delete"))
-                .disabled(self.working)
-                .on_click(
-                    cx.listener(move |this, _, window, cx| this.remove(&removed, window, cx)),
-                ),
-        )
-        .into_any_element()
+                })
+                .into_any_element()
+        };
+        cell.child(lead).child(menu).into_any_element()
     }
 
     fn render_row(
@@ -671,9 +828,20 @@ impl InstanceView {
         );
         let t = motion::cascade(self.shown_at, ix, window, cx);
         let icon_t = motion::cascade(self.icons_at, 0, window, cx);
-        let actions = self
-            .editable(cx)
-            .then(|| self.render_row_actions(ix, row, cx));
+        let actions = self.render_row_actions(ix, row, cx);
+        let menu = {
+            let row = row.clone();
+            let view = cx.entity().downgrade();
+            move |event: &gpui_kit::MouseDownEvent, _: &mut Window, cx: &mut App| {
+                let Ok(entries) =
+                    view.read_with(cx, |this, cx| this.row_menu(&row, view.clone(), cx))
+                else {
+                    return;
+                };
+                AppState::global(cx)
+                    .update(cx, |s, cx| s.open_context_menu(event.position, entries, cx));
+            }
+        };
         let own_badge = self.from_pack && matches!(row.origin, Origin::Own(_));
         Some(
             hover
@@ -686,6 +854,7 @@ impl InstanceView {
                 .bg(bg)
                 .opacity(t)
                 .pt(px((1. - t) * 6.))
+                .on_mouse_down(MouseButton::Right, menu)
                 .child(
                     h_flex()
                         .flex_1()
@@ -756,7 +925,7 @@ impl InstanceView {
                         .text_color(c.muted)
                         .child(time::ago(row.file.modified)),
                 )
-                .children(actions),
+                .child(actions),
         )
     }
 }
@@ -764,7 +933,9 @@ impl InstanceView {
 impl Render for InstanceView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let content = match self.tab {
-            Tab::Mods => self.render_mods(cx).into_any_element(),
+            Tab::Mods | Tab::ResourcePacks | Tab::Shaders => {
+                self.render_mods(cx).into_any_element()
+            }
             Tab::Logs => self.logs.clone().into_any_element(),
             other => super::app::placeholder(
                 IconName::Package,
