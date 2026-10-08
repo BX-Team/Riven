@@ -1502,6 +1502,19 @@ pub fn open(window: &mut Window, cx: &mut App) {
     super::dialogs::open(form.into(), WIDTH, cx);
 }
 
+/// Opens the dialog on a pack link, as from a `riven://install` link.
+pub fn open_link(link: &str, window: &mut Window, cx: &mut App) {
+    let link = link.to_owned();
+    let form = cx.new(|cx| {
+        let mut form = NewInstance::new(Mode::Import, window, cx);
+        form.link
+            .update(cx, |s, cx| s.set_value(link.clone(), window, cx));
+        form.check_link(cx);
+        form
+    });
+    super::dialogs::open(form.into(), WIDTH, cx);
+}
+
 /// Opens the dialog on a pack file, as when one is dropped on the window.
 pub fn open_file(path: &Path, window: &mut Window, cx: &mut App) {
     let path = path.to_owned();

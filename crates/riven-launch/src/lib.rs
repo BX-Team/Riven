@@ -6,6 +6,7 @@ pub mod logs;
 pub mod mods;
 pub mod own;
 pub mod prism;
+pub mod update;
 mod vault;
 
 use std::path::{Path, PathBuf};
@@ -67,6 +68,12 @@ pub enum LaunchError {
     BadArchive(String),
     #[error("`{0}` was not added by the player")]
     NotOwn(String),
+    #[error("cannot update Riven: {0}")]
+    Update(String),
+    #[error("this Riven is managed by a package manager or Nix; update it there")]
+    Managed,
+    #[error("no write access to {}; reinstall Riven to update it", .0.display())]
+    ReadOnly(PathBuf),
 }
 
 fn kind_name(kind: riven_format::Kind) -> &'static str {
