@@ -951,7 +951,7 @@ impl PullConfigs {
         match riven_build::pull::take(ws, dir, &picked) {
             Ok(n) => {
                 let _ = self.view.update(cx, |view, cx| {
-                    view.refresh_tree();
+                    view.refresh_tree(cx);
                     view.refresh_git(cx);
                     view.notice = Some(t!("dev.pulled", n = n).into());
                     cx.notify();

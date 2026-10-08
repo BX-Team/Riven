@@ -106,7 +106,7 @@ impl DevView {
                 _ => {}
             }
         }
-        self.refresh_tree();
+        self.refresh_tree(cx);
         self.reload_files = true;
         if !matches!(self.git.repo, git::Repo::Loading) {
             self.refresh_git(cx);

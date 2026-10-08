@@ -2,9 +2,9 @@ use std::path::PathBuf;
 
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
-    App, ClipboardItem, Context, Entity, Hsla, IntoElement, ParentElement as _, Render,
-    ScrollStrategy, SharedString, Styled as _, Subscription, UniformListScrollHandle, Window, div,
-    px, uniform_list,
+    App, ClipboardItem, Context, Entity, Hsla, InteractiveElement as _, IntoElement,
+    ParentElement as _, Render, ScrollStrategy, SharedString, StatefulInteractiveElement as _,
+    Styled as _, Subscription, UniformListScrollHandle, Window, div, px, uniform_list,
 };
 use rust_i18n::t;
 
@@ -12,17 +12,32 @@ use super::runtime;
 use super::state::AppState;
 use super::theme::{ActiveTheme as _, Palette};
 use super::ui::{Button, IconName, h_flex, icon, scrollbar, v_flex};
+use riven_launch::logs::{LogFile, LogKind};
 
 const ROW_HEIGHT: f32 = 20.;
+const LIST_WIDTH: f32 = 230.;
 
-/// The Logs tab: the running game's output, or `logs/latest.log` from the last run.
+/// What the log pane shows.
+#[derive(Clone, PartialEq, Eq)]
+enum Source {
+    /// This launcher session's game output, else `latest.log`.
+    Current,
+    File(PathBuf),
+}
+
+/// The Logs tab: the running game's output, older logs and crash reports.
 pub struct LogsView {
     id: String,
     game_dir: PathBuf,
     scroll: UniformListScrollHandle,
-    /// Lines of `latest.log`, read when no launch from this session has output.
+    source: Source,
+    files: Vec<LogFile>,
+    /// Lines of the file shown, or of `latest.log` when no launch from this session has output.
     file: Option<Vec<(bool, SharedString)>>,
     shown: usize,
+    uploading: bool,
+    /// The last paste of what is shown.
+    pasted: Option<String>,
     _state: Subscription,
 }
 
@@ -57,42 +72,189 @@ impl LogsView {
             id,
             game_dir,
             scroll: UniformListScrollHandle::new(),
+            source: Source::Current,
+            files: Vec::new(),
             file: None,
             shown: 0,
+            uploading: false,
+            pasted: None,
             _state,
         };
         view.read_file(cx);
         view
     }
 
+    /// Lists the logs folder and reads what is selected again.
     fn read_file(&mut self, cx: &mut Context<Self>) {
-        let path = self.game_dir.join("logs").join("latest.log");
+        let path = match &self.source {
+            Source::Current => self.game_dir.join("logs").join("latest.log"),
+            Source::File(path) => path.clone(),
+        };
+        let dir = self.game_dir.clone();
         cx.spawn(async move |this, cx| {
-            let lines = runtime::blocking(move || {
-                std::fs::read(&path)
-                    .map(|bytes| {
-                        String::from_utf8_lossy(&bytes)
-                            .lines()
+            let (files, lines) = runtime::blocking(move || {
+                let lines = riven_launch::logs::read(&path)
+                    .map(|text| {
+                        text.lines()
                             .map(|l| (false, SharedString::from(riven_launch::strip_ansi(l))))
                             .collect::<Vec<_>>()
                     })
-                    .unwrap_or_default()
+                    .unwrap_or_default();
+                (riven_launch::logs::list(&dir), lines)
             })
             .await
             .unwrap_or_default();
             let _ = this.update(cx, |this, cx| {
+                this.files = files;
                 this.file = Some(lines);
+                this.shown = 0;
                 cx.notify();
             });
         })
         .detach();
     }
 
+    fn select(&mut self, source: Source, cx: &mut Context<Self>) {
+        if self.source != source {
+            self.source = source;
+            self.file = None;
+            self.pasted = None;
+            self.read_file(cx);
+        }
+    }
+
     fn lines<'a>(&'a self, cx: &'a App) -> LogLines<'a> {
-        match AppState::global(cx).read(cx).sessions.get(&self.id) {
-            Some(s) if !s.log.is_empty() => LogLines::Session(&s.log),
+        match (
+            &self.source,
+            AppState::global(cx).read(cx).sessions.get(&self.id),
+        ) {
+            (Source::Current, Some(s)) if !s.log.is_empty() => LogLines::Session(&s.log),
             _ => LogLines::File(self.file.as_deref().unwrap_or_default()),
         }
+    }
+
+    fn upload(&mut self, cx: &mut Context<Self>) {
+        if self.uploading {
+            return;
+        }
+        let text = self.lines(cx).join();
+        self.uploading = true;
+        cx.notify();
+        cx.spawn(async move |this, cx| {
+            let posted = runtime::spawn(async move { riven_launch::logs::upload(&text).await })
+                .await
+                .unwrap_or_else(|_| Err(riven_launch::LaunchError::Upload("cancelled".into())));
+            let _ = this.update(cx, |this, cx| {
+                this.uploading = false;
+                let state = AppState::global(cx);
+                match posted {
+                    Ok(url) => {
+                        cx.write_to_clipboard(ClipboardItem::new_string(url.clone()));
+                        state.update(cx, |s, cx| {
+                            s.toast(
+                                super::toast::ToastKind::Success,
+                                t!("logs.uploaded", url = url).to_string(),
+                                cx,
+                            )
+                        });
+                        this.pasted = Some(url);
+                    }
+                    Err(e) => state.update(cx, |s, cx| {
+                        s.toast(super::toast::ToastKind::Error, e.to_string(), cx)
+                    }),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    fn render_list(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let c = cx.theme().colors;
+        let row = |id: SharedString,
+                   label: String,
+                   detail: Option<String>,
+                   on: bool,
+                   tint: Option<Hsla>,
+                   source: Source,
+                   cx: &mut Context<Self>| {
+            v_flex()
+                .id(id)
+                .px(px(8.))
+                .py(px(5.))
+                .rounded(px(6.))
+                .cursor_pointer()
+                .map(|r| {
+                    if on {
+                        r.bg(c.sel)
+                    } else {
+                        r.hover(|s| s.bg(c.row))
+                    }
+                })
+                .on_click(cx.listener(move |this, _, _, cx| this.select(source.clone(), cx)))
+                .child(
+                    div()
+                        .truncate()
+                        .text_color(tint.unwrap_or(if on { c.text } else { c.text2 }))
+                        .child(label),
+                )
+                .children(detail.map(|d| div().text_size(px(11.)).text_color(c.muted).child(d)))
+        };
+        let mut items = vec![
+            row(
+                "log-current".into(),
+                t!("logs.current").to_string(),
+                None,
+                self.source == Source::Current,
+                None,
+                Source::Current,
+                cx,
+            )
+            .into_any_element(),
+        ];
+        for (kind, caption) in [
+            (LogKind::Crash, t!("logs.crashes")),
+            (LogKind::Log, t!("logs.files")),
+        ] {
+            let files: Vec<&LogFile> = self.files.iter().filter(|f| f.kind == kind).collect();
+            if files.is_empty() {
+                continue;
+            }
+            items.push(
+                super::ui::caption(caption, cx)
+                    .mt(px(10.))
+                    .into_any_element(),
+            );
+            for (i, f) in files.into_iter().enumerate() {
+                let source = Source::File(f.path.clone());
+                let on = self.source == source;
+                let tint = (kind == LogKind::Crash).then_some(c.warn);
+                items.push(
+                    row(
+                        SharedString::from(format!("log-{kind:?}-{i}")),
+                        f.name.clone(),
+                        Some(super::time::ago(f.modified).to_string()),
+                        on,
+                        tint,
+                        source,
+                        cx,
+                    )
+                    .into_any_element(),
+                );
+            }
+        }
+        v_flex()
+            .id("log-files")
+            .w(px(LIST_WIDTH))
+            .flex_none()
+            .h_full()
+            .overflow_y_scroll()
+            .p(px(8.))
+            .gap(px(1.))
+            .border_r_1()
+            .border_color(c.border)
+            .text_size(px(12.))
+            .children(items)
     }
 
     fn copy(&self, cx: &mut App) {
@@ -147,10 +309,14 @@ impl Render for LogsView {
             }
         }
         let dir = self.game_dir.join("logs");
-        let source = if live {
-            t!("logs.session")
-        } else {
-            t!("logs.latest")
+        let source: SharedString = match (&self.source, live) {
+            (_, true) => t!("logs.session").into(),
+            (Source::Current, false) => t!("logs.latest").into(),
+            (Source::File(path), false) => path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default()
+                .into(),
         };
         let toolbar = h_flex()
             .flex_none()
@@ -176,19 +342,45 @@ impl Render for LogsView {
             .when(!live, |row| {
                 row.child(
                     Button::new("reload-log")
-                        .label(t!("logs.reload"))
+                        .ghost()
+                        .icon(IconName::Refresh)
+                        .tooltip(t!("logs.reload"))
                         .on_click(cx.listener(|this, _, _, cx| this.read_file(cx))),
                 )
             })
+            .when_some(self.pasted.clone(), |row, url| {
+                row.child(
+                    Button::new("open-paste")
+                        .ghost()
+                        .icon(IconName::ExternalLink)
+                        .tooltip(url.clone())
+                        .on_click(move |_, _, cx| cx.open_url(&url)),
+                )
+            })
+            .child(
+                Button::new("upload-log")
+                    .icon(IconName::Upload)
+                    .label(if self.uploading {
+                        t!("logs.uploading")
+                    } else {
+                        t!("logs.upload")
+                    })
+                    .tooltip(t!("logs.upload_hint"))
+                    .disabled(len == 0 || self.uploading)
+                    .on_click(cx.listener(|this, _, _, cx| this.upload(cx))),
+            )
             .child(
                 Button::new("copy-log")
+                    .icon(IconName::Copy)
                     .label(t!("logs.copy"))
                     .disabled(len == 0)
                     .on_click(cx.listener(|this, _, _, cx| this.copy(cx))),
             )
             .child(
                 Button::new("open-logs")
-                    .label(t!("instance.open_folder"))
+                    .ghost()
+                    .icon(IconName::Folder)
+                    .tooltip(t!("instance.open_folder"))
                     .on_click(move |_, _, cx| cx.open_with_system(&dir)),
             );
         let body = if len == 0 {
@@ -236,7 +428,18 @@ impl Render for LogsView {
                 .child(scrollbar(&self.scroll))
                 .into_any_element()
         };
-        v_flex().size_full().child(toolbar).child(body)
+        h_flex()
+            .size_full()
+            .items_start()
+            .child(self.render_list(cx))
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .h_full()
+                    .child(toolbar)
+                    .child(body),
+            )
     }
 }
 
