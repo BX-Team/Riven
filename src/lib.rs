@@ -11,9 +11,18 @@ rust_i18n::i18n!("locales", fallback = "en-US");
 use std::process::ExitCode;
 
 pub fn run() -> ExitCode {
+    riven_launch::update::cleanup();
     #[cfg(feature = "gui")]
-    if std::env::args_os().len() <= 1 {
-        return run_gui();
+    {
+        let args: Vec<String> = std::env::args_os()
+            .skip(1)
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        match args.as_slice() {
+            [] => return run_gui(None),
+            [arg] if gui::opens(arg) => return run_gui(Some(arg.clone())),
+            _ => {}
+        }
     }
     attach_parent_console();
     init_logging();
@@ -21,9 +30,9 @@ pub fn run() -> ExitCode {
 }
 
 #[cfg(feature = "gui")]
-fn run_gui() -> ExitCode {
+fn run_gui(arg: Option<String>) -> ExitCode {
     init_logging();
-    gui::run()
+    gui::run(arg)
 }
 
 fn init_logging() {

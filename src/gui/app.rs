@@ -48,6 +48,7 @@ impl RivenApp {
         };
         app.sync(window, cx);
         cx.defer(super::welcome::open_if_new);
+        cx.defer(super::updater::check_at_startup);
         AppState::global(cx).update(cx, |s, cx| s.load_skins(cx));
         app
     }
@@ -89,6 +90,7 @@ impl RivenApp {
         let dev_handle = self.state.clone();
         h_flex()
             .gap(px(6.))
+            .children(super::updater::title_button(cx))
             .when(developer, |row| {
                 row.child(
                     Button::new("developer")

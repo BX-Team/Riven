@@ -1162,28 +1162,6 @@ impl Render for Details {
                         col.child(h_flex().flex_wrap().gap(px(6.)).children(links))
                     })
                     .child(div().h(px(1.)).bg(c.border))
-                    .children(blocks.iter().take(SHOWN_BLOCKS).map(|block| {
-                        match block {
-                            Block::Heading(text) => div()
-                                .pt(px(4.))
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .child(text.clone())
-                                .into_any_element(),
-                            Block::Paragraph(text) => div()
-                                .text_color(c.text2)
-                                .line_height(relative(1.5))
-                                .child(text.clone())
-                                .into_any_element(),
-                            Block::Item(text) => h_flex()
-                                .items_start()
-                                .gap(px(8.))
-                                .text_color(c.text2)
-                                .line_height(relative(1.5))
-                                .child(div().flex_none().child("•"))
-                                .child(div().flex_1().min_w_0().child(text.clone()))
-                                .into_any_element(),
-                        }
-                    }))
                 }
                 (Some(Page::Failed), _) => col.child(
                     div()

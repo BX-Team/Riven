@@ -43,6 +43,7 @@ pub struct AppState {
     pub(super) ticking: bool,
     pub(super) toasts: Vec<super::toast::Toast>,
     pub(super) toast_serial: u64,
+    pub update: super::updater::Update,
 }
 
 /// A skin head saved earlier for an account, `<id>-<hash>.png`.
@@ -156,6 +157,7 @@ impl AppState {
             ticking: false,
             toasts: Vec::new(),
             toast_serial: 0,
+            update: Default::default(),
         }
     }
 
