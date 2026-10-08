@@ -117,6 +117,8 @@ pub struct InstanceView {
     /// When the rows and the Modrinth icons arrived, for their entrance.
     shown_at: Option<Instant>,
     icons_at: Option<Instant>,
+    /// The instance's file revision the table was read at.
+    revision: u64,
     _search: Subscription,
     _state: Subscription,
 }
@@ -160,9 +162,23 @@ impl InstanceView {
             working: false,
             shown_at: None,
             icons_at: None,
+            revision: 0,
             _search,
-            _state: cx.observe(&AppState::global(cx), |_, _, cx| cx.notify()),
+            _state: cx.observe_in(&AppState::global(cx), window, |this, state, window, cx| {
+                let revision = state.read(cx).revisions.get(&this.id).copied().unwrap_or(0);
+                if revision != this.revision {
+                    this.revision = revision;
+                    this.reload(window, cx);
+                }
+                cx.notify();
+            }),
         };
+        view.revision = AppState::global(cx)
+            .read(cx)
+            .revisions
+            .get(&view.id)
+            .copied()
+            .unwrap_or(0);
         view.reload(window, cx);
         view
     }

@@ -4,6 +4,7 @@ pub mod instances;
 pub mod java;
 pub mod mods;
 pub mod own;
+pub mod prism;
 mod vault;
 
 use std::path::{Path, PathBuf};
@@ -59,6 +60,8 @@ pub enum LaunchError {
         name: String,
         kind: riven_format::Kind,
     },
+    #[error("not a pack archive: {0}")]
+    BadArchive(String),
     #[error("`{0}` was not added by the player")]
     NotOwn(String),
 }

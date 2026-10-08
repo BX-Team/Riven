@@ -7375,6 +7375,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
+ "zip",
 ]
 
 [[package]]

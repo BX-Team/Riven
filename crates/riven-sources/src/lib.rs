@@ -46,6 +46,9 @@ pub struct Hit {
     pub author: String,
     pub downloads: u64,
     pub icon_url: Option<String>,
+    pub game_versions: Vec<String>,
+    /// Loaders among the project's categories.
+    pub loaders: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

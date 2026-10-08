@@ -677,6 +677,7 @@ mod tests {
             },
             groups: Vec::<Group>::new(),
             files,
+            icon: None,
         };
 
         let mut dropped = yield_to_pack(&dir, &release, &installed).unwrap();

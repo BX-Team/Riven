@@ -263,6 +263,27 @@ fn thumbnail(bytes: &[u8], out: &Path) -> Option<()> {
     small.save_with_format(out, image::ImageFormat::Png).ok()
 }
 
+/// Side of an instance icon as stored.
+const INSTANCE_ICON_PX: u32 = 128;
+
+/// An image scaled down to an instance icon, as PNG bytes.
+pub fn instance_icon(bytes: &[u8]) -> Option<Vec<u8>> {
+    png_thumbnail(bytes, INSTANCE_ICON_PX)
+}
+
+/// An image scaled down to a pack icon, which instances later shrink again.
+pub fn pack_icon(bytes: &[u8]) -> Option<Vec<u8>> {
+    png_thumbnail(bytes, 256)
+}
+
+fn png_thumbnail(bytes: &[u8], side: u32) -> Option<Vec<u8>> {
+    let image = image::load_from_memory(bytes).ok()?;
+    let small = image.thumbnail(side, side);
+    let mut out = std::io::Cursor::new(Vec::new());
+    small.write_to(&mut out, image::ImageFormat::Png).ok()?;
+    Some(out.into_inner())
+}
+
 /// The icon of a Modrinth project as a cached thumbnail, downloaded once.
 pub async fn fetch_icon(dir: &Path, project: &str, url: &str) -> Option<PathBuf> {
     let thumb = dir.join(format!("{project}@{ICON_PX}.png"));

@@ -480,6 +480,7 @@ mod tests {
                 default: false,
             }],
             files,
+            icon: None,
         }
     }
 

@@ -110,6 +110,9 @@ impl AppState {
                 let alive = this.update(cx, |s, cx| {
                     if let Some(session) = s.sessions.get_mut(&id) {
                         let exited = batch.iter().any(|p| matches!(p, Progress::Exited { .. }));
+                        let changed = batch.iter().any(|p| {
+                            matches!(p, Progress::Updated { .. } | Progress::Replaced { .. })
+                        });
                         let mut news = Vec::new();
                         for p in batch {
                             match &p {
@@ -130,6 +133,9 @@ impl AppState {
                         if exited {
                             s.reload_instances(cx);
                         }
+                        if changed {
+                            *s.revisions.entry(id.clone()).or_default() += 1;
+                        }
                     }
                     cx.notify();
                 });
@@ -149,6 +155,7 @@ impl AppState {
                         Ok(()) => {}
                     }
                 }
+                *s.revisions.entry(id.clone()).or_default() += 1;
                 s.reload_instances(cx);
             });
         })

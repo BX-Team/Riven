@@ -32,6 +32,7 @@ pub enum Check {
 /// A release planned against a game directory, waiting to be applied.
 pub struct Pending {
     pub release: Release,
+    manifest_url: Url,
     pub planned: Planned,
     pub groups: BTreeMap<String, bool>,
     pub side: InstallSide,
@@ -144,6 +145,7 @@ pub async fn check(
     )?;
     Ok(Check::Ready(Box::new(Pending {
         release,
+        manifest_url,
         planned,
         groups,
         side,
@@ -156,6 +158,23 @@ pub async fn check(
 }
 
 impl Pending {
+    /// The release's icon in the store, downloaded if needed.
+    pub async fn icon(&self, store: &Store, http: &reqwest::Client) -> Option<PathBuf> {
+        let icon = self.release.icon.as_ref()?;
+        let urls: Vec<String> = icon
+            .urls
+            .iter()
+            .filter_map(|u| self.manifest_url.join(u).ok().map(String::from))
+            .collect();
+        match store.fetch(http, &urls, &icon.hashes).await {
+            Ok(stored) => Some(stored.path),
+            Err(e) => {
+                tracing::warn!("cannot fetch the pack icon: {e}");
+                None
+            }
+        }
+    }
+
     /// Downloads and swaps the files in, then records the new state and any newly pinned key.
     pub async fn apply(
         self,
