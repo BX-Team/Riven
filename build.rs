@@ -25,6 +25,23 @@ fn main() {
         "cargo:rustc-env=RIVEN_GPUI_KIT={}",
         locked_version("gpui-kit")
     );
+    #[cfg(windows)]
+    windows_resources();
+}
+
+/// The exe's icon and the name Explorer and the task manager show.
+#[cfg(windows)]
+fn windows_resources() {
+    println!("cargo:rerun-if-changed=assets/brand/riven.ico");
+    let mut res = winresource::WindowsResource::new();
+    res.set_icon("assets/brand/riven.ico")
+        .set("ProductName", "Riven Launcher")
+        .set("FileDescription", "Riven Launcher")
+        .set("CompanyName", "BX Team")
+        .set("LegalCopyright", "BX Team, GPL-3.0-or-later");
+    if let Err(e) = res.compile() {
+        println!("cargo:warning=cannot embed the Windows resources: {e}");
+    }
 }
 
 /// The version Cargo.lock pins for `name`, so the About page names what was really built.
