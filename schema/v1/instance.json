@@ -31,6 +31,17 @@
       "description": "Lets the player add their own mods to an instance installed from a pack.",
       "type": "boolean"
     },
+    "modrinth": {
+      "description": "The Modrinth modpack version this instance was installed from.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ModrinthPack"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "last_played": {
       "description": "RFC 3339.",
       "type": [
@@ -233,6 +244,23 @@
           ]
         }
       }
+    },
+    "ModrinthPack": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "description": "Project id.",
+          "type": "string"
+        },
+        "version": {
+          "description": "Version id.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "version"
+      ]
     }
   }
 }

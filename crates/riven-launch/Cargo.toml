@@ -19,6 +19,7 @@ md-5 = "0.11"
 percent-encoding.workspace = true
 reqwest.workspace = true
 riven-format.workspace = true
+riven-build.workspace = true
 riven-resolve.workspace = true
 riven-sources.workspace = true
 riven-sync.workspace = true

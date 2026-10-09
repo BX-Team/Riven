@@ -52,7 +52,10 @@ impl RivenApp {
         app.sync(window, cx);
         cx.defer(super::welcome::open_if_new);
         cx.defer(super::updater::check_at_startup);
-        AppState::global(cx).update(cx, |s, cx| s.load_skins(cx));
+        AppState::global(cx).update(cx, |s, cx| {
+            s.load_skins(cx);
+            s.check_modpacks(cx);
+        });
         app
     }
 

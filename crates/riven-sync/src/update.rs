@@ -20,6 +20,8 @@ pub struct Request {
     pub side: Option<InstallSide>,
     /// Group switches: `x`/`+x` on, `-x` off.
     pub groups: Vec<String>,
+    /// `source` is a newer build of the installed pack, even though it lives somewhere else.
+    pub replaces: bool,
 }
 
 pub enum Check {
@@ -142,7 +144,7 @@ pub async fn check(
 
     let installed = state
         .as_ref()
-        .filter(|s| remote::same_pack(&s.source, &origin));
+        .filter(|s| request.replaces || remote::same_pack(&s.source, &origin));
     let previous = installed.map(|s| s.groups.clone()).unwrap_or_default();
     let groups = install::choose_groups(&release, &previous, &request.groups)?;
     let planned = install::plan(

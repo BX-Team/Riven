@@ -7377,6 +7377,7 @@ dependencies = [
  "md-5 0.11.0",
  "percent-encoding",
  "reqwest",
+ "riven-build",
  "riven-format",
  "riven-resolve",
  "riven-sources",

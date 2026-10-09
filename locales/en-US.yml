@@ -107,6 +107,8 @@ time:
 launch:
   play: Play
   pack_current: Pack up to date
+  pack_newer: "%{version} is out"
+  update_pack: Update
   preparing: Preparing…
   stop: Stop
   running: "Running · %{time}"
@@ -258,6 +260,7 @@ instance_settings:
   pack_source: Link
   pack_version: Installed version
   pack_version_hint: The pack also checks for updates every time you press Play.
+  pack_version_modrinth: New Modrinth versions are installed only when you press Update.
   pack_check: Check now
   pack_checking: Checking…
   pack_current: Up to date

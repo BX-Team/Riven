@@ -170,11 +170,22 @@ pub struct Instance {
     /// Lets the player add their own mods to an instance installed from a pack.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub own_mods: bool,
+    /// The Modrinth modpack version this instance was installed from.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modrinth: Option<ModrinthPack>,
     /// RFC 3339.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_played: Option<String>,
     #[serde(default, skip_serializing_if = "is_zero")]
     pub play_seconds: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ModrinthPack {
+    /// Project id.
+    pub project: String,
+    /// Version id.
+    pub version: String,
 }
 
 fn is_zero(n: &u64) -> bool {

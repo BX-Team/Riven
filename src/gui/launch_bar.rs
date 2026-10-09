@@ -228,11 +228,12 @@ fn scanning(id: &str, done: usize, total: usize, window: &mut Window, cx: &mut A
         .into_any_element()
 }
 
+/// `pack` is the installed version and a newer one, when there is one.
 fn status(
     id: &str,
     phase: Option<Phase>,
     notice: Option<SharedString>,
-    pack: Option<String>,
+    pack: Option<(String, Option<String>)>,
     played: Option<String>,
     window: &mut Window,
     cx: &mut App,
@@ -245,8 +246,14 @@ fn status(
             .truncate()
             .child(text)
     };
-    let idle = match (&pack, played) {
-        (Some(version), _) => line(format!("{version} — {}", t!("launch.pack_current")), c.ok),
+    let idle = match (pack, played) {
+        (Some((version, newer)), _) => match newer {
+            Some(newer) => line(
+                format!("{version} — {}", t!("launch.pack_newer", version = newer)),
+                c.accent,
+            ),
+            None => line(format!("{version} — {}", t!("launch.pack_current")), c.ok),
+        },
         (None, Some(played)) => line(played, c.muted),
         (None, None) => div(),
     };
@@ -382,6 +389,7 @@ pub fn render(
         return div().into_any_element();
     };
     let pack = st.packs.get(id).cloned();
+    let newer = st.modpack_updates.get(id).map(|v| v.number.clone());
     let account = selected_account(st);
     let session = st.sessions.get(id);
     let phase = session.map(|s| s.phase.clone());
@@ -392,7 +400,15 @@ pub fn render(
         .is_some_and(|p| matches!(p, Phase::Working { .. } | Phase::Running { .. }));
     let status = match scan {
         Some((done, total)) if !busy => scanning(id, done, total, window, cx),
-        _ => status(id, phase, notice, pack, played(&instance), window, cx),
+        _ => status(
+            id,
+            phase,
+            notice,
+            pack.map(|p| (p, newer.clone())),
+            played(&instance),
+            window,
+            cx,
+        ),
     };
     let st = state.read(cx);
     let session = st.sessions.get(id);
@@ -438,6 +454,21 @@ pub fn render(
             h_flex()
                 .flex_none()
                 .gap(px(10.))
+                .when(newer.is_some() && !busy, |row| {
+                    let state = state.clone();
+                    let id = id.to_owned();
+                    row.child(
+                        Button::new("update-pack")
+                            .outline()
+                            .h(px(40.))
+                            .rounded(px(8.))
+                            .icon(IconName::Refresh)
+                            .label(t!("launch.update_pack"))
+                            .on_click(move |_, _, cx| {
+                                state.update(cx, |s, cx| s.update_modpack(&id, cx))
+                            }),
+                    )
+                })
                 .child(account_button(state, account.as_ref(), cx))
                 .child(button),
         )

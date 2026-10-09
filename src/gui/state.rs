@@ -38,6 +38,8 @@ pub struct AppState {
     pub sessions: HashMap<String, Session>,
     /// Bumped when an install or update changed an instance's files, so open views read them again.
     pub revisions: HashMap<String, u64>,
+    /// Newer Modrinth versions of the modpacks instances were installed from, by instance id.
+    pub modpack_updates: HashMap<String, riven_sources::Version>,
     /// `(read, to read)` while an instance's content files are hashed, by instance id.
     pub scans: HashMap<String, (usize, usize)>,
     pub(super) ticking: bool,
@@ -153,6 +155,7 @@ impl AppState {
             context_menu: None,
             sessions: HashMap::new(),
             scans: HashMap::new(),
+            modpack_updates: HashMap::new(),
             revisions: HashMap::new(),
             ticking: false,
             toasts: Vec::new(),
