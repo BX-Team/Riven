@@ -182,6 +182,9 @@ async fn execute(
         .args(&args)
         .current_dir(scratch)
         .stdin(std::process::Stdio::null());
+    // Without a console of our own, Windows would open one for every processor.
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000);
     let output = command.output().await.map_err(|source| Error::Spawn {
         program: java.to_owned(),
         source,
