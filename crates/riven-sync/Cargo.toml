@@ -8,6 +8,7 @@ repository.workspace = true
 
 [dependencies]
 dirs.workspace = true
+dunce.workspace = true
 futures-util.workspace = true
 hex.workspace = true
 reqwest.workspace = true

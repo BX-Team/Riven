@@ -11,6 +11,7 @@ chacha20poly1305 = "0.11.0"
 base64.workspace = true
 getrandom.workspace = true
 dirs.workspace = true
+dunce.workspace = true
 hex.workspace = true
 keyring = "4.2"
 lighty-launcher.workspace = true

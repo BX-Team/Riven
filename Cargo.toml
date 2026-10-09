@@ -18,6 +18,7 @@ riven-sources = { path = "crates/riven-sources" }
 riven-sync = { path = "crates/riven-sync" }
 base64 = "0.23"
 dirs = "7"
+dunce = "1"
 ed25519-dalek = "3"
 futures-util = "0.3"
 getrandom = "0.4"

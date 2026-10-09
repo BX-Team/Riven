@@ -238,11 +238,11 @@ pub fn url_file_name(url: &str) -> Result<String, AuthorError> {
 
 /// The pack path of a local file; files outside the repository are copied into `local/`.
 fn local_path(ws: &Workspace, file: &Path) -> Result<PackPath, AuthorError> {
-    let file = std::fs::canonicalize(file).map_err(io(file))?;
+    let file = dunce::canonicalize(file).map_err(io(file))?;
     if !file.is_file() {
         return Err(AuthorError::NotAFile(file));
     }
-    let root = std::fs::canonicalize(&ws.dir).map_err(io(&ws.dir))?;
+    let root = dunce::canonicalize(&ws.dir).map_err(io(&ws.dir))?;
     let relative = match file.strip_prefix(&root) {
         Ok(relative) => relative.to_owned(),
         Err(_) => {

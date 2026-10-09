@@ -82,7 +82,7 @@ fn prefix(repo: &gix::Repository, dir: &Path) -> Result<String, GitError> {
         .workdir()
         .ok_or_else(|| GitError::Read("the repository has no working tree".into()))?;
     let canonical = |p: &Path| {
-        std::fs::canonicalize(p).map_err(|source| GitError::Io {
+        dunce::canonicalize(p).map_err(|source| GitError::Io {
             path: p.to_owned(),
             source,
         })

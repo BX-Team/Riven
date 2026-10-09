@@ -96,7 +96,7 @@ pub async fn check(
             source,
         };
         let bytes = std::fs::read(&raw).map_err(io)?;
-        let origin = std::fs::canonicalize(&raw).map_err(io)?.display().to_string();
+        let origin = dunce::canonicalize(&raw).map_err(io)?.display().to_string();
         let digest = format!("sha256:{}", hex::encode(Sha256::digest(&bytes)));
         if let Some(s) = &state
             && remote::same_pack(&s.source, &origin)
