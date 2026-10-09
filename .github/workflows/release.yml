@@ -130,6 +130,40 @@ jobs:
       ref: ${{ needs.tag.outputs.sha }}
       release: ${{ needs.prepare.outputs.tag }}
 
+  cachix:
+    name: Push to Cachix (${{ matrix.system }})
+    needs: [tag]
+    if: ${{ ! inputs.prerelease }}
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            os: ubuntu-latest
+          - system: aarch64-linux
+            os: ubuntu-24.04-arm
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.tag.outputs.sha }}
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Set up Cachix
+        uses: cachix/cachix-action@v17
+        with:
+          name: bx-team
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      - name: Build and push the flake packages
+        run: nix build --print-build-logs .#riven .#riven-cli
+
   publish:
     name: Publish the release
     needs: [prepare, tag, package]

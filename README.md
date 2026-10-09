@@ -81,6 +81,21 @@ Run the launcher without installing:
 nix run github:BX-Team/Riven
 ```
 
+Releases are built for `x86_64-linux` and `aarch64-linux` and pushed to Cachix, so a tagged version downloads instead of compiling:
+
+```nix
+nix = {
+  settings = {
+    substituters = [
+      "https://bx-team.cachix.org"
+    ];
+    trusted-public-keys = [
+      "bx-team.cachix.org-1:tnGNc1rsS8QOav+VGxXCZzf/Y0/SGchOwVCCBA/eG6E="
+    ];
+  };
+};
+```
+
 The flake exposes `packages.<system>.riven` and `riven-cli`, plus `lib.mkModpack`, which turns a pack repository into a server's mods and configs — every file is its own `fetchurl`, no `packHash`:
 
 ```nix
