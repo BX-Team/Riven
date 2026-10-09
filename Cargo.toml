@@ -1,5 +1,6 @@
 [workspace]
 members = ["crates/*"]
+exclude = ["patches/*"]
 
 [workspace.package]
 version = "0.1.0"
@@ -135,3 +136,7 @@ libxkbcommon = "*"
 libxkbcommon-x11 = "*"
 libwayland-client = "*"
 vulkan-loader = "*"
+
+# Hides Forge/NeoForge processor consoles on Windows; drop once upstream does.
+[patch.crates-io]
+lighty-launch = { path = "patches/lighty-launch" }

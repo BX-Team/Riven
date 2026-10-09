@@ -78,6 +78,7 @@
                 ./Cargo.lock
                 ./src
                 ./crates
+                ./patches
                 ./build.rs
                 ./assets
                 ./packaging
