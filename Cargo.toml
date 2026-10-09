@@ -95,3 +95,42 @@ url.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_System_Console"] }
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
+[package.metadata.deb]
+name = "riven"
+maintainer = "BX Team"
+copyright = "BX Team, GPL-3.0-or-later"
+license-file = ["LICENSE", "0"]
+extended-description = "Minecraft launcher with its own modpack format: install and update packs by link, author them from the CLI or the developer section."
+section = "games"
+priority = "optional"
+depends = "$auto, libvulkan1, libwayland-client0, libxkbcommon-x11-0"
+recommends = "git"
+assets = [
+    ["target/release/riven", "usr/bin/", "755"],
+    ["packaging/linux/riven.desktop", "usr/share/applications/", "644"],
+    ["packaging/linux/riven-mime.xml", "usr/share/mime/packages/riven.xml", "644"],
+    ["assets/brand/riven.svg", "usr/share/icons/hicolor/scalable/apps/riven.svg", "644"],
+    ["assets/brand/riven-512.png", "usr/share/icons/hicolor/512x512/apps/riven.png", "644"],
+]
+
+[package.metadata.generate-rpm]
+name = "riven"
+summary = "Minecraft launcher and modpack toolkit"
+assets = [
+    { source = "target/release/riven", dest = "/usr/bin/riven", mode = "755" },
+    { source = "packaging/linux/riven.desktop", dest = "/usr/share/applications/riven.desktop", mode = "644" },
+    { source = "packaging/linux/riven-mime.xml", dest = "/usr/share/mime/packages/riven.xml", mode = "644" },
+    { source = "assets/brand/riven.svg", dest = "/usr/share/icons/hicolor/scalable/apps/riven.svg", mode = "644" },
+    { source = "assets/brand/riven-512.png", dest = "/usr/share/icons/hicolor/512x512/apps/riven.png", mode = "644" },
+]
+
+[package.metadata.generate-rpm.requires]
+libxcb = "*"
+libxkbcommon = "*"
+libxkbcommon-x11 = "*"
+libwayland-client = "*"
+vulkan-loader = "*"

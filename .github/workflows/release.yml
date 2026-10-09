@@ -1,0 +1,233 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release (e.g. 0.2.0)
+        required: true
+        type: string
+      description:
+        description: "Optional summary at the top of the release notes. Use \\n for a line break."
+        required: false
+        default: ""
+        type: string
+      prerelease:
+        description: Mark as a pre-release (the launcher's updater skips those)
+        default: false
+        type: boolean
+      draft:
+        description: Leave the release as a draft
+        default: false
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Resolve the version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      tag: ${{ steps.resolve.outputs.tag }}
+      previous: ${{ steps.resolve.outputs.previous }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate the version and find the previous tag
+        id: resolve
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::'$VERSION' is not a semantic version"
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::tag v$VERSION already exists"
+            exit 1
+          fi
+          {
+            echo "version=$VERSION"
+            echo "tag=v$VERSION"
+            echo "previous=$(git tag --list 'v*' --sort=-v:refname | head -n1)"
+          } >> "$GITHUB_OUTPUT"
+
+  ci:
+    name: CI
+    needs: [prepare]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+
+  tag:
+    name: Tag the release
+    needs: [prepare, ci]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.push.outputs.sha }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
+
+      - name: Set the version in Cargo.toml and Cargo.lock
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          sed -i "0,/^version = \".*\"$/s//version = \"$VERSION\"/" Cargo.toml
+          for crate in riven $(ls crates); do
+            sed -i "/^name = \"$crate\"$/{n;s/^version = .*/version = \"$VERSION\"/}" Cargo.lock
+          done
+          grep -q "^version = \"$VERSION\"$" Cargo.toml
+          cargo metadata --locked --format-version 1 >/dev/null
+
+      - name: Commit the bump and push the tag
+        id: push
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Cargo.toml Cargo.lock
+          git commit -m "chore(release): bump version to $VERSION"
+          git tag -a "$TAG" -m "Riven $VERSION"
+          git push origin HEAD:"$GITHUB_REF_NAME"
+          git push origin "$TAG"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Open the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          gh release create "$TAG" --draft --verify-tag \
+            --title "Riven $VERSION" --notes "Assets are still uploading."
+
+  package:
+    name: Package
+    needs: [prepare, tag]
+    permissions:
+      contents: write
+    uses: ./.github/workflows/package.yml
+    with:
+      ref: ${{ needs.tag.outputs.sha }}
+      release: ${{ needs.prepare.outputs.tag }}
+
+  publish:
+    name: Publish the release
+    needs: [prepare, tag, package]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.tag.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify the release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          rpm="${VERSION//-/\~}"
+          have="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
+          printf 'attached:\n%s\n\n' "$have"
+          missing=0
+          for asset in \
+            riven-x86_64-linux.tar.gz riven-aarch64-linux.tar.gz \
+            riven-cli-x86_64-linux.tar.gz riven-cli-aarch64-linux.tar.gz \
+            Riven-x86_64.AppImage Riven-aarch64.AppImage \
+            "riven_${VERSION}_amd64.deb" "riven_${VERSION}_arm64.deb" \
+            "riven-${rpm}-1.x86_64.rpm" "riven-${rpm}-1.aarch64.rpm" \
+            "riven-${VERSION//-/_}-1-x86_64.pkg.tar.zst" \
+            riven-x86_64-windows.zip riven-cli-x86_64-windows.zip Riven-Setup-x86_64.exe \
+            Riven-macos.dmg Riven-macos.app.tar.gz riven-cli-macos.tar.gz; do
+            if ! printf '%s\n' "$have" | grep -qxF "$asset"; then
+              echo "::error::missing release asset '$asset'"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Build the changelog
+        id: changelog
+        # The first release has no earlier tag to list commits from.
+        continue-on-error: true
+        uses: mikepenz/release-changelog-builder-action@v6
+        with:
+          configuration: .github/changelog_configuration.json
+          mode: COMMIT
+          fromTag: ${{ needs.prepare.outputs.previous }}
+          toTag: ${{ needs.prepare.outputs.tag }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Compose the release notes
+        env:
+          DESCRIPTION: ${{ inputs.description }}
+          CHANGELOG: ${{ steps.changelog.outputs.changelog }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          rpm="${VERSION//-/\~}"
+          {
+            if [ -n "$(printf '%s' "$DESCRIPTION" | tr -d '[:space:]')" ]; then
+              # %b turns a typed '\n' into a line break; the dispatch form is a single line.
+              printf '%b\n\n' "$DESCRIPTION"
+            fi
+            printf '%s\n\n' "$CHANGELOG"
+            cat <<'EOF'
+          ## 📦 Downloads
+
+          | System | File |
+          | --- | --- |
+          | Windows | `Riven-Setup-x86_64.exe` (installer) or `riven-x86_64-windows.zip` (portable) |
+          | macOS 11+ (Apple silicon and Intel) | `Riven-macos.dmg` |
+          | Linux, any distribution | `Riven-x86_64.AppImage` / `Riven-aarch64.AppImage` |
+          EOF
+            echo "| Debian, Ubuntu | \`riven_${VERSION}_amd64.deb\` / \`riven_${VERSION}_arm64.deb\` |"
+            echo "| Fedora, openSUSE | \`riven-${rpm}-1.x86_64.rpm\` / \`riven-${rpm}-1.aarch64.rpm\` |"
+            echo "| Arch | \`riven-${VERSION//-/_}-1-x86_64.pkg.tar.zst\` |"
+            cat <<'EOF'
+          | NixOS | `nix run github:BX-Team/Riven` |
+          | Servers (no GUI) | `riven-cli-<arch>-<os>` archives |
+
+          The macOS app is not notarized: open it once with right-click → Open.
+          EOF
+          } > notes.md
+
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          DRAFT: ${{ inputs.draft }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          gh release edit "$TAG" \
+            --title "Riven $VERSION" \
+            --notes-file notes.md \
+            --draft="$DRAFT" \
+            --prerelease="$PRERELEASE" \
+            --latest="$([ "$PRERELEASE" = true ] && echo false || echo true)"
+          cat notes.md >> "$GITHUB_STEP_SUMMARY"

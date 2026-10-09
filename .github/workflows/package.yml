@@ -1,0 +1,291 @@
+name: Package
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to build
+        required: true
+        type: string
+      release:
+        description: Tag of the draft release the files are attached to
+        required: false
+        default: ""
+        type: string
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
+
+jobs:
+  linux:
+    name: Linux (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            deb: amd64
+            os: ubuntu-22.04
+          - arch: aarch64
+            deb: arm64
+            os: ubuntu-22.04-arm
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          key: package-linux-${{ matrix.arch }}
+
+      - name: Install the GUI system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig-dev libwayland-dev libxkbcommon-x11-dev \
+            libx11-xcb-dev libvulkan1 libasound2-dev desktop-file-utils
+
+      - name: Install the packaging tools
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb,cargo-generate-rpm
+
+      - name: Read the version
+        id: version
+        shell: bash
+        run: |
+          version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "riven") | .version')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "rpm=${version//-/\~}" >> "$GITHUB_OUTPUT"
+
+      - name: Build riven and riven-cli
+        run: |
+          cargo build --release --locked
+          cargo build --release --locked --no-default-features --features cli --target-dir target/cli
+
+      - name: Smoke-test the binaries
+        run: |
+          target/release/riven --version
+          target/cli/release/riven --version
+
+      - name: Archives, deb and rpm
+        env:
+          ARCH: ${{ matrix.arch }}
+          DEB: ${{ matrix.deb }}
+          VERSION: ${{ steps.version.outputs.version }}
+          RPM: ${{ steps.version.outputs.rpm }}
+        run: |
+          mkdir -p out
+          desktop-file-validate packaging/linux/riven.desktop
+          tar -C target/release -czf "out/riven-$ARCH-linux.tar.gz" riven
+          tar -C target/cli/release -czf "out/riven-cli-$ARCH-linux.tar.gz" riven
+          cargo deb --no-build --no-strip --output "out/riven_${VERSION}_${DEB}.deb"
+          cargo generate-rpm -s "version = \"$RPM\""
+          cp target/generate-rpm/*.rpm "out/riven-${RPM}-1.${ARCH}.rpm"
+
+      - name: AppImage
+        env:
+          ARCH: ${{ matrix.arch }}
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: |
+          app=AppDir
+          install -Dm755 target/release/riven "$app/usr/bin/riven"
+          install -Dm644 packaging/linux/riven.desktop "$app/usr/share/applications/riven.desktop"
+          install -Dm644 packaging/linux/riven-mime.xml "$app/usr/share/mime/packages/riven.xml"
+          install -Dm644 assets/brand/riven-512.png "$app/usr/share/icons/hicolor/512x512/apps/riven.png"
+          install -Dm644 assets/brand/riven.svg "$app/usr/share/icons/hicolor/scalable/apps/riven.svg"
+          cp packaging/linux/riven.desktop "$app/riven.desktop"
+          cp assets/brand/riven-512.png "$app/riven.png"
+          ln -s usr/bin/riven "$app/AppRun"
+          curl -fsSL -o appimagetool \
+            "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-$ARCH.AppImage"
+          chmod +x appimagetool
+          ./appimagetool --no-appstream "$app" "out/Riven-$ARCH.AppImage"
+
+      - name: Arch package
+        if: matrix.arch == 'x86_64'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          pkg=packaging/arch
+          cp target/release/riven packaging/linux/riven.desktop packaging/linux/riven-mime.xml \
+            assets/brand/riven.svg assets/brand/riven-512.png "$pkg/"
+          docker run --rm -v "$PWD/$pkg:/pkg" -e VER="$VERSION" archlinux:latest bash -euc '
+            pacman -Sy --noconfirm --needed base-devel >/dev/null
+            useradd -m builder
+            cp -r /pkg /home/builder/pkg && chown -R builder /home/builder/pkg
+            cd /home/builder/pkg
+            sed -i "s/^pkgver=.*/pkgver=${VER//-/_}/" PKGBUILD
+            sudo -u builder makepkg -f --nodeps
+            cp ./*.pkg.tar.zst /pkg/
+          '
+          cp "$pkg"/*.pkg.tar.zst out/
+
+      - name: Upload the workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: riven-linux-${{ matrix.arch }}
+          path: out/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Attach to the release
+        if: inputs.release != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release }}
+        run: gh release upload "$TAG" out/* --clobber --repo "$GITHUB_REPOSITORY"
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          key: package-windows
+
+      - name: Read the version
+        id: version
+        shell: bash
+        run: |
+          version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "riven") | .version')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build riven and riven-cli
+        run: |
+          cargo build --release --locked
+          cargo build --release --locked --no-default-features --features cli --target-dir target/cli
+
+      - name: Smoke-test the CLI
+        run: target/cli/release/riven.exe --version
+
+      - name: Archives and installer
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          Compress-Archive -Path target/release/riven.exe -DestinationPath out/riven-x86_64-windows.zip -Force
+          Compress-Archive -Path target/cli/release/riven.exe -DestinationPath out/riven-cli-x86_64-windows.zip -Force
+          choco install nsis -y --no-progress
+          $exe = (Resolve-Path target/release/riven.exe).Path
+          $setup = Join-Path (Resolve-Path out).Path "Riven-Setup-x86_64.exe"
+          $version = $env:VERSION -replace '-.*$', ''
+          & "C:\Program Files (x86)\NSIS\makensis.exe" "/DVERSION=$version" "/DEXE=$exe" "/DOUT=$setup" packaging\windows\riven.nsi
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload the workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: riven-windows
+          path: out/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Attach to the release
+        if: inputs.release != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release }}
+        shell: bash
+        run: gh release upload "$TAG" out/* --clobber --repo "$GITHUB_REPOSITORY"
+
+  macos:
+    name: macOS (universal)
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          key: package-macos
+
+      - name: Read the version
+        id: version
+        run: |
+          version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "riven") | .version')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build riven and riven-cli for both architectures
+        run: |
+          for target in aarch64-apple-darwin x86_64-apple-darwin; do
+            cargo build --release --locked --target "$target"
+            cargo build --release --locked --no-default-features --features cli --target "$target" --target-dir target/cli
+          done
+          mkdir -p universal/cli
+          lipo -create -output universal/riven \
+            target/aarch64-apple-darwin/release/riven target/x86_64-apple-darwin/release/riven
+          lipo -create -output universal/cli/riven \
+            target/cli/aarch64-apple-darwin/release/riven target/cli/x86_64-apple-darwin/release/riven
+          universal/riven --version
+          universal/cli/riven --version
+
+      - name: App bundle, disk image and archives
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p out
+          app="bundle/Riven Launcher.app"
+          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+          cp universal/riven "$app/Contents/MacOS/riven"
+          cp assets/brand/riven.icns "$app/Contents/Resources/riven.icns"
+          sed "s/@VERSION@/$VERSION/g" packaging/macos/Info.plist > "$app/Contents/Info.plist"
+          plutil -lint "$app/Contents/Info.plist"
+          codesign --force --deep --sign - "$app"
+          tar -C bundle -czf out/Riven-macos.app.tar.gz "Riven Launcher.app"
+          ln -s /Applications bundle/Applications
+          hdiutil create -volname "Riven Launcher" -srcfolder bundle -ov -format UDZO out/Riven-macos.dmg
+          codesign --force --sign - universal/cli/riven
+          tar -C universal/cli -czf out/riven-cli-macos.tar.gz riven
+
+      - name: Upload the workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: riven-macos
+          path: out/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Attach to the release
+        if: inputs.release != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release }}
+        run: gh release upload "$TAG" out/* --clobber --repo "$GITHUB_REPOSITORY"

@@ -5,11 +5,12 @@ on:
     branches: ["master"]
   pull_request:
     branches: ["master"]
+  workflow_call:
 
 permissions: {}
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:

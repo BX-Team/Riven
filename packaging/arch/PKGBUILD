@@ -1,0 +1,30 @@
+# Maintainer: BX Team
+#
+# Packs the riven binary CI built next to this file; CI sets pkgver.
+pkgname=riven
+pkgver=0.0.0
+pkgrel=1
+pkgdesc="Minecraft launcher and modpack toolkit"
+arch=('x86_64')
+url="https://github.com/BX-Team/Riven"
+license=('GPL-3.0-or-later')
+depends=(
+  'gcc-libs'
+  'glibc'
+  'libxcb'
+  'libxkbcommon'
+  'libxkbcommon-x11'
+  'wayland'
+  'vulkan-icd-loader'
+)
+optdepends=('git: commit and push from the developer section')
+conflicts=('riven-bin')
+options=('!strip' '!debug')
+
+package() {
+  install -Dm755 "$startdir/riven"            "$pkgdir/usr/bin/riven"
+  install -Dm644 "$startdir/riven.desktop"    "$pkgdir/usr/share/applications/riven.desktop"
+  install -Dm644 "$startdir/riven-mime.xml"   "$pkgdir/usr/share/mime/packages/riven.xml"
+  install -Dm644 "$startdir/riven.svg"        "$pkgdir/usr/share/icons/hicolor/scalable/apps/riven.svg"
+  install -Dm644 "$startdir/riven-512.png"    "$pkgdir/usr/share/icons/hicolor/512x512/apps/riven.png"
+}
