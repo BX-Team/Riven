@@ -40,11 +40,11 @@ pub fn detect_kind(filename: &str, bytes: &[u8]) -> Option<Kind> {
         return None;
     }
     let zip = zip::ZipArchive::new(Cursor::new(bytes)).ok()?;
-    let names: Vec<&str> = zip.file_names().collect();
+    let names: Vec<_> = zip.file_names().collect::<Result<_, _>>().ok()?;
     let has_dir = |dir: &str| names.iter().any(|n| n.starts_with(dir));
     if has_dir("shaders/") {
         Some(Kind::ShaderPack)
-    } else if names.contains(&"pack.mcmeta") {
+    } else if names.iter().any(|n| n == "pack.mcmeta") {
         if has_dir("data/") && !has_dir("assets/") {
             Some(Kind::DataPack)
         } else {

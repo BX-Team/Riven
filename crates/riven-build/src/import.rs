@@ -353,7 +353,7 @@ pub(crate) fn read_overrides(
         if file.is_dir() {
             continue;
         }
-        let name = file.name().to_owned();
+        let name = file.name()?.into_owned();
         let Some((scope, rest)) = prefixes
             .iter()
             .find_map(|(prefix, scope)| name.strip_prefix(prefix).map(|rest| (*scope, rest)))

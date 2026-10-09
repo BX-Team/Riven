@@ -253,7 +253,7 @@ pub fn read_archive(archive: &[u8], store: &crate::Store) -> Result<Release, Syn
     let release: Release = riven_format::from_str(&text)?;
     for i in 0..zip.len() {
         let mut file = zip.by_index(i).map_err(bad)?;
-        let name = file.name().to_owned();
+        let name = file.name().map_err(bad)?.into_owned();
         let Some(sha512) = name
             .strip_prefix("blobs/")
             .and_then(|r| r.split('/').nth(1))
