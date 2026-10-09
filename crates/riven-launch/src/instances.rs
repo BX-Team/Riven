@@ -83,6 +83,7 @@ impl Instances {
             loader,
             overrides: LaunchOverrides::default(),
             own_mods: false,
+            modrinth: None,
             last_played: None,
             play_seconds: 0,
         };
@@ -109,6 +110,7 @@ impl Instances {
             loader,
             overrides: LaunchOverrides::default(),
             own_mods: false,
+            modrinth: None,
             last_played: None,
             play_seconds: 0,
         };

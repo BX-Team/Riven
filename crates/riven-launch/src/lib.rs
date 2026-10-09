@@ -3,6 +3,7 @@ pub mod game;
 pub mod instances;
 pub mod java;
 pub mod logs;
+pub mod modpack;
 pub mod mods;
 pub mod own;
 pub mod prism;

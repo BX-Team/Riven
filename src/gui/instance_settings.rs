@@ -62,6 +62,7 @@ enum Remote {
 /// The pack an instance was installed from, and the changes to it waiting to be applied.
 struct PackPanel {
     state: State,
+    modrinth: Option<riven_format::ModrinthPack>,
     channel: String,
     groups: BTreeMap<String, bool>,
     remote: Remote,
@@ -137,6 +138,7 @@ impl InstanceSettings {
                 loader: None,
                 overrides: Default::default(),
                 own_mods: false,
+                modrinth: None,
                 last_played: None,
                 play_seconds: 0,
             }
@@ -280,6 +282,7 @@ impl InstanceSettings {
                     .to_owned(),
                 groups: state.groups.clone(),
                 state,
+                modrinth: instance.modrinth.clone(),
                 remote: Remote::Unchecked,
             });
         let mut view = Self {
@@ -944,6 +947,10 @@ impl InstanceSettings {
         };
         pack.remote = Remote::Checking;
         let source = Self::pointer(pack);
+        if pack.modrinth.is_some() {
+            let id = self.id.clone();
+            AppState::global(cx).update(cx, |s, cx| s.check_modpack(&id, cx));
+        }
         cx.notify();
         cx.spawn(async move |this, cx| {
             let found = runtime::spawn(async move {
@@ -987,12 +994,19 @@ impl InstanceSettings {
         let Some(pack) = &self.pack else {
             return;
         };
+        let id = self.id.clone();
+        if pack.modrinth.is_some() && Self::group_changes(pack).is_empty() {
+            AppState::global(cx).update(cx, |s, cx| {
+                s.update_modpack(&id, cx);
+                s.close_modal(cx);
+            });
+            return;
+        }
         let request = Request {
             source: Some(Self::pointer(pack)),
             groups: Self::group_changes(pack),
             ..Request::default()
         };
-        let id = self.id.clone();
         AppState::global(cx).update(cx, |s, cx| {
             s.install_pack(&id, request, cx);
             s.toast(
@@ -1016,7 +1030,10 @@ impl InstanceSettings {
             .get(&self.id)
             .is_some_and(super::session::Session::busy);
         let view = cx.entity().downgrade();
-        let source = pack.state.source.clone();
+        let source = match &pack.modrinth {
+            Some(m) => format!("https://modrinth.com/modpack/{}", m.project),
+            None => pack.state.source.trim_start_matches(r"\\?\").to_owned(),
+        };
         let copy = source.clone();
         let channels: Vec<MenuItem> = CHANNELS
             .iter()
@@ -1028,8 +1045,13 @@ impl InstanceSettings {
             .map(|c| MenuItem::new(c.clone(), c))
             .collect();
         let has_channels = remote::channel_of(&pack.state.source).is_some();
-        let latest = match &pack.remote {
-            Remote::Ready(release) => Some(release.version.clone()),
+        let latest = match (&pack.remote, &pack.modrinth) {
+            (Remote::Ready(_), Some(_)) => AppState::global(cx)
+                .read(cx)
+                .modpack_updates
+                .get(&self.id)
+                .map(|v| v.number.clone()),
+            (Remote::Ready(release), None) => Some(release.version.clone()),
             _ => None,
         };
         let newer = latest.as_ref().is_some_and(|v| *v != pack.state.version);
@@ -1142,7 +1164,11 @@ impl InstanceSettings {
                     ))
                     .row(setting_row(
                         t!("instance_settings.pack_version").to_string(),
-                        Some(t!("instance_settings.pack_version_hint").into()),
+                        Some(if pack.modrinth.is_some() {
+                            t!("instance_settings.pack_version_modrinth").into()
+                        } else {
+                            t!("instance_settings.pack_version_hint").into()
+                        }),
                         h_flex()
                             .gap(px(12.))
                             .child(

@@ -107,6 +107,8 @@ time:
 launch:
   play: Играть
   pack_current: Пак актуален
+  pack_newer: "Доступна %{version}"
+  update_pack: Обновить
   preparing: Подготовка…
   stop: Остановить
   running: "Запущено · %{time}"
@@ -258,6 +260,7 @@ instance_settings:
   pack_source: Ссылка
   pack_version: Установленная версия
   pack_version_hint: Пак также проверяет обновления при каждом нажатии «Играть».
+  pack_version_modrinth: Новые версии с Modrinth ставятся только по кнопке «Обновить».
   pack_check: Проверить
   pack_checking: Проверяю…
   pack_current: Актуально

@@ -151,6 +151,7 @@ impl AppState {
                 }
                 *s.revisions.entry(id.clone()).or_default() += 1;
                 s.reload_instances(cx);
+                s.check_modpack(&id, cx);
             });
         })
         .detach();
@@ -248,6 +249,64 @@ impl AppState {
                 })
                 .await?;
                 game::play(&store, &instance, &account, &defaults, move |p| {
+                    let _ = tx.send(p);
+                })
+                .await
+            },
+            cx,
+        );
+    }
+
+    /// Looks for newer Modrinth versions of every instance's modpack.
+    pub fn check_modpacks(&mut self, cx: &mut Context<Self>) {
+        let ids: Vec<String> = self.instances.iter().map(|(id, _)| id.clone()).collect();
+        for id in ids {
+            self.check_modpack(&id, cx);
+        }
+    }
+
+    /// Looks for a newer Modrinth version of the modpack an instance was installed from.
+    pub fn check_modpack(&mut self, id: &str, cx: &mut Context<Self>) {
+        let Some(pack) = self.instance(id).and_then(|i| i.modrinth.clone()) else {
+            self.modpack_updates.remove(id);
+            return;
+        };
+        let found = runtime::spawn(async move { riven_launch::modpack::newer(&pack).await });
+        let id = id.to_owned();
+        cx.spawn(async move |this, cx| {
+            let found = match found.await {
+                Ok(Ok(found)) => found,
+                Ok(Err(e)) => {
+                    tracing::warn!("cannot check {id} for updates: {e}");
+                    return;
+                }
+                Err(_) => return,
+            };
+            let _ = this.update(cx, |s, cx| {
+                match found {
+                    Some(version) => s.modpack_updates.insert(id, version),
+                    None => s.modpack_updates.remove(&id),
+                };
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// Installs the newer Modrinth version found for an instance's modpack.
+    pub fn update_modpack(&mut self, id: &str, cx: &mut Context<Self>) {
+        if self.sessions.get(id).is_some_and(Session::busy) {
+            return;
+        }
+        let (Some(store), Some(version)) = (self.store.clone(), self.modpack_updates.remove(id))
+        else {
+            return;
+        };
+        let instance = id.to_owned();
+        self.run_session(
+            id,
+            move |tx| async move {
+                riven_launch::modpack::update(&store, &instance, version, move |p| {
                     let _ = tx.send(p);
                 })
                 .await

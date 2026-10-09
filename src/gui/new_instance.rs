@@ -68,6 +68,7 @@ struct Prepared {
     release: Release,
     source: String,
     icon: Option<Vec<u8>>,
+    modrinth: Option<riven_format::ModrinthPack>,
 }
 
 /// "New instance": a Modrinth modpack, an empty game, or a pack from a link or file.
@@ -140,9 +141,22 @@ fn target_label(game_versions: &[String], loaders: &[String]) -> String {
 }
 
 fn packs_dir() -> Result<PathBuf, String> {
-    riven_sync::data_dir()
-        .map(|d| d.join("packs"))
-        .ok_or_else(|| t!("new_instance.no_data_dir").to_string())
+    riven_launch::modpack::packs_dir().map_err(|_| t!("new_instance.no_data_dir").to_string())
+}
+
+/// Copies a picked `.riven` next to converted packs, so the instance keeps working once the original is gone.
+fn keep_archive(path: &std::path::Path) -> Result<String, String> {
+    let dir = packs_dir()?;
+    if path.parent() == Some(dir.as_path()) {
+        return Ok(path.display().to_string());
+    }
+    let name = path
+        .file_name()
+        .ok_or_else(|| t!("new_instance.bad_file").to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let kept = dir.join(name);
+    std::fs::copy(path, &kept).map_err(|e| format!("{}: {e}", path.display()))?;
+    Ok(kept.display().to_string())
 }
 
 /// Reads the release a link, a `.riven` file or a converted `.mrpack` points at.
@@ -501,9 +515,13 @@ impl NewInstance {
             return;
         };
         let (tx, rx) = mpsc::unbounded_channel();
-        let stem = format!("{}-{}", hit.slug, version.id);
+        let stem = format!("{}-{}", hit.id, version.id);
         let icon_url = hit.icon_url.clone();
         let title = hit.title.clone();
+        let modrinth = riven_format::ModrinthPack {
+            project: hit.id.clone(),
+            version: version.id.clone(),
+        };
         self.run(
             t!("new_instance.preparing").into(),
             async move {
@@ -513,6 +531,7 @@ impl NewInstance {
                     release,
                     source,
                     icon,
+                    modrinth: Some(modrinth),
                 })
             },
             Some(rx),
@@ -533,6 +552,7 @@ impl NewInstance {
                     release: preview(link.clone()).await?,
                     source: link,
                     icon: None,
+                    modrinth: None,
                 })
             },
             None,
@@ -583,10 +603,12 @@ impl NewInstance {
             "riven" => self.run(
                 t!("new_instance.checking").into(),
                 async move {
+                    let release = preview(shown).await?;
                     Ok(Prepared {
-                        release: preview(shown.clone()).await?,
-                        source: shown,
+                        release,
+                        source: keep_archive(&path)?,
                         icon: None,
+                        modrinth: None,
                     })
                 },
                 None,
@@ -607,6 +629,7 @@ impl NewInstance {
                             release,
                             source,
                             icon: None,
+                            modrinth: None,
                         })
                     },
                     Some(rx),
@@ -655,6 +678,7 @@ impl NewInstance {
             release,
             source,
             icon,
+            modrinth,
         } = prepared;
         let typed = self.name.read(cx).value().trim().to_string();
         let name = match () {
@@ -671,6 +695,14 @@ impl NewInstance {
         };
         if let Some(png) = icon
             && let Err(e) = store.set_icon(&id, &png)
+        {
+            tracing::warn!("{e}");
+        }
+        if modrinth.is_some()
+            && let Err(e) = store.load(&id).and_then(|mut instance| {
+                instance.modrinth = modrinth;
+                store.save(&id, &instance)
+            })
         {
             tracing::warn!("{e}");
         }
