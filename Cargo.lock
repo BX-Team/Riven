@@ -4821,9 +4821,9 @@ dependencies = [
 
 [[package]]
 name = "junction"
-version = "1.4.2"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cfc352a66ba903c23239ef51e809508b6fc2b0f90e3476ac7a9ff47e863ae95"
+checksum = "cde48f36530cbd91b65f050101e6c056d6eb743cea2a8f0f19beef69c6742ff8"
 dependencies = [
  "scopeguard",
  "windows-sys 0.61.2",
@@ -5017,7 +5017,7 @@ dependencies = [
  "tokio-tar",
  "tokio-util",
  "tracing",
- "zip",
+ "zip 8.6.0",
 ]
 
 [[package]]
@@ -5079,7 +5079,7 @@ dependencies = [
  "tracing",
  "windows 0.62.2",
  "x11rb 0.14.0",
- "zip",
+ "zip 8.6.0",
 ]
 
 [[package]]
@@ -5120,7 +5120,7 @@ dependencies = [
  "tokio",
  "tracing",
  "version-compare",
- "zip",
+ "zip 8.6.0",
 ]
 
 [[package]]
@@ -7333,7 +7333,7 @@ dependencies = [
  "tokio",
  "toml 1.1.6+spec-1.1.0",
  "url",
- "zip",
+ "zip 9.0.0",
 ]
 
 [[package]]
@@ -7380,7 +7380,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
- "zip",
+ "zip 9.0.0",
 ]
 
 [[package]]
@@ -7394,7 +7394,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "toml 1.1.6+spec-1.1.0",
- "zip",
+ "zip 9.0.0",
 ]
 
 [[package]]
@@ -7428,7 +7428,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
- "zip",
+ "zip 9.0.0",
 ]
 
 [[package]]
@@ -10875,6 +10875,19 @@ dependencies = [
  "zeroize",
  "zopfli",
  "zstd 0.13.3",
+]
+
+[[package]]
+name = "zip"
+version = "9.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "711e8c9646791c49b7eb799a19c4ae70a9b8372ddc6a1fa4778defd1e2aa5d5e"
+dependencies = [
+ "crc32fast",
+ "flate2",
+ "indexmap",
+ "memchr",
+ "typed-path",
 ]
 
 [[package]]
