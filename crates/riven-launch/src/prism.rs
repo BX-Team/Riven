@@ -46,9 +46,10 @@ fn layout(
 ) -> Result<Layout, LaunchError> {
     let pack = archive
         .file_names()
+        .filter_map(Result::ok)
         .filter(|n| n.ends_with("mmc-pack.json"))
         .min_by_key(|n| n.len())
-        .map(str::to_owned)
+        .map(std::borrow::Cow::into_owned)
         .ok_or_else(|| bad(zip, "no mmc-pack.json; not a Prism or MultiMC export"))?;
     let root = pack.trim_end_matches("mmc-pack.json").to_owned();
     if !(root.is_empty() || root.matches('/').count() == 1) {
@@ -121,7 +122,8 @@ pub fn import(store: &Instances, zip: &Path) -> Result<String, LaunchError> {
             if file.is_dir() {
                 continue;
             }
-            let Some(rel) = game_path(file.name(), &layout.root).map(Path::to_owned) else {
+            let name = file.name().map_err(|e| bad(zip, e))?;
+            let Some(rel) = game_path(&name, &layout.root).map(Path::to_owned) else {
                 continue;
             };
             let target = game.join(rel);

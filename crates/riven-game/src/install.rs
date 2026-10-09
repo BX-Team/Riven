@@ -427,7 +427,7 @@ fn extract_native(native: &Native, target: &Path) -> Result<(), Error> {
             path: jar.clone(),
             source,
         })?;
-        let name = entry.name().to_owned();
+        let name = entry.name().map(|n| n.into_owned()).unwrap_or_default();
         if entry.is_dir() || native.exclude.iter().any(|e| name.starts_with(e.as_str())) {
             continue;
         }
