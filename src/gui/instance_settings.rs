@@ -19,6 +19,7 @@ use rust_i18n::t;
 use super::java_picker::JavaPicker;
 use super::memory_slider::MemorySlider;
 use super::runtime;
+use super::settings::Tweak;
 use super::state::AppState;
 use super::theme::ActiveTheme as _;
 use super::ui::{
@@ -227,16 +228,6 @@ impl InstanceSettings {
                 Input::Area(ui::textarea(
                     commands.pre_launch.clone().unwrap_or_default(),
                     (3, 12),
-                    window,
-                    cx,
-                )),
-            ),
-            (
-                Group::Commands,
-                t!("instance_settings.wrapper").into(),
-                Input::Area(ui::textarea(
-                    commands.wrapper.clone().unwrap_or_default(),
-                    (1, 3),
                     window,
                     cx,
                 )),
@@ -454,13 +445,10 @@ impl InstanceSettings {
                 fullscreen: current.fullscreen,
             });
         }
-        if o.commands.is_some() {
+        if let Some(current) = &mut o.commands {
             let opt = |s: &String| (!s.is_empty()).then(|| s.clone());
-            o.commands = Some(LaunchCommands {
-                pre_launch: opt(&commands[0]),
-                wrapper: opt(&commands[1]),
-                post_exit: opt(&commands[2]),
-            });
+            current.pre_launch = opt(&commands[0]);
+            current.post_exit = opt(&commands[1]);
         }
         self.save(cx);
     }
@@ -530,7 +518,7 @@ impl InstanceSettings {
             Group::Window => format!("{}×{}", global.window.width, global.window.height),
             Group::Commands => {
                 let c = &global.commands;
-                if c.pre_launch.is_none() && c.wrapper.is_none() && c.post_exit.is_none() {
+                if *c == LaunchCommands::default() {
                     t!("instance_settings.none").into()
                 } else {
                     t!("instance_settings.custom").into()
@@ -792,6 +780,26 @@ impl InstanceSettings {
                         .child(label(f.label.clone()))
                         .child(input)
                 }))
+                .when(
+                    group == Group::Commands && cfg!(target_os = "linux"),
+                    |col| {
+                        let commands = self.instance.overrides.commands.clone().unwrap_or_default();
+                        col.children(Tweak::ALL.map(|tweak| {
+                            let view = view.clone();
+                            tweak
+                                .switch("instance", &commands)
+                                .label(tweak.title())
+                                .on_change(move |on, _, cx| {
+                                    let _ = view.update(cx, |this, cx| {
+                                        if let Some(c) = &mut this.instance.overrides.commands {
+                                            tweak.set(c, on);
+                                        }
+                                        this.save(cx);
+                                    });
+                                })
+                        }))
+                    },
+                )
                 .into_any_element(),
             Group::Window => {
                 let fullscreen = self.instance.overrides.window.is_some_and(|w| w.fullscreen);

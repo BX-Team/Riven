@@ -181,9 +181,8 @@ settings:
   animations: Animations
   animations_hint: Smooth hover, switches and opening panels
   jvm_args_hint: Added to every launch, separated by spaces
-  pre_launch_hint: Runs before the game starts; the launch waits for it
-  wrapper_hint: Such as mangohud or gamemoderun; not applied yet, support comes later
-  post_exit_hint: Runs after the game exits
+  pre_launch_hint: "A shell command (sh, cmd on Windows) run in the game folder with INST_ID and INST_MC_DIR set. The launch waits for it; a failure stops the launch"
+  post_exit_hint: "Runs the same way after the game exits; a failure is only logged"
 new_instance:
   drop: Drop to install the pack
   title: New instance
@@ -237,7 +236,6 @@ instance_settings:
   java: Java
   commands: Launch commands
   pre_launch: Before launch
-  wrapper: Wrapper
   post_exit: After exit
   inherited: "Inherited:"
   override: Override
@@ -275,6 +273,13 @@ instance_settings:
   pack_update: "Update to %{version}"
   pack_applying: Updating the pack…
   java_runtime: Java runtime
+tweaks:
+  title: Tweaks
+  mangohud: MangoHud
+  mangohud_hint: An overlay with FPS, load and temperatures over the game
+  gamemode: GameMode
+  gamemode_hint: Feral GameMode switches the system into game mode while you play
+  missing: "Not found: install %{command} with your package manager"
 folders:
   instances: Instances
   store: File store

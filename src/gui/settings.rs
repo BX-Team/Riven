@@ -65,19 +65,13 @@ enum Text {
     Width,
     Height,
     PreLaunch,
-    Wrapper,
     PostExit,
 }
 
 const FIELDS: [Text; 2] = [Text::Width, Text::Height];
 
 /// Settings that can grow long, edited in multi-line fields.
-const AREAS: [Text; 4] = [
-    Text::JvmArgs,
-    Text::PreLaunch,
-    Text::Wrapper,
-    Text::PostExit,
-];
+const AREAS: [Text; 3] = [Text::JvmArgs, Text::PreLaunch, Text::PostExit];
 
 impl Text {
     fn read(self, s: &Prefs) -> String {
@@ -88,7 +82,6 @@ impl Text {
             Text::Width => l.window.width.to_string(),
             Text::Height => l.window.height.to_string(),
             Text::PreLaunch => opt(&l.commands.pre_launch),
-            Text::Wrapper => opt(&l.commands.wrapper),
             Text::PostExit => opt(&l.commands.post_exit),
         }
     }
@@ -102,9 +95,73 @@ impl Text {
             Text::Width => l.window.width = number(l.window.width),
             Text::Height => l.window.height = number(l.window.height),
             Text::PreLaunch => l.commands.pre_launch = opt(),
-            Text::Wrapper => l.commands.wrapper = opt(),
             Text::PostExit => l.commands.post_exit = opt(),
         }
+    }
+}
+
+/// A Linux tool the game can start through.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Tweak {
+    MangoHud,
+    GameMode,
+}
+
+impl Tweak {
+    pub(super) const ALL: [Tweak; 2] = [Tweak::MangoHud, Tweak::GameMode];
+
+    fn command(self) -> &'static str {
+        match self {
+            Tweak::MangoHud => "mangohud",
+            Tweak::GameMode => "gamemoderun",
+        }
+    }
+
+    fn installed(self) -> bool {
+        static FOUND: std::sync::OnceLock<[bool; 2]> = std::sync::OnceLock::new();
+        FOUND.get_or_init(|| Tweak::ALL.map(|t| riven_launch::on_path(t.command())))[self as usize]
+    }
+
+    pub(super) fn get(self, c: &riven_format::LaunchCommands) -> bool {
+        match self {
+            Tweak::MangoHud => c.mangohud,
+            Tweak::GameMode => c.gamemode,
+        }
+    }
+
+    pub(super) fn set(self, c: &mut riven_format::LaunchCommands, on: bool) {
+        match self {
+            Tweak::MangoHud => c.mangohud = on,
+            Tweak::GameMode => c.gamemode = on,
+        }
+    }
+
+    pub(super) fn title(self) -> String {
+        match self {
+            Tweak::MangoHud => t!("tweaks.mangohud"),
+            Tweak::GameMode => t!("tweaks.gamemode"),
+        }
+        .into()
+    }
+
+    pub(super) fn hint(self) -> String {
+        match (self, self.installed()) {
+            (_, false) => t!("tweaks.missing", command = self.command()),
+            (Tweak::MangoHud, true) => t!("tweaks.mangohud_hint"),
+            (Tweak::GameMode, true) => t!("tweaks.gamemode_hint"),
+        }
+        .into()
+    }
+
+    /// Its switch, off and locked while the tool is not installed.
+    pub(super) fn switch(self, scope: &str, c: &riven_format::LaunchCommands) -> Switch {
+        let installed = self.installed();
+        Switch::new(
+            SharedString::from(format!("{scope}-tweak-{}", self as u8)),
+            installed && self.get(c),
+        )
+        .disabled(!installed)
+        .accessible(self.title())
     }
 }
 
@@ -254,12 +311,7 @@ impl SettingsView {
         }
         let mut areas = Vec::new();
         for kind in AREAS {
-            let lines = if kind == Text::Wrapper {
-                (1, 3)
-            } else {
-                (3, 12)
-            };
-            let area = ui::textarea(kind.read(prefs(cx)), lines, window, cx);
+            let area = ui::textarea(kind.read(prefs(cx)), (3, 12), window, cx);
             subs.push(cx.subscribe(&area, move |_, area, event, cx| {
                 if let InputEvent::Blur = event {
                     let value = area.read(cx).value().trim().to_string();
@@ -519,7 +571,7 @@ impl SettingsView {
 
     fn launch(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let fullscreen = prefs(cx).launch.window.fullscreen;
-        vec![
+        let mut cards = vec![
             group_title(t!("settings.window").into(), cx),
             Section::new()
                 .row(setting_row(
@@ -553,19 +605,35 @@ impl SettingsView {
                     cx,
                 ))
                 .row(setting_block(
-                    t!("instance_settings.wrapper").to_string(),
-                    Some(t!("settings.wrapper_hint").into()),
-                    TextArea::new(self.area(Text::Wrapper)),
-                    cx,
-                ))
-                .row(setting_block(
                     t!("instance_settings.post_exit").to_string(),
                     Some(t!("settings.post_exit_hint").into()),
                     TextArea::new(self.area(Text::PostExit)),
                     cx,
                 ))
                 .into_any_element(),
-        ]
+        ];
+        if cfg!(target_os = "linux") {
+            let commands = prefs(cx).launch.commands.clone();
+            let mut section = Section::new();
+            for tweak in Tweak::ALL {
+                section = section.row(setting_row(
+                    tweak.title(),
+                    Some(tweak.hint().into()),
+                    tweak
+                        .switch("settings", &commands)
+                        .large()
+                        .on_change(move |on, _, cx| {
+                            write(cx, |s| tweak.set(&mut s.launch.commands, on))
+                        }),
+                    cx,
+                ));
+            }
+            cards.extend([
+                group_title(t!("tweaks.title").into(), cx),
+                section.into_any_element(),
+            ]);
+        }
+        cards
     }
 
     fn accounts(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {

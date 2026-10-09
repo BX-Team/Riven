@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use riven_format::{
-    Account, AccountKind, Instance, JavaChoice, LaunchSettings, LoaderKind, Release,
+    Account, AccountKind, Instance, JavaChoice, LaunchCommands, LaunchSettings, LoaderKind, Release,
 };
 use riven_game::{Event, GameVersion, Loader, Step};
 use riven_sync::install;
@@ -88,6 +88,21 @@ fn game_version(instance: &Instance) -> GameVersion {
 
 fn data_dir() -> Result<PathBuf, LaunchError> {
     riven_sync::data_dir().ok_or(LaunchError::NoDir("data"))
+}
+
+/// What the game starts through: `gamemoderun mangohud java …`; Linux only, as the tools are.
+fn wrapper(commands: &LaunchCommands) -> Vec<String> {
+    if !cfg!(target_os = "linux") {
+        return Vec::new();
+    }
+    [
+        ("gamemoderun", commands.gamemode),
+        ("mangohud", commands.mangohud),
+    ]
+    .into_iter()
+    .filter(|(_, on)| *on)
+    .map(|(cmd, _)| cmd.to_owned())
+    .collect()
 }
 
 /// Runs a user command through the shell in the game directory; a failure stops the launch.
@@ -254,9 +269,6 @@ pub async fn play(
     if let Some(cmd) = &settings.commands.pre_launch {
         run_hook(cmd, &game_dir, id).await?;
     }
-    if settings.commands.wrapper.is_some() {
-        tracing::warn!("wrapper commands are not supported yet; starting java directly");
-    }
 
     report(Progress::Stage(Stage::Metadata));
     let http = riven_sources::client();
@@ -302,6 +314,7 @@ pub async fn play(
             height: settings.window.height,
             fullscreen: settings.window.fullscreen,
         },
+        wrapper: wrapper(&settings.commands),
         launcher_name: "riven".into(),
         launcher_version: env!("CARGO_PKG_VERSION").into(),
     };

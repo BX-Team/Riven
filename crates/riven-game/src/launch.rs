@@ -64,6 +64,8 @@ pub struct Launch {
     /// Extra JVM arguments, one per element.
     pub jvm_args: Vec<String>,
     pub window: Window,
+    /// Commands the game starts through, such as `gamemoderun`; empty starts Java directly.
+    pub wrapper: Vec<String>,
     pub launcher_name: String,
     pub launcher_version: String,
 }
@@ -78,9 +80,19 @@ pub struct Game {
 pub fn launch(dirs: &Dirs, prepared: &Prepared, launch: &Launch) -> Result<Game, Error> {
     let args = arguments(dirs, prepared, launch);
     std::fs::create_dir_all(&launch.game_dir).map_err(io(&launch.game_dir))?;
-    let program = launch.java.clone();
+    let (program, prefix) = match launch.wrapper.split_first() {
+        Some((first, rest)) => (
+            PathBuf::from(first),
+            rest.iter()
+                .cloned()
+                .chain([launch.java.display().to_string()])
+                .collect(),
+        ),
+        None => (launch.java.clone(), Vec::new()),
+    };
     let mut command = tokio::process::Command::new(&program);
     command
+        .args(prefix)
         .args(args)
         .current_dir(&launch.game_dir)
         .stdin(Stdio::null())
@@ -413,6 +425,7 @@ mod tests {
                 height: 480,
                 fullscreen: false,
             },
+            wrapper: vec![],
             launcher_name: "riven".into(),
             launcher_version: "1.0".into(),
         }
