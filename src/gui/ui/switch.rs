@@ -17,6 +17,7 @@ pub struct Switch {
     id: ElementId,
     checked: bool,
     large: bool,
+    disabled: bool,
     label: Option<SharedString>,
     accessible: Option<SharedString>,
     on_change: Option<Handler>,
@@ -28,6 +29,7 @@ impl Switch {
             id: id.into(),
             checked,
             large: false,
+            disabled: false,
             label: None,
             accessible: None,
             on_change: None,
@@ -36,6 +38,11 @@ impl Switch {
 
     pub fn large(mut self) -> Self {
         self.large = true;
+        self
+    }
+
+    pub fn disabled(mut self, disabled: bool) -> Self {
+        self.disabled = disabled;
         self
     }
 
@@ -93,7 +100,7 @@ impl RenderOnce for Switch {
                     .rounded(px(knob / 2.))
                     .bg(knob_bg),
             );
-        let on_change = self.on_change;
+        let on_change = self.on_change.filter(|_| !self.disabled);
         gpui_kit::base::Switch::new(self.id)
             .checked(on)
             .when_some(self.accessible.or(self.label.clone()), |s, name| {
@@ -102,7 +109,13 @@ impl RenderOnce for Switch {
             .when_some(on_change, |s, f| {
                 s.on_change(move |v, _, w, cx| f(v, w, cx))
             })
-            .cursor_pointer()
+            .map(|s| {
+                if self.disabled {
+                    s.opacity(0.5)
+                } else {
+                    s.cursor_pointer()
+                }
+            })
             .rounded(px(h / 2.))
             .focus_visible(|s| s.border_1().border_color(c.accent))
             .child(

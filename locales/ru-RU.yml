@@ -181,9 +181,8 @@ settings:
   animations: Анимации
   animations_hint: Плавные наведения, переключатели и появление панелей
   jvm_args_hint: Добавляются к каждому запуску, через пробел
-  pre_launch_hint: Выполняется до старта игры; запуск ждёт её завершения
-  wrapper_hint: Например mangohud или gamemoderun; пока не применяется — поддержка появится позже
-  post_exit_hint: Выполняется после выхода из игры
+  pre_launch_hint: "Команда оболочки (sh, на Windows — cmd) в папке игры, с переменными INST_ID и INST_MC_DIR. Запуск ждёт её; ошибка останавливает запуск"
+  post_exit_hint: "Выполняется так же после выхода из игры; её ошибка только пишется в лог"
 new_instance:
   drop: Отпустите, чтобы установить пак
   title: Новый инстанс
@@ -237,7 +236,6 @@ instance_settings:
   java: Java
   commands: Команды запуска
   pre_launch: Перед запуском
-  wrapper: Обёртка
   post_exit: После выхода
   inherited: "Как в лаунчере:"
   override: Переопределить
@@ -275,6 +273,13 @@ instance_settings:
   pack_update: "Обновить до %{version}"
   pack_applying: Обновляю пак…
   java_runtime: Версия Java
+tweaks:
+  title: Твики
+  mangohud: MangoHud
+  mangohud_hint: Оверлей с FPS, нагрузкой и температурами поверх игры
+  gamemode: GameMode
+  gamemode_hint: Feral GameMode переключает систему в игровой режим, пока идёт игра
+  missing: "Не найдено: установите %{command} через пакетный менеджер"
 folders:
   instances: Инстансы
   store: Хранилище файлов

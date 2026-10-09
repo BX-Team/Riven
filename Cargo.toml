@@ -24,6 +24,7 @@ ed25519-dalek = "3"
 futures-util = "0.3"
 getrandom = "0.4"
 hex = "0.4"
+lighty-launch = "26.9"
 lighty-launcher = { version = "26.9", features = ["vanilla", "fabric", "quilt", "neoforge", "forge", "events", "tracing"] }
 percent-encoding = "2"
 reqwest = { version = "0.13", features = ["json", "stream", "gzip"] }
@@ -137,6 +138,6 @@ libxkbcommon-x11 = "*"
 libwayland-client = "*"
 vulkan-loader = "*"
 
-# Hides Forge/NeoForge processor consoles on Windows; drop once upstream does.
+# Hides Forge/NeoForge processor consoles on Windows and adds game wrapper commands (MangoHud, GameMode).
 [patch.crates-io]
 lighty-launch = { path = "patches/lighty-launch" }

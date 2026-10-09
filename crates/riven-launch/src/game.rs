@@ -9,7 +9,7 @@ use lighty_launcher::event::{
 use lighty_launcher::launch::{InstanceControl as _, Launch as _};
 use lighty_launcher::{JavaDistribution, Loader, VersionBuilder};
 use riven_format::{
-    Account, AccountKind, Instance, JavaChoice, LaunchSettings, LoaderKind, Release,
+    Account, AccountKind, Instance, JavaChoice, LaunchCommands, LaunchSettings, LoaderKind, Release,
 };
 use riven_sync::install;
 use riven_sync::update::{self, Check, Pending, Request};
@@ -152,6 +152,21 @@ fn custom_java_dir(java: &Path) -> Result<PathBuf, LaunchError> {
         crate::link_dir(home, &link).map_err(io(&link))?;
     }
     Ok(dir)
+}
+
+/// What the game starts through: `gamemoderun mangohud java …`; Linux only, as the tools are.
+fn wrapper(commands: &LaunchCommands) -> Vec<String> {
+    if !cfg!(target_os = "linux") {
+        return Vec::new();
+    }
+    [
+        ("gamemoderun", commands.gamemode),
+        ("mangohud", commands.mangohud),
+    ]
+    .into_iter()
+    .filter(|(_, on)| *on)
+    .map(|(cmd, _)| cmd.to_owned())
+    .collect()
 }
 
 /// Runs a user command through the shell in the game directory; a failure stops the launch.
@@ -378,9 +393,7 @@ pub async fn play(
     if let Some(cmd) = &settings.commands.pre_launch {
         run_hook(cmd, &game_dir, id).await?;
     }
-    if settings.commands.wrapper.is_some() {
-        tracing::warn!("wrapper commands are not supported yet; starting java directly");
-    }
+    lighty_launch::launch::set_wrapper(id, wrapper(&settings.commands));
 
     lighty_ready();
     report(Progress::Stage(Stage::Metadata));

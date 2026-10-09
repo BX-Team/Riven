@@ -141,6 +141,12 @@ pub(crate) fn short_hash(bytes: &[u8]) -> String {
     hex::encode(sha2::Sha256::digest(bytes))[..16].to_owned()
 }
 
+/// Whether `command` is an executable on `PATH`.
+pub fn on_path(command: &str) -> bool {
+    std::env::var_os("PATH")
+        .is_some_and(|path| std::env::split_paths(&path).any(|dir| dir.join(command).is_file()))
+}
+
 /// The current UTC time as RFC 3339, `2026-10-07T14:03:00Z`.
 pub fn now_rfc3339() -> String {
     let secs = std::time::SystemTime::now()

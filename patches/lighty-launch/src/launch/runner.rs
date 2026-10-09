@@ -404,10 +404,17 @@ where
     );
 
     // Wrap the Java binary path in a runtime helper
-    let java_runtime = JavaRuntime::new(java_path);
     lighty_core::trace_info!("[Launch] Executing game...");
 
-    match java_runtime.execute(arguments, builder.game_dirs()).await {
+    let spawned = match super::wrapper::wrapper(builder.name()) {
+        Some(argv) => super::wrapper::spawn(&argv, &java_path, arguments, builder.game_dirs()),
+        None => {
+            JavaRuntime::new(java_path)
+                .execute(arguments, builder.game_dirs())
+                .await
+        }
+    };
+    match spawned {
         Ok(child) => {
             let pid = child.id().ok_or(InstallerError::NoPid)?;
 

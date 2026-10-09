@@ -7373,6 +7373,7 @@ dependencies = [
  "hex",
  "junction",
  "keyring",
+ "lighty-launch",
  "lighty-launcher",
  "md-5 0.11.0",
  "percent-encoding",

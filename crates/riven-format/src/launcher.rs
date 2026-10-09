@@ -145,15 +145,19 @@ pub struct GameWindow {
     pub fullscreen: bool,
 }
 
-/// Commands run around the game, as in Prism: before it, wrapping it and after it exits.
+/// Commands run around the game: before it, after it exits, and Linux tools it starts through.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct LaunchCommands {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pre_launch: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub wrapper: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub post_exit: Option<String>,
+    /// Starts the game through `mangohud` (Linux).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub mangohud: bool,
+    /// Starts the game through `gamemoderun` (Linux).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub gamemode: bool,
 }
 
 /// `<data>/riven/instances/<id>/instance.json` — one game installation.

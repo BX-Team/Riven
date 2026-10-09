@@ -222,16 +222,10 @@
       ]
     },
     "LaunchCommands": {
-      "description": "Commands run around the game, as in Prism: before it, wrapping it and after it exits.",
+      "description": "Commands run around the game: before it, after it exits, and Linux tools it starts through.",
       "type": "object",
       "properties": {
         "pre_launch": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "wrapper": {
           "type": [
             "string",
             "null"
@@ -242,6 +236,14 @@
             "string",
             "null"
           ]
+        },
+        "mangohud": {
+          "description": "Starts the game through `mangohud` (Linux).",
+          "type": "boolean"
+        },
+        "gamemode": {
+          "description": "Starts the game through `gamemoderun` (Linux).",
+          "type": "boolean"
         }
       }
     },
