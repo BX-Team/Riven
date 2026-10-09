@@ -6934,6 +6934,7 @@ dependencies = [
 name = "riven-build"
 version = "0.1.0"
 dependencies = [
+ "dunce",
  "futures-util",
  "gix",
  "hex",
@@ -6994,6 +6995,7 @@ dependencies = [
  "base64 0.23.1",
  "chacha20poly1305",
  "dirs 7.0.0",
+ "dunce",
  "flate2",
  "getrandom 0.4.3",
  "hex",
@@ -7056,6 +7058,7 @@ name = "riven-sync"
 version = "0.1.0"
 dependencies = [
  "dirs 7.0.0",
+ "dunce",
  "futures-util",
  "hex",
  "reqwest",

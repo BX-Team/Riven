@@ -87,7 +87,8 @@ pub fn with_channel(pointer: &str, channel: &str) -> Option<String> {
 
 /// Whether two pointers are channels of one pack.
 pub fn same_pack(a: &str, b: &str) -> bool {
-    a == b
+    // Older states kept archives as Windows verbatim paths, `\\?\C:\…`.
+    a.trim_start_matches(r"\\?\") == b.trim_start_matches(r"\\?\")
         || (channel_of(a).is_some()
             && channel_of(b).is_some()
             && a.rsplit_once('/').map(|p| p.0) == b.rsplit_once('/').map(|p| p.0))

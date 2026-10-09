@@ -254,7 +254,7 @@ pub fn candidates() -> Vec<PathBuf> {
     paths
         .into_iter()
         .filter(|p| p.is_file())
-        .filter_map(|p| std::fs::canonicalize(&p).ok())
+        .filter_map(|p| dunce::canonicalize(&p).ok())
         .filter(|p| seen.insert(p.clone()))
         .collect()
 }

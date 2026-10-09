@@ -39,7 +39,7 @@ pub enum Install {
 impl Install {
     pub fn detect() -> Self {
         let exe = std::env::current_exe()
-            .and_then(|p| p.canonicalize())
+            .and_then(dunce::canonicalize)
             .unwrap_or_default();
         let appimage = std::env::var_os("APPIMAGE").map(PathBuf::from);
         classify(std::env::consts::OS, &exe, appimage, |p| p.exists())
