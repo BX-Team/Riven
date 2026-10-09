@@ -356,7 +356,7 @@ mod tests {
 
     fn entries(path: &Path) -> Vec<String> {
         let zip = zip::ZipArchive::new(File::open(path).unwrap()).unwrap();
-        let mut names: Vec<String> = zip.file_names().map(str::to_owned).collect();
+        let mut names: Vec<String> = zip.file_names().map(|n| n.unwrap().into_owned()).collect();
         names.sort();
         names
     }

@@ -36,4 +36,4 @@ zip.workspace = true
 flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
 
 [target.'cfg(windows)'.dependencies]
-junction = "1"
+junction = "2"
