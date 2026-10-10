@@ -56,6 +56,30 @@
           fontconfig
           freetype
         ];
+
+        # LWJGL 2 (Minecraft before 1.13) reads display modes from `xrandr`.
+        gameTools = [ pkgs.xrandr ];
+
+        gameLibs = with pkgs; [
+          (lib.getLib stdenv.cc.cc)
+          libGL
+          libx11
+          libxext
+          libxcursor
+          libxrandr
+          libxxf86vm
+          libxi
+          libxtst
+          libxrender
+          openal
+          alsa-lib
+          libpulseaudio
+          libjack2
+          pipewire
+          udev
+          vulkan-loader
+          flite
+        ];
         buildToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
         rustPlatform = pkgs.makeRustPlatform {
           cargo = buildToolchain;
@@ -89,6 +113,7 @@
             buildFeatures = lib.optionals cli [ "cli" ];
             nativeBuildInputs = [
               pkgs.pkg-config
+              pkgs.makeWrapper
             ]
             ++ lib.optionals (!cli) [ pkgs.autoPatchelfHook ];
             buildInputs = lib.optionals (!cli) (runtimeLibs ++ [ pkgs.stdenv.cc.cc.lib ]);
@@ -96,6 +121,11 @@
             runtimeDependencies = lib.optionals (!cli) runtimeLibs;
             # The workspace tests run in CI; here they would only repeat it.
             doCheck = false;
+            # The game inherits the launcher's environment
+            postFixup = ''
+              wrapProgram $out/bin/${pname} --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath gameLibs} \
+                --prefix PATH : ${lib.makeBinPath gameTools}
+            '';
             postInstall = lib.optionalString (!cli) ''
               install -Dm644 assets/brand/riven.svg $out/share/icons/hicolor/scalable/apps/riven.svg
               install -Dm644 assets/brand/riven-512.png $out/share/icons/hicolor/512x512/apps/riven.png
@@ -177,10 +207,11 @@
             rustToolchain
             pkg-config
             git
-          ];
+          ]
+          ++ gameTools;
 
           shellHook = ''
-            export LD_LIBRARY_PATH="${lib.makeLibraryPath runtimeLibs}:$LD_LIBRARY_PATH"
+            export LD_LIBRARY_PATH="${lib.makeLibraryPath (runtimeLibs ++ gameLibs)}:$LD_LIBRARY_PATH"
             echo "Riven dev shell ready."
             echo "  cargo run                                         # riven (GUI + CLI)"
             echo "  cargo run --no-default-features --features cli    # riven-cli"
