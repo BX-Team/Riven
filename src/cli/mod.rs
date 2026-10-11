@@ -36,7 +36,7 @@ enum Command {
         #[arg(long)]
         mc: Option<String>,
         /// Mod loader, optionally with a version: `neoforge`, `fabric@0.16.10`.
-        #[arg(long, default_value = "neoforge")]
+        #[arg(long, default_value = "fabric")]
         loader: String,
     },
     /// Add content and its dependencies.
