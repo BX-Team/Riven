@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -18,7 +19,7 @@ use riven_launch::own::Workbench;
 use riven_resolve::Plan;
 
 use super::logs::LogsView;
-use super::mods::{self, ModRow, ModsTable, Origin, SortBy};
+use super::mods::{self, Identified, ModRow, ModsTable, Origin, SortBy};
 use super::runtime;
 use super::state::AppState;
 use super::theme::ActiveTheme as _;
@@ -119,6 +120,8 @@ pub struct InstanceView {
     /// When the rows and the Modrinth icons arrived, for their entrance.
     shown_at: Option<Instant>,
     icons_at: Option<Instant>,
+    /// What Modrinth said about each file by sha512, shown again right away on the next read.
+    identified: HashMap<String, Identified>,
     /// The instance's file revision the table was read at.
     revision: u64,
     _search: Subscription,
@@ -183,6 +186,7 @@ impl InstanceView {
             working: false,
             shown_at: None,
             icons_at: None,
+            identified: HashMap::new(),
             revision: 0,
             _search,
             _state: cx.observe_in(&AppState::global(cx), window, |this, state, window, cx| {
@@ -225,43 +229,41 @@ impl InstanceView {
 
     /// Reads the content folder again, then fills in titles and icons from Modrinth.
     pub fn reload(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        enum Read {
+            Names(Vec<ModRow>),
+            Progress(usize, usize),
+        }
         self.loading = true;
         self.from_pack = riven_launch::own::from_pack(&self.game_dir);
         self.updates = Updates::Unchecked;
-        let dir = self.game_dir.clone();
-        let game_dir = dir.clone();
+        let game_dir = self.game_dir.clone();
         let kind = self.kind;
         let id = self.id.clone();
         cx.spawn_in(window, async move |this, cx| {
-            let rows = runtime::blocking(move || mods::scan_rows(&dir, folder(kind)))
-                .await
-                .unwrap_or_default();
-            let _ = this.update_in(cx, |this, window, cx| {
-                if this.kind != kind {
-                    return;
-                }
-                if this.mods.rows().is_empty() {
-                    this.shown_at = Some(Instant::now());
-                }
-                this.set_rows(rows.clone());
-                let hint = match kind {
-                    Kind::Mod => t!("mods.search_count", n = rows.len()),
-                    _ => t!("mods.search_files", n = rows.len()),
-                }
-                .to_string();
-                this.search
-                    .update(cx, |s, cx| s.set_placeholder(hint, window, cx));
-                cx.notify();
-            });
             let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+            // Unchanged files come from a cache in a millisecond; only a real read shows bare names first.
             let described = runtime::blocking(move || {
+                let rows = mods::scan_rows(&game_dir, folder(kind));
+                let names = std::sync::Mutex::new(Some(rows.clone()));
                 mods::describe(&game_dir, rows, &move |done, total| {
-                    let _ = tx.send((done, total));
+                    if let Some(rows) = names.lock().ok().and_then(|mut n| n.take()) {
+                        let _ = tx.send(Read::Names(rows));
+                    }
+                    let _ = tx.send(Read::Progress(done, total));
                 })
             });
             let state = cx.update(|_, cx| AppState::global(cx)).ok();
             let mut shown = 0;
-            while let Some((done, total)) = rx.recv().await {
+            while let Some(read) = rx.recv().await {
+                let (done, total) = match read {
+                    Read::Names(rows) => {
+                        let _ = this.update_in(cx, |this, window, cx| {
+                            this.show_rows(kind, rows, window, cx)
+                        });
+                        continue;
+                    }
+                    Read::Progress(done, total) => (done, total),
+                };
                 if done < total && done < shown + total.div_ceil(50) {
                     continue;
                 }
@@ -295,13 +297,11 @@ impl InstanceView {
                 .filter_map(|r| r.details.as_ref())
                 .map(|d| (d.sha512.clone(), d.sha1.clone()))
                 .collect();
-            let _ = this.update(cx, |this, cx| {
-                if this.kind != kind {
-                    return;
+            let _ = this.update_in(cx, |this, window, cx| {
+                if this.kind == kind {
+                    this.loading = false;
                 }
-                this.loading = false;
-                this.set_rows(rows);
-                cx.notify();
+                this.show_rows(kind, rows, window, cx);
             });
             let found = runtime::spawn(mods::identify(hashes))
                 .await
@@ -313,23 +313,67 @@ impl InstanceView {
                 if this.kind != kind {
                     return;
                 }
-                let mut rows = this.mods.rows().to_vec();
-                for row in &mut rows {
-                    let Some(details) = &row.details else {
-                        continue;
-                    };
-                    if let Some(hit) = found.get(&details.sha512) {
-                        row.title = hit.title.clone().into();
-                        row.icon = hit.icon.clone();
-                        row.project = Some(hit.project.clone());
-                    }
+                this.identified.extend(found);
+                let rows = this.mods.rows().to_vec();
+                let had: HashSet<String> = rows
+                    .iter()
+                    .filter(|r| r.icon.is_some())
+                    .map(|r| r.file.name.clone())
+                    .collect();
+                let rows = this.with_identified(rows);
+                if rows
+                    .iter()
+                    .any(|r| r.icon.is_some() && !had.contains(&r.file.name))
+                {
+                    this.icons_at = Some(Instant::now());
                 }
                 this.set_rows(rows);
-                this.icons_at = Some(Instant::now());
                 cx.notify();
             });
         })
         .detach();
+    }
+
+    /// Puts read rows in the table, with what Modrinth said about them last time.
+    fn show_rows(
+        &mut self,
+        kind: Kind,
+        rows: Vec<ModRow>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.kind != kind {
+            return;
+        }
+        if self.mods.rows().is_empty() {
+            self.shown_at = Some(Instant::now());
+        }
+        let hint = match kind {
+            Kind::Mod => t!("mods.search_count", n = rows.len()),
+            _ => t!("mods.search_files", n = rows.len()),
+        }
+        .to_string();
+        let rows = self.with_identified(rows);
+        self.set_rows(rows);
+        self.search
+            .update(cx, |s, cx| s.set_placeholder(hint, window, cx));
+        cx.notify();
+    }
+
+    fn with_identified(&self, mut rows: Vec<ModRow>) -> Vec<ModRow> {
+        for row in &mut rows {
+            let Some(hit) = row
+                .details
+                .as_ref()
+                .and_then(|d| self.identified.get(&d.sha512))
+            else {
+                continue;
+            };
+            row.title = hit.title.clone().into();
+            row.icon = hit.icon.clone();
+            row.project = Some(hit.project.clone());
+        }
+        rows
     }
 
     /// Shows `rows`, marking the ones a checked update would replace.
