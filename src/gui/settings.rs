@@ -1042,42 +1042,47 @@ pub(super) fn theme_picker(
                 reapply_theme(cx);
             })
             .child(
-                h_flex()
+                div()
                     .w(px(150.))
                     .h(px(88.))
+                    .p(px(2.))
                     .rounded(px(10.))
-                    .overflow_hidden()
-                    .border_2()
-                    .border_color(if selected { c.accent } else { c.border })
-                    .bg(p.bg)
+                    .bg(if selected { c.accent } else { c.border })
                     .child(
-                        v_flex()
-                            .w(px(46.))
-                            .h_full()
-                            .bg(p.panel)
-                            .border_r_1()
-                            .border_color(p.border)
-                            .p(px(6.))
-                            .gap(px(4.))
-                            .child(bar(32., 6., p.sel))
-                            .child(bar(24., 6., p.row))
-                            .child(bar(28., 6., p.row)),
-                    )
-                    .child(
-                        v_flex()
-                            .flex_1()
-                            .h_full()
-                            .p(px(8.))
-                            .gap(px(5.))
-                            .child(bar(60., 7., p.text))
-                            .child(bar(44., 5., p.muted))
-                            .child(div().flex_1())
+                        h_flex()
+                            .size_full()
+                            .rounded(px(8.))
+                            .bg(p.bg)
                             .child(
-                                h_flex()
-                                    .justify_end()
+                                v_flex()
+                                    .w(px(46.))
+                                    .h_full()
+                                    .rounded_l(px(8.))
+                                    .bg(p.panel)
+                                    .border_r_1()
+                                    .border_color(p.border)
+                                    .p(px(6.))
                                     .gap(px(4.))
-                                    .child(div().size(px(8.)).rounded(px(4.)).bg(p.ok))
-                                    .child(bar(30., 12., p.accent)),
+                                    .child(bar(32., 6., p.sel))
+                                    .child(bar(24., 6., p.row))
+                                    .child(bar(28., 6., p.row)),
+                            )
+                            .child(
+                                v_flex()
+                                    .flex_1()
+                                    .h_full()
+                                    .p(px(8.))
+                                    .gap(px(5.))
+                                    .child(bar(60., 7., p.text))
+                                    .child(bar(44., 5., p.muted))
+                                    .child(div().flex_1())
+                                    .child(
+                                        h_flex()
+                                            .justify_end()
+                                            .gap(px(4.))
+                                            .child(div().size(px(8.)).rounded(px(4.)).bg(p.ok))
+                                            .child(bar(30., 12., p.accent)),
+                                    ),
                             ),
                     ),
             )
