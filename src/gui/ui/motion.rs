@@ -161,6 +161,19 @@ pub fn spinner(id: impl Into<ElementId>, icon: Svg, cx: &App) -> AnyElement {
     .into_any_element()
 }
 
+/// `icon` turning once around, restarted each time `turn` grows; still before the first turn.
+pub fn turn(id: &str, turn: u64, icon: Svg, cx: &App) -> AnyElement {
+    if turn == 0 || cx.reduce_motion() {
+        return icon.into_any_element();
+    }
+    icon.with_animation(
+        ElementId::NamedInteger(SharedString::from(format!("{id}:turn")), turn),
+        Animation::new(Duration::from_millis(600)).with_easing(gpui_kit::ease_in_out),
+        |svg, t| svg.with_transformation(Transformation::rotate(percentage(t))),
+    )
+    .into_any_element()
+}
+
 #[derive(Default)]
 struct Slots {
     items: Vec<Bounds<Pixels>>,

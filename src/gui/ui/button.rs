@@ -57,6 +57,8 @@ enum Variant {
     Ghost,
 }
 
+type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
+
 /// A button drawn the way the design draws them, on top of gpui-base's behavior.
 #[derive(IntoElement)]
 pub struct Button {
@@ -71,6 +73,7 @@ pub struct Button {
     tooltip: Option<SharedString>,
     selected: bool,
     disabled: bool,
+    on_click: Option<ClickHandler>,
 }
 
 impl Button {
@@ -88,6 +91,7 @@ impl Button {
             tooltip: None,
             selected: false,
             disabled: false,
+            on_click: None,
         }
     }
 
@@ -139,7 +143,7 @@ impl Button {
     }
 
     pub fn on_click(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
-        self.base = self.base.on_click(f);
+        self.on_click = Some(Box::new(f));
         self
     }
 }
@@ -193,6 +197,22 @@ impl RenderOnce for Button {
         };
         let fg = motion::animate(SharedString::from(format!("{key}:fg")), fg, window, cx);
         let bg = motion::animate(SharedString::from(format!("{key}:bg")), bg, window, cx);
+        let turns = (self.icon == Some(IconName::Refresh)).then(|| {
+            window.use_keyed_state(SharedString::from(format!("{key}:turns")), cx, |_, _| 0u64)
+        });
+        let turn = turns.as_ref().map_or(0, |t| *t.read(cx));
+        let base = match self.on_click {
+            Some(f) => self.base.on_click(move |e, window, cx| {
+                if let Some(turns) = &turns {
+                    turns.update(cx, |n, cx| {
+                        *n += 1;
+                        cx.notify();
+                    });
+                }
+                f(e, window, cx)
+            }),
+            None => self.base,
+        };
         let lift = motion::animate(
             SharedString::from(format!("{key}:lift")),
             if primary && hovered { 0.88 } else { 1. },
@@ -201,7 +221,7 @@ impl RenderOnce for Button {
         );
 
         hover
-            .track(self.base)
+            .track(base)
             .disabled(self.disabled)
             .selected(self.selected)
             .when_some(self.tooltip.clone().filter(|_| square), |b, t| {
@@ -239,7 +259,9 @@ impl RenderOnce for Button {
             .when(self.disabled, |b| b.opacity(0.5))
             .focus_visible(|s| s.border_1().border_color(c.accent))
             .when_some(self.tooltip, |b, t| b.tooltip(tooltip(t)))
-            .when_some(self.icon, |b, name| b.child(icon(name, fg)))
+            .when_some(self.icon, |b, name| {
+                b.child(motion::turn(&key, turn, icon(name, fg), cx))
+            })
             .when_some(self.label, |b, l| b.child(div().child(l)))
             .children(self.children)
             .refine_style(&self.style)
