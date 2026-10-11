@@ -123,7 +123,7 @@
             doCheck = false;
             # The game inherits the launcher's environment
             postFixup = ''
-              wrapProgram $out/bin/${pname} --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath gameLibs} \
+              wrapProgram $out/bin/riven --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath gameLibs} \
                 --prefix PATH : ${lib.makeBinPath gameTools}
             '';
             postInstall = lib.optionalString (!cli) ''
