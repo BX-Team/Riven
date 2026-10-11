@@ -98,3 +98,12 @@ pub fn scrollbar<H: ScrollbarHandle + Clone>(handle: &H) -> Div {
         .inset_0()
         .child(Scrollbar::vertical(handle).viewport_from_layout())
 }
+
+/// Vertical and horizontal scrollbars laid over a scrolling element.
+#[track_caller]
+pub fn scrollbars<H: ScrollbarHandle + Clone>(handle: &H) -> Div {
+    div()
+        .absolute()
+        .inset_0()
+        .child(Scrollbar::new(handle).viewport_from_layout())
+}

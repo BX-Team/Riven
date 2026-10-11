@@ -4,15 +4,16 @@ use std::time::Duration;
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
     App, ClipboardItem, Context, Entity, Hsla, InteractiveElement as _, IntoElement,
-    ParentElement as _, Render, ScrollStrategy, SharedString, StatefulInteractiveElement as _,
-    Styled as _, Subscription, UniformListScrollHandle, Window, div, px, uniform_list,
+    ListHorizontalSizingBehavior, ParentElement as _, Render, ScrollStrategy, SharedString,
+    StatefulInteractiveElement as _, Styled as _, Subscription, UniformListScrollHandle, Window,
+    div, px, uniform_list,
 };
 use rust_i18n::t;
 
 use super::runtime;
 use super::state::AppState;
 use super::theme::{ActiveTheme as _, Palette};
-use super::ui::{Button, IconName, h_flex, icon, scrollbar, v_flex};
+use super::ui::{Button, IconName, h_flex, icon, scrollbars, v_flex};
 use riven_launch::logs::{LogFile, LogKind};
 
 const ROW_HEIGHT: f32 = 20.;
@@ -45,7 +46,7 @@ pub struct LogsView {
 }
 
 /// Longest part of a line drawn; text past it is laid out and painted every frame for nothing.
-const SHOWN_CHARS: usize = 400;
+const SHOWN_CHARS: usize = 1000;
 
 /// A log line as drawn: cut short when it is very long. Copying still takes the whole line.
 pub fn display_line(text: &SharedString) -> SharedString {
@@ -437,6 +438,10 @@ impl Render for LogsView {
                     .tooltip(t!("instance.open_folder"))
                     .on_click(move |_, _, cx| cx.open_with_system(&dir)),
             );
+        let widest = {
+            let lines = self.lines(cx);
+            (0..len).max_by_key(|&i| lines.get(i).map_or(0, |(_, l)| l.len()))
+        };
         let body = if len == 0 {
             super::app::placeholder(
                 IconName::Terminal,
@@ -472,6 +477,8 @@ impl Render for LogsView {
                                 .collect::<Vec<_>>()
                         }),
                     )
+                    .with_horizontal_sizing_behavior(ListHorizontalSizingBehavior::Unconstrained)
+                    .with_width_from_item(widest)
                     .size_full()
                     .py(px(6.))
                     .font_family(mono)
@@ -479,7 +486,7 @@ impl Render for LogsView {
                     .line_height(px(ROW_HEIGHT))
                     .track_scroll(&self.scroll),
                 )
-                .child(scrollbar(&self.scroll))
+                .child(scrollbars(&self.scroll))
                 .into_any_element()
         };
         h_flex()
