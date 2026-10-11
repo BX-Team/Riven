@@ -21,6 +21,7 @@ env:
 jobs:
   format:
     name: Formatting
+    if: &not-release-bump "${{ !(github.event.head_commit.author.name == 'github-actions[bot]' && startsWith(github.event.head_commit.message, 'chore(release): bump version to ')) }}"
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -40,6 +41,7 @@ jobs:
 
   check:
     name: Lint & test (${{ matrix.name }})
+    if: *not-release-bump
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -87,6 +89,7 @@ jobs:
 
   build-cli:
     name: Build riven-cli (${{ matrix.target }})
+    if: *not-release-bump
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -133,6 +136,7 @@ jobs:
 
   nix:
     name: Nix flake check
+    if: *not-release-bump
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -150,7 +154,7 @@ jobs:
 
   gate:
     name: CI
-    if: always()
+    if: "${{ always() && !(github.event.head_commit.author.name == 'github-actions[bot]' && startsWith(github.event.head_commit.message, 'chore(release): bump version to ')) }}"
     needs: [format, check, build-cli, nix]
     runs-on: ubuntu-latest
     permissions: {}
