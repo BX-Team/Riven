@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -89,6 +89,17 @@ struct Remembered {
     details: Details,
 }
 
+/// `mods/x.jar`: one cache serves every content folder, so the key carries the folder.
+fn cache_key(game_dir: &Path, file: &ContentFile) -> String {
+    let folder = file
+        .path
+        .parent()
+        .and_then(|p| p.strip_prefix(game_dir).ok())
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_default();
+    format!("{folder}/{}", file.name)
+}
+
 fn stamp(file: &ContentFile) -> u64 {
     file.modified
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -106,11 +117,13 @@ pub fn details_cached(
         .ok()
         .and_then(|bytes| serde_json::from_slice(&bytes).ok())
         .unwrap_or_default();
+    let keys: Vec<String> = files.iter().map(|f| cache_key(game_dir, f)).collect();
     let mut out: Vec<Option<Details>> = files
         .iter()
-        .map(|f| {
+        .zip(&keys)
+        .map(|(f, key)| {
             cache
-                .get(&f.name)
+                .get(key)
                 .filter(|r| r.size == f.size && r.modified == stamp(f))
                 .map(|r| r.details.clone())
         })
@@ -157,20 +170,30 @@ pub fn details_cached(
     for (i, d) in read {
         out[i] = Some(d);
     }
-    cache = files
+    let folders: HashSet<&str> = keys
         .iter()
-        .zip(&out)
-        .filter_map(|(f, d)| {
-            Some((
-                f.name.clone(),
-                Remembered {
-                    size: f.size,
-                    modified: stamp(f),
-                    details: d.clone()?,
-                },
-            ))
-        })
+        .filter_map(|k| k.rsplit_once('/').map(|(folder, _)| folder))
         .collect();
+    cache.retain(|key, _| {
+        key.rsplit_once('/')
+            .is_some_and(|(folder, _)| !folders.contains(folder))
+    });
+    cache.extend(
+        files
+            .iter()
+            .zip(keys)
+            .zip(&out)
+            .filter_map(|((f, key), d)| {
+                Some((
+                    key,
+                    Remembered {
+                        size: f.size,
+                        modified: stamp(f),
+                        details: d.clone()?,
+                    },
+                ))
+            }),
+    );
     if let Ok(text) = serde_json::to_string(&cache) {
         let _ = std::fs::create_dir_all(path.parent().expect("cache path has a parent"));
         let tmp = path.with_extension("json.tmp");
@@ -221,6 +244,20 @@ mod tests {
         let first = read();
         assert!(game.join(".riven").join(DETAILS_CACHE).is_file());
         assert_eq!(read(), first);
+        std::fs::create_dir_all(game.join("resourcepacks")).unwrap();
+        std::fs::write(game.join("resourcepacks/p.zip"), "pack").unwrap();
+        let packs = scan(&game, "resourcepacks").unwrap();
+        details_cached(&game, &packs, &|_, _| {});
+        let mods = scan(&game, "mods").unwrap();
+        let rereads = std::sync::atomic::AtomicUsize::new(0);
+        details_cached(&game, &mods, &|_, _| {
+            rereads.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        });
+        assert_eq!(
+            rereads.into_inner(),
+            0,
+            "reading another folder kept the mods cached"
+        );
         std::fs::write(&jar, "other").unwrap();
         assert_ne!(read(), first);
         let _ = std::fs::remove_dir_all(&game);
