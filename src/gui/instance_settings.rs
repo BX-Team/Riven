@@ -955,25 +955,43 @@ impl InstanceSettings {
         };
         pack.remote = Remote::Checking;
         let source = Self::pointer(pack);
-        if pack.modrinth.is_some() {
-            let id = self.id.clone();
-            AppState::global(cx).update(cx, |s, cx| s.check_modpack(&id, cx));
-        }
+        let modrinth = pack.modrinth.clone();
+        let id = self.id.clone();
         cx.notify();
         cx.spawn(async move |this, cx| {
             let found = runtime::spawn(async move {
                 let store = riven_sync::Store::default_location()
                     .ok_or_else(|| "no data directory".to_owned())?;
-                riven_sync::update::preview(&store, &riven_sources::client(), &source, None)
-                    .await
-                    .map_err(|e| e.to_string())
+                let release =
+                    riven_sync::update::preview(&store, &riven_sources::client(), &source, None)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                let newer = match modrinth {
+                    Some(m) => Some(
+                        riven_launch::modpack::newer(&m)
+                            .await
+                            .map_err(|e| e.to_string())?,
+                    ),
+                    None => None,
+                };
+                Ok::<_, String>((release, newer))
             })
             .await
             .unwrap_or_else(|_| Err(String::new()));
             let _ = this.update(cx, |this, cx| {
+                if let Ok((_, Some(newer))) = &found {
+                    let newer = newer.clone();
+                    AppState::global(cx).update(cx, |s, cx| {
+                        match newer {
+                            Some(version) => s.modpack_updates.insert(id, version),
+                            None => s.modpack_updates.remove(&id),
+                        };
+                        cx.notify();
+                    });
+                }
                 if let Some(pack) = &mut this.pack {
                     pack.remote = match found {
-                        Ok(release) => {
+                        Ok((release, _)) => {
                             for g in &release.groups {
                                 pack.groups.entry(g.id.clone()).or_insert(g.default);
                             }
