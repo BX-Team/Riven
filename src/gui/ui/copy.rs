@@ -6,7 +6,7 @@ use gpui_kit::{App, ClipboardItem, Context, EntityId, Global, SharedString};
 use super::{Button, IconName};
 
 /// How long a copy button shows its check.
-pub const COPIED: Duration = Duration::from_millis(1500);
+pub const COPIED: Duration = Duration::from_secs(2);
 
 /// Copy buttons that copied a moment ago, by id, with the copy's serial.
 #[derive(Default)]

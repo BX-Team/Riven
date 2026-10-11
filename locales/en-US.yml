@@ -294,7 +294,6 @@ folders:
   open: Open
   clear: Clear
 about:
-  copied: Debug info copied to the clipboard
   tagline: Minecraft launcher and modpack toolkit
   version: Version
   commit: Commit

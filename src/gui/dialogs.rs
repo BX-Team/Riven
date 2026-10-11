@@ -265,7 +265,6 @@ pub fn confirm_remove_account(id: String, name: String, cx: &mut App) {
 pub struct AddMicrosoft {
     code: Option<riven_launch::accounts::DeviceCode>,
     error: Option<SharedString>,
-    copied: bool,
     back: Option<Back>,
     _task: Option<gpui_kit::Task<()>>,
 }
@@ -275,7 +274,6 @@ impl AddMicrosoft {
         let mut this = Self {
             code: None,
             error: None,
-            copied: false,
             back,
             _task: None,
         };
@@ -286,7 +284,6 @@ impl AddMicrosoft {
     fn start(&mut self, cx: &mut Context<Self>) {
         self.code = None;
         self.error = None;
-        self.copied = false;
         let (code_tx, code_rx) = tokio::sync::oneshot::channel();
         let code_tx = std::sync::Mutex::new(Some(code_tx));
         let signed_in = runtime::spawn(async move {
@@ -300,10 +297,10 @@ impl AddMicrosoft {
         self._task = Some(cx.spawn(async move |this, cx| {
             if let Ok(code) = code_rx.await {
                 let _ = this.update(cx, |this, cx| {
-                    cx.write_to_clipboard(gpui_kit::ClipboardItem::new_string(code.code.clone()));
+                    let view = cx.entity_id();
+                    super::ui::copy::copy("ms-copy".into(), code.code.clone(), view, cx);
                     cx.open_url(&code.url);
                     this.code = Some(code);
-                    this.copied = true;
                     cx.notify();
                 });
             }
@@ -366,22 +363,15 @@ impl Render for AddMicrosoft {
                         h_flex()
                             .gap(px(8.))
                             .child(
-                                Button::new("ms-copy")
+                                super::ui::copy_button("ms-copy", move |_| text.clone(), cx)
                                     .outline()
                                     .size(ButtonSize::Md)
                                     .flex_1()
-                                    .label(if self.copied {
+                                    .label(if super::ui::copy::copied("ms-copy", cx) {
                                         t!("accounts.ms_copied")
                                     } else {
                                         t!("accounts.ms_copy")
-                                    })
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        cx.write_to_clipboard(gpui_kit::ClipboardItem::new_string(
-                                            text.clone(),
-                                        ));
-                                        this.copied = true;
-                                        cx.notify();
-                                    })),
+                                    }),
                             )
                             .child(
                                 Button::new("ms-open")

@@ -294,7 +294,6 @@ folders:
   open: Открыть
   clear: Очистить
 about:
-  copied: Данные для отладки скопированы в буфер обмена
   tagline: Лаунчер Minecraft и инструменты для модпаков
   version: Версия
   commit: Коммит

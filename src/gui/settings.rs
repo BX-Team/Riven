@@ -3,9 +3,9 @@ use std::path::{Path, PathBuf};
 use gpui_kit::base::input::{InputEvent, InputState, TextareaState};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
-    AnyElement, App, AppContext as _, ClipboardItem, Context, Entity, FontWeight,
-    InteractiveElement as _, IntoElement, ParentElement as _, Render, SharedString,
-    StatefulInteractiveElement as _, Styled as _, Subscription, Window, div, px,
+    AnyElement, App, AppContext as _, Context, Entity, FontWeight, InteractiveElement as _,
+    IntoElement, ParentElement as _, Render, SharedString, StatefulInteractiveElement as _,
+    Styled as _, Subscription, Window, div, px,
 };
 use riven_format::{AccountKind, Settings as Prefs, ThemeMode};
 use rust_i18n::t;
@@ -907,17 +907,9 @@ impl SettingsView {
                         .on_click(|_, _, cx| cx.open_url(REPOSITORY)),
                 )
                 .child(
-                    Button::new("copy-info")
+                    ui::copy_button("copy-info", move |_| report.clone(), cx)
                         .size(ButtonSize::Md)
-                        .label(t!("about.copy"))
-                        .on_click(move |_, _, cx| {
-                            cx.write_to_clipboard(ClipboardItem::new_string(report.clone()));
-                            super::toast::show(
-                                super::toast::ToastKind::Success,
-                                t!("about.copied"),
-                                cx,
-                            );
-                        }),
+                        .label(t!("about.copy")),
                 )
                 .into_any_element(),
         ]
