@@ -67,10 +67,11 @@ impl Session {
             }
             Progress::Offline { .. } => self.notice = Some(rust_i18n::t!("launch.offline").into()),
             Progress::Installed { .. } | Progress::Updated { .. } | Progress::Replaced { .. } => {}
-            Progress::Started { pid } => {
+            Progress::Started { pid, played } => {
+                let now = Instant::now();
                 self.phase = Phase::Running {
                     pid,
-                    since: Instant::now(),
+                    since: now.checked_sub(Duration::from_secs(played)).unwrap_or(now),
                 }
             }
             Progress::Line { stderr, text } => {
@@ -204,6 +205,33 @@ impl AppState {
             },
             cx,
         );
+    }
+
+    /// Picks up the games an earlier launcher started that still run.
+    pub fn adopt_running(&mut self, cx: &mut Context<Self>) {
+        let Some(store) = self.store.clone() else {
+            return;
+        };
+        let ids: Vec<String> = self.instances.iter().map(|(id, _)| id.clone()).collect();
+        for id in ids {
+            let Some(running) = game::running(&store, &id) else {
+                continue;
+            };
+            let store = store.clone();
+            let defaults = self.settings.launch.clone();
+            let instance = id.clone();
+            self.run_session(
+                &id,
+                move |tx| async move {
+                    game::watch(&store, &instance, running, &defaults, move |p| {
+                        let _ = tx.send(p);
+                    })
+                    .await
+                },
+                cx,
+            );
+        }
+        self.reload_instances(cx);
     }
 
     /// Installs a pack into a just-created instance.

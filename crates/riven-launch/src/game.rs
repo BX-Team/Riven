@@ -3,7 +3,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use riven_format::{
-    Account, AccountKind, Instance, JavaChoice, LaunchCommands, LaunchSettings, LoaderKind, Release,
+    Account, AccountKind, Instance, JavaChoice, LaunchCommands, LaunchSettings, LoaderKind,
+    Release, Running,
 };
 use riven_game::{Event, GameVersion, Loader, Step};
 use riven_sync::install;
@@ -53,6 +54,8 @@ pub enum Progress {
     },
     Started {
         pid: u32,
+        /// Seconds it had already run: non-zero for a game an earlier launcher started.
+        played: u64,
     },
     Line {
         stderr: bool,
@@ -322,8 +325,17 @@ pub async fn play(
 
     report(Progress::Stage(Stage::Starting));
     let game = riven_game::launch(&dirs, &prepared, &launch)?;
-    report(Progress::Started { pid: game.pid() });
+    let pid = game.pid();
+    report(Progress::Started { pid, played: 0 });
     let since = Instant::now();
+    let marker = Running {
+        pid,
+        started: crate::now_rfc3339(),
+        process: riven_game::started(pid),
+    };
+    if let Err(e) = crate::save(&running_path(store, id), &marker) {
+        tracing::warn!("{e}");
+    }
     let lines = report.clone();
     let code = game
         .wait(move |stderr, text| {
@@ -334,27 +346,183 @@ pub async fn play(
         })
         .await;
     let played = since.elapsed().as_secs();
-    record_play(store, id, played);
-    if let Some(cmd) = &settings.commands.post_exit
-        && let Err(e) = run_hook(cmd, &game_dir, id).await
-    {
-        tracing::warn!("{e}");
-    }
+    finish(store, id, played, unix_now(), &settings).await;
     report(Progress::Exited { code, played });
     Ok(())
 }
 
-fn record_play(store: &Instances, id: &str, seconds: u64) {
+/// Records the play time, forgets the running game and runs the post-exit command.
+async fn finish(store: &Instances, id: &str, played: u64, ended: u64, settings: &LaunchSettings) {
+    record_play(store, id, played, ended);
+    let _ = std::fs::remove_file(running_path(store, id));
+    if let Some(cmd) = &settings.commands.post_exit
+        && let Err(e) = run_hook(cmd, &store.game_dir(id), id).await
+    {
+        tracing::warn!("{e}");
+    }
+}
+
+fn record_play(store: &Instances, id: &str, seconds: u64, at: u64) {
     let Ok(mut instance) = store.load(id) else {
         return;
     };
     instance.play_seconds += seconds;
-    instance.last_played = Some(crate::now_rfc3339());
+    instance.last_played = Some(crate::rfc3339(at));
     if let Err(e) = store.save(id, &instance) {
         tracing::warn!("{e}");
     }
 }
 
+fn running_path(store: &Instances, id: &str) -> PathBuf {
+    store.dir(id).join("running.json")
+}
+
+fn unix_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
+}
+
+/// The game an earlier launcher started for `id` when it still runs.
+///
+/// One that ended meanwhile gets its play time recorded, up to its log's last write.
+pub fn running(store: &Instances, id: &str) -> Option<Running> {
+    let path = running_path(store, id);
+    let text = std::fs::read_to_string(&path).ok()?;
+    let marker = riven_format::from_str::<Running>(&text).ok();
+    if let Some(m) = &marker
+        && riven_game::alive(m.pid, m.process)
+    {
+        return marker;
+    }
+    if let Some(started) = marker.and_then(|m| crate::parse_rfc3339(&m.started)) {
+        let ended = std::fs::metadata(latest_log(store, id))
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map_or(started, |d| d.as_secs().max(started));
+        record_play(store, id, ended - started, ended);
+    }
+    let _ = std::fs::remove_file(&path);
+    None
+}
+
+fn latest_log(store: &Instances, id: &str) -> PathBuf {
+    store.game_dir(id).join("logs").join("latest.log")
+}
+
+/// Follows a game an earlier launcher started until it exits; its output comes from its log file.
+pub async fn watch(
+    store: &Instances,
+    id: &str,
+    game: Running,
+    defaults: &LaunchSettings,
+    report: impl Fn(Progress) + Send + Sync + 'static,
+) -> Result<(), LaunchError> {
+    let report: Report = Arc::new(report);
+    let started = crate::parse_rfc3339(&game.started).unwrap_or_else(unix_now);
+    report(Progress::Started {
+        pid: game.pid,
+        played: unix_now().saturating_sub(started),
+    });
+    let mut log = Tail::new(latest_log(store, id));
+    let lines = |log: &mut Tail| {
+        for text in log.read() {
+            report(Progress::Line {
+                stderr: false,
+                text: crate::strip_ansi(&text),
+            });
+        }
+    };
+    while riven_game::alive(game.pid, game.process) {
+        lines(&mut log);
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
+    lines(&mut log);
+    let ended = unix_now();
+    let played = ended.saturating_sub(started);
+    let settings = store.load(id)?.overrides.resolve(defaults);
+    finish(store, id, played, ended, &settings).await;
+    report(Progress::Exited { code: None, played });
+    Ok(())
+}
+
+/// Reads whole lines appended to a file since the last read.
+struct Tail {
+    path: PathBuf,
+    offset: u64,
+    partial: Vec<u8>,
+}
+
+impl Tail {
+    fn new(path: PathBuf) -> Self {
+        Self {
+            path,
+            offset: 0,
+            partial: Vec::new(),
+        }
+    }
+
+    fn read(&mut self) -> Vec<String> {
+        use std::io::{Read as _, Seek as _, SeekFrom};
+        let Ok(mut file) = std::fs::File::open(&self.path) else {
+            return Vec::new();
+        };
+        if file.metadata().is_ok_and(|m| m.len() < self.offset) {
+            self.offset = 0;
+            self.partial.clear();
+        }
+        let mut buf = Vec::new();
+        if file.seek(SeekFrom::Start(self.offset)).is_err() || file.read_to_end(&mut buf).is_err() {
+            return Vec::new();
+        }
+        self.offset += buf.len() as u64;
+        self.partial.extend_from_slice(&buf);
+        let Some(end) = self.partial.iter().rposition(|&b| b == b'\n') else {
+            return Vec::new();
+        };
+        let rest = self.partial.split_off(end + 1);
+        let whole = std::mem::replace(&mut self.partial, rest);
+        String::from_utf8_lossy(&whole)
+            .lines()
+            .map(str::to_owned)
+            .collect()
+    }
+}
+
 pub fn stop(pid: u32) -> Result<(), LaunchError> {
     riven_game::kill(pid).map_err(|e| LaunchError::Stop(e.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tail_keeps_partial_lines_and_follows_a_rotated_log() {
+        let dir = std::env::temp_dir().join(format!("riven-tail-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("latest.log");
+        let mut tail = Tail::new(path.clone());
+        assert!(tail.read().is_empty());
+
+        std::fs::write(&path, "one\ntw").unwrap();
+        assert_eq!(tail.read(), ["one"]);
+        std::fs::write(&path, "one\ntwo\r\nthree\n").unwrap();
+        assert_eq!(tail.read(), ["two", "three"]);
+
+        std::fs::write(&path, "new\n").unwrap();
+        assert_eq!(tail.read(), ["new"]);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_reused_pid_is_not_the_game() {
+        let pid = std::process::id();
+        let started = riven_game::started(pid);
+        assert!(started.is_some());
+        assert!(riven_game::alive(pid, started));
+        assert!(riven_game::alive(pid, None));
+        assert!(!riven_game::alive(pid, started.map(|s| s + 1)));
+    }
 }

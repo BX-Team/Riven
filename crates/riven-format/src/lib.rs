@@ -14,7 +14,8 @@ use serde_json::{Map, Value};
 pub use common::{Group, Hash, Hashes, InstallSide, Java, Keyed, Loader, LoaderKind, Memory, Side};
 pub use launcher::{
     Account, AccountKind, Accounts, Appearance, DevPanel, GameWindow, Instance, JavaChoice,
-    LaunchCommands, LaunchOverrides, LaunchSettings, MemoryMb, ModrinthPack, Settings, ThemeMode,
+    LaunchCommands, LaunchOverrides, LaunchSettings, MemoryMb, ModrinthPack, Running, Settings,
+    ThemeMode,
 };
 pub use path::{PackPath, PathError};
 pub use project::{
@@ -75,6 +76,10 @@ impl Document for Settings {
 
 impl Document for Instance {
     const NAME: &'static str = "instance";
+}
+
+impl Document for Running {
+    const NAME: &'static str = "running";
 }
 
 impl Document for Accounts {

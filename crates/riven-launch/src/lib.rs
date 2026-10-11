@@ -166,7 +166,7 @@ pub fn parse_rfc3339(text: &str) -> Option<u64> {
     u64::try_from(days * 86_400 + hour * 3600 + minute * 60 + second).ok()
 }
 
-fn rfc3339(secs: u64) -> String {
+pub(crate) fn rfc3339(secs: u64) -> String {
     let days = (secs / 86_400) as i64;
     let rem = secs % 86_400;
     let z = days + 719_468;

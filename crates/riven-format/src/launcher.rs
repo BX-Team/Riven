@@ -184,6 +184,17 @@ pub struct Instance {
     pub play_seconds: u64,
 }
 
+/// `<data>/riven/instances/<id>/running.json` — a game that is running, so a restarted launcher finds it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Running {
+    pub pid: u32,
+    /// RFC 3339.
+    pub started: String,
+    /// When the OS says the process started, in its own unit; tells a reused pid apart.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub process: Option<u64>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ModrinthPack {
     /// Project id.

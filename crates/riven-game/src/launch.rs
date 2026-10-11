@@ -162,33 +162,6 @@ async fn lines(
     }
 }
 
-/// Asks a game to close: SIGTERM lets it save; Windows has no such signal, so it is ended.
-pub fn kill(pid: u32) -> std::io::Result<()> {
-    #[cfg(unix)]
-    {
-        let pid = libc::pid_t::try_from(pid).map_err(std::io::Error::other)?;
-        // SAFETY: kill takes no pointers; a stale pid fails with ESRCH.
-        if unsafe { libc::kill(pid, libc::SIGTERM) } == 0 {
-            Ok(())
-        } else {
-            Err(std::io::Error::last_os_error())
-        }
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt as _;
-        let status = std::process::Command::new("taskkill")
-            .args(["/PID", &pid.to_string(), "/T", "/F"])
-            .creation_flags(0x0800_0000)
-            .status()?;
-        if status.success() {
-            Ok(())
-        } else {
-            Err(std::io::Error::other(format!("taskkill failed: {status}")))
-        }
-    }
-}
-
 /// The whole command line after `java`: JVM options, main class and game arguments.
 pub fn arguments(dirs: &Dirs, prepared: &Prepared, launch: &Launch) -> Vec<String> {
     let version = &prepared.version;

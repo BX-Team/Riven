@@ -54,6 +54,7 @@ impl RivenApp {
         cx.defer(super::updater::check_at_startup);
         AppState::global(cx).update(cx, |s, cx| {
             s.load_skins(cx);
+            s.adopt_running(cx);
             s.check_modpacks(cx);
         });
         app

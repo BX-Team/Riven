@@ -8,13 +8,15 @@ mod maven;
 mod mojang;
 mod net;
 mod os;
+mod process;
 mod processors;
 mod version;
 
 use std::path::{Path, PathBuf};
 
 pub use install::install;
-pub use launch::{Game, Launch, Session, Window, kill, launch};
+pub use launch::{Game, Launch, Session, Window, launch};
+pub use process::{alive, kill, started};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Loader {

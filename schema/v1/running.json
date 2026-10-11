@@ -1,0 +1,38 @@
+{
+  "$id": "https://raw.githubusercontent.com/BX-Team/Riven/master/schema/v1/running.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Running",
+  "description": "`<data>/riven/instances/<id>/running.json` — a game that is running, so a restarted launcher finds it.",
+  "type": "object",
+  "properties": {
+    "pid": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "started": {
+      "description": "RFC 3339.",
+      "type": "string"
+    },
+    "process": {
+      "description": "When the OS says the process started, in its own unit; tells a reused pid apart.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0
+    },
+    "$schema": {
+      "type": "string"
+    },
+    "format": {
+      "const": 1
+    }
+  },
+  "required": [
+    "format",
+    "pid",
+    "started"
+  ]
+}
