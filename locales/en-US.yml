@@ -581,8 +581,7 @@ dev:
   git_push_n: "Push %{n}"
   git_pack_changes: Pack changes since the last commit
   git_pack_same: riven.json is as committed
-  git_files: "Changed files (%{n})"
-  git_more: "…and %{n} more"
+  git_changed: Changed files
   git_clean: Nothing to commit
   git_staged: staged
   git_commit: Commit

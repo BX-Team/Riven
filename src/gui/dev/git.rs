@@ -5,7 +5,8 @@ use gpui_kit::base::input::TextareaState;
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
     AnyElement, Context, Entity, InteractiveElement as _, IntoElement, ParentElement as _,
-    SharedString, StatefulInteractiveElement as _, Styled as _, Window, div, px,
+    SharedString, StatefulInteractiveElement as _, Styled as _, UniformListScrollHandle, Window,
+    div, px, uniform_list,
 };
 use riven_build::git::{self, DiffLine, FileState, GitError, Status};
 use riven_format::PackPath;
@@ -16,12 +17,12 @@ use super::sections::section_head;
 use super::{DevView, Panel, Tab};
 use crate::gui::runtime;
 use crate::gui::theme::ActiveTheme as _;
-use crate::gui::ui::{Button, ButtonSize, IconName, TextArea, caption, h_flex, v_flex};
+use crate::gui::ui::{Button, ButtonSize, IconName, TextArea, h_flex, scrollbar, v_flex};
 
 /// Lines of git output the panel keeps.
 const OUTPUT_LINES: usize = 500;
-/// Changed files and pack changes listed before "and N more".
-const SHOWN: usize = 200;
+const DIFF_ROW: f32 = 22.;
+const FILE_ROW: f32 = 26.;
 
 pub(super) enum Repo {
     Unknown,
@@ -40,6 +41,9 @@ pub(super) struct GitState {
     /// A read is under way; `again` asks for one more once it ends.
     reading: bool,
     again: bool,
+    diff_list: UniformListScrollHandle,
+    files_list: UniformListScrollHandle,
+    log_list: UniformListScrollHandle,
     /// Whether a `git` executable runs; reading works without one.
     pub(super) installed: bool,
     message: Entity<TextareaState>,
@@ -56,6 +60,9 @@ impl GitState {
             diff: Vec::new(),
             reading: false,
             again: false,
+            diff_list: UniformListScrollHandle::new(),
+            files_list: UniformListScrollHandle::new(),
+            log_list: UniformListScrollHandle::new(),
             installed: git::available(),
             message: crate::gui::ui::textarea(String::new(), (3, 8), window, cx),
             output: VecDeque::new(),
@@ -352,118 +359,9 @@ impl DevView {
                     })),
             );
 
-        let more = |n: usize| {
-            (n > SHOWN).then(|| {
-                div()
-                    .px(px(8.))
-                    .text_color(c.muted)
-                    .child(t!("dev.git_more", n = n - SHOWN).to_string())
-            })
-        };
-        let diff: Vec<AnyElement> = self
-            .git
-            .diff
-            .iter()
-            .take(SHOWN)
-            .map(|line| {
-                let (mark, color, text) = match line {
-                    DiffLine::Added(t) => ("+", c.ok, t.clone()),
-                    DiffLine::Changed(t) => ("~", c.warn, t.clone()),
-                    DiffLine::Removed(t) => ("-", crate::gui::theme::danger(), t.clone()),
-                };
-                h_flex()
-                    .items_start()
-                    .gap(px(8.))
-                    .child(div().flex_none().text_color(color).child(mark))
-                    .child(div().flex_1().min_w_0().child(text))
-                    .into_any_element()
-            })
-            .collect();
-        let files: Vec<AnyElement> = status
-            .files
-            .iter()
-            .take(SHOWN)
-            .enumerate()
-            .map(|(i, f)| {
-                let color = match f.state {
-                    FileState::Untracked | FileState::Added => c.ok,
-                    FileState::Removed | FileState::Conflict => crate::gui::theme::danger(),
-                    _ => c.warn,
-                };
-                let path = f.path.clone();
-                h_flex()
-                    .id(("git-file", i))
-                    .h(px(24.))
-                    .px(px(8.))
-                    .gap(px(10.))
-                    .rounded(px(5.))
-                    .cursor_pointer()
-                    .hover(|s| s.bg(c.row))
-                    .on_click(cx.listener(move |this, _, _, cx| this.open_changed(&path, cx)))
-                    .child(
-                        div()
-                            .w(px(14.))
-                            .flex_none()
-                            .font_family(mono.clone())
-                            .text_color(color)
-                            .child(state_mark(f.state)),
-                    )
-                    .child(div().flex_1().min_w_0().truncate().child(f.path.clone()))
-                    .when(f.staged, |r| {
-                        r.child(
-                            div()
-                                .text_size(px(11.))
-                                .text_color(c.muted)
-                                .child(t!("dev.git_staged").to_string()),
-                        )
-                    })
-                    .into_any_element()
-            })
-            .collect();
-        let log: Vec<AnyElement> = status
-            .log
-            .iter()
-            .map(|commit| {
-                let when = std::time::UNIX_EPOCH
-                    + std::time::Duration::from_secs(commit.time.max(0) as u64);
-                h_flex()
-                    .h(px(24.))
-                    .gap(px(10.))
-                    .px(px(8.))
-                    .child(
-                        div()
-                            .w(px(60.))
-                            .flex_none()
-                            .font_family(mono.clone())
-                            .text_color(c.muted)
-                            .child(commit.id.clone()),
-                    )
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .truncate()
-                            .child(commit.summary.clone()),
-                    )
-                    .child(
-                        div()
-                            .flex_none()
-                            .text_size(px(12.))
-                            .text_color(c.muted)
-                            .child(format!(
-                                "{} · {}",
-                                commit.author,
-                                crate::gui::time::ago(when)
-                            )),
-                    )
-                    .into_any_element()
-            })
-            .collect();
-        let clean = files.is_empty();
-        let block = |title: String, body: gpui_kit::Div| {
-            v_flex().gap(px(6.)).child(caption(title, cx)).child(body)
-        };
+        let clean = status.files.is_empty();
         let commit_box = v_flex()
+            .p(px(12.))
             .gap(px(8.))
             .child(TextArea::new(&self.git.message))
             .child(
@@ -488,67 +386,266 @@ impl DevView {
                             .on_click(cx.listener(|this, _, _, cx| this.commit(cx))),
                     ),
             );
+        let empty = |text: String| {
+            div()
+                .p(px(12.))
+                .text_color(c.muted)
+                .child(text)
+                .into_any_element()
+        };
+        let files = if clean {
+            empty(t!("dev.git_clean").to_string())
+        } else {
+            self.git_list(
+                "git-files",
+                status.files.len(),
+                &self.git.files_list,
+                cx.processor(|this, range: std::ops::Range<usize>, _, cx| {
+                    range
+                        .filter_map(|ix| this.file_row(ix, cx))
+                        .collect::<Vec<_>>()
+                }),
+            )
+        };
+        let pack = if self.git.diff.is_empty() {
+            empty(t!("dev.git_pack_same").to_string())
+        } else {
+            self.git_list(
+                "git-diff",
+                self.git.diff.len(),
+                &self.git.diff_list,
+                cx.processor(|this, range: std::ops::Range<usize>, _, cx| {
+                    range
+                        .filter_map(|ix| this.diff_row(ix, cx))
+                        .collect::<Vec<_>>()
+                }),
+            )
+        };
+        let log = self.git_list(
+            "git-log",
+            status.log.len(),
+            &self.git.log_list,
+            cx.processor(|this, range: std::ops::Range<usize>, _, cx| {
+                range
+                    .filter_map(|ix| this.log_row(ix, cx))
+                    .collect::<Vec<_>>()
+            }),
+        );
+        let card = |title: String, count: Option<usize>, body: AnyElement| {
+            v_flex()
+                .min_h_0()
+                .rounded(px(8.))
+                .border_1()
+                .border_color(c.border)
+                .bg(c.panel)
+                .overflow_hidden()
+                .child(
+                    h_flex()
+                        .flex_none()
+                        .h(px(34.))
+                        .px(px(12.))
+                        .gap(px(8.))
+                        .border_b_1()
+                        .border_color(c.border)
+                        .font_family(mono.clone())
+                        .text_size(px(11.))
+                        .text_color(c.muted)
+                        .child(title.to_uppercase())
+                        .children(count.map(|n| div().text_color(c.text2).child(n.to_string()))),
+                )
+                .child(div().relative().flex_1().min_h_0().child(body))
+        };
         v_flex()
             .size_full()
             .child(head)
             .child(
-                v_flex()
-                    .id("dev-git")
+                h_flex()
                     .flex_1()
                     .min_h_0()
-                    .overflow_y_scroll()
+                    .items_start()
+                    .gap(px(14.))
+                    .p(px(18.))
                     .child(
                         v_flex()
-                            .p(px(18.))
-                            .gap(px(16.))
-                            .max_w(px(820.))
-                            .child(block(
-                                t!("dev.git_pack_changes").to_string(),
-                                v_flex()
-                                    .gap(px(3.))
-                                    .p(px(10.))
-                                    .rounded(px(8.))
-                                    .border_1()
-                                    .border_color(c.border)
-                                    .bg(c.panel)
-                                    .font_family(mono.clone())
-                                    .text_size(px(12.))
-                                    .text_color(c.text2)
-                                    .map(|col| {
-                                        if diff.is_empty() {
-                                            col.child(
-                                                div()
-                                                    .text_color(c.muted)
-                                                    .child(t!("dev.git_pack_same").to_string()),
-                                            )
-                                        } else {
-                                            col.children(diff).children(more(self.git.diff.len()))
-                                        }
-                                    }),
-                            ))
-                            .child(block(
-                                t!("dev.git_files", n = status.files.len()).to_string(),
-                                v_flex().gap(px(1.)).map(|col| {
-                                    if clean {
-                                        col.child(
-                                            div()
-                                                .px(px(8.))
-                                                .text_color(c.muted)
-                                                .child(t!("dev.git_clean").to_string()),
-                                        )
-                                    } else {
-                                        col.children(files).children(more(status.files.len()))
-                                    }
-                                }),
-                            ))
-                            .child(block(t!("dev.git_commit").to_string(), commit_box))
-                            .child(block(
-                                t!("dev.git_log").to_string(),
-                                v_flex().gap(px(1.)).children(log),
+                            .flex_1()
+                            .min_w_0()
+                            .h_full()
+                            .gap(px(14.))
+                            .child(
+                                card(
+                                    t!("dev.git_changed").to_string(),
+                                    Some(status.files.len()),
+                                    files,
+                                )
+                                .flex_1(),
+                            )
+                            .child(card(
+                                t!("dev.git_commit").to_string(),
+                                None,
+                                commit_box.into_any_element(),
                             )),
+                    )
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .min_w_0()
+                            .h_full()
+                            .gap(px(14.))
+                            .child(
+                                card(
+                                    t!("dev.git_pack_changes").to_string(),
+                                    (!self.git.diff.is_empty()).then_some(self.git.diff.len()),
+                                    pack,
+                                )
+                                .flex_1(),
+                            )
+                            .child(card(t!("dev.git_log").to_string(), None, log).flex_1()),
                     ),
             )
             .into_any_element()
+    }
+
+    /// A virtual list filling its card, with its own scrollbar.
+    fn git_list<R: IntoElement>(
+        &self,
+        id: &'static str,
+        len: usize,
+        handle: &UniformListScrollHandle,
+        rows: impl Fn(std::ops::Range<usize>, &mut Window, &mut gpui_kit::App) -> Vec<R> + 'static,
+    ) -> AnyElement {
+        div()
+            .absolute()
+            .inset_0()
+            .child(
+                uniform_list(id, len, rows)
+                    .size_full()
+                    .py(px(4.))
+                    .track_scroll(handle),
+            )
+            .child(scrollbar(handle))
+            .into_any_element()
+    }
+
+    fn log_row(&self, ix: usize, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let Repo::Ready(status) = &self.git.repo else {
+            return None;
+        };
+        let commit = status.log.get(ix)?;
+        let c = cx.theme().colors;
+        let when =
+            std::time::UNIX_EPOCH + std::time::Duration::from_secs(commit.time.max(0) as u64);
+        Some(
+            h_flex()
+                .h(px(FILE_ROW))
+                .gap(px(10.))
+                .px(px(12.))
+                .child(
+                    div()
+                        .w(px(60.))
+                        .flex_none()
+                        .font_family(cx.theme().mono.clone())
+                        .text_color(c.muted)
+                        .child(commit.id.clone()),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .truncate()
+                        .child(commit.summary.clone()),
+                )
+                .child(
+                    div()
+                        .flex_none()
+                        .text_size(px(12.))
+                        .text_color(c.muted)
+                        .child(format!(
+                            "{} · {}",
+                            commit.author,
+                            crate::gui::time::ago(when)
+                        )),
+                )
+                .into_any_element(),
+        )
+    }
+
+    fn diff_row(&self, ix: usize, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let c = cx.theme().colors;
+        let (mark, color, text) = match self.git.diff.get(ix)? {
+            DiffLine::Added(t) => ("+", c.ok, t.clone()),
+            DiffLine::Changed(t) => ("~", c.warn, t.clone()),
+            DiffLine::Removed(t) => ("-", crate::gui::theme::danger(), t.clone()),
+        };
+        Some(
+            h_flex()
+                .h(px(DIFF_ROW))
+                .px(px(12.))
+                .gap(px(8.))
+                .font_family(cx.theme().mono.clone())
+                .text_size(px(12.))
+                .text_color(c.text2)
+                .child(div().flex_none().text_color(color).child(mark))
+                .child(div().flex_1().min_w_0().truncate().child(text))
+                .into_any_element(),
+        )
+    }
+
+    fn file_row(&self, ix: usize, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let Repo::Ready(status) = &self.git.repo else {
+            return None;
+        };
+        let f = status.files.get(ix)?;
+        let c = cx.theme().colors;
+        let color = match f.state {
+            FileState::Untracked | FileState::Added => c.ok,
+            FileState::Removed | FileState::Conflict => crate::gui::theme::danger(),
+            _ => c.warn,
+        };
+        let (folder, name) = f.path.rsplit_once('/').unwrap_or(("", &f.path));
+        let path = f.path.clone();
+        Some(
+            h_flex()
+                .id(("git-file", ix))
+                .h(px(FILE_ROW))
+                .px(px(12.))
+                .gap(px(10.))
+                .cursor_pointer()
+                .hover(|s| s.bg(c.row))
+                .on_click(cx.listener(move |this, _, _, cx| this.open_changed(&path, cx)))
+                .child(
+                    div()
+                        .w(px(14.))
+                        .flex_none()
+                        .font_family(cx.theme().mono.clone())
+                        .text_color(color)
+                        .child(state_mark(f.state)),
+                )
+                .child(
+                    h_flex()
+                        .flex_1()
+                        .min_w_0()
+                        .gap(px(8.))
+                        .child(div().flex_none().child(name.to_owned()))
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .truncate()
+                                .text_size(px(12.))
+                                .text_color(c.muted)
+                                .child(folder.to_owned()),
+                        ),
+                )
+                .when(f.staged, |r| {
+                    r.child(
+                        div()
+                            .text_size(px(11.))
+                            .text_color(c.muted)
+                            .child(t!("dev.git_staged").to_string()),
+                    )
+                })
+                .into_any_element(),
+        )
     }
 
     pub(super) fn git_clear_button(&self, cx: &mut Context<Self>) -> Button {

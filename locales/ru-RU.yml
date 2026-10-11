@@ -581,8 +581,7 @@ dev:
   git_push_n: "Push %{n}"
   git_pack_changes: Изменения пака с последнего коммита
   git_pack_same: riven.json совпадает с закоммиченным
-  git_files: "Изменённые файлы (%{n})"
-  git_more: "…и ещё %{n}"
+  git_changed: Изменённые файлы
   git_clean: Нечего коммитить
   git_staged: в индексе
   git_commit: Коммит
