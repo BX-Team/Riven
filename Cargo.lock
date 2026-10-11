@@ -6911,7 +6911,7 @@ dependencies = [
 
 [[package]]
 name = "riven"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -6944,7 +6944,7 @@ dependencies = [
 
 [[package]]
 name = "riven-build"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "dunce",
  "futures-util",
@@ -6969,7 +6969,7 @@ dependencies = [
 
 [[package]]
 name = "riven-format"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "base64 0.23.1",
  "ed25519-dalek",
@@ -6982,7 +6982,7 @@ dependencies = [
 
 [[package]]
 name = "riven-game"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "flate2",
  "futures-util",
@@ -7002,7 +7002,7 @@ dependencies = [
 
 [[package]]
 name = "riven-launch"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "base64 0.23.1",
  "chacha20poly1305",
@@ -7038,7 +7038,7 @@ dependencies = [
 
 [[package]]
 name = "riven-resolve"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "riven-format",
  "riven-sources",
@@ -7052,7 +7052,7 @@ dependencies = [
 
 [[package]]
 name = "riven-sources"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "futures-util",
  "reqwest",
@@ -7068,7 +7068,7 @@ dependencies = [
 
 [[package]]
 name = "riven-sync"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "dirs 7.0.0",
  "dunce",
