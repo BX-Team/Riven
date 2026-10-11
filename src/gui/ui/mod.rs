@@ -91,6 +91,7 @@ pub fn tile(text: SharedString, size: f32, radius: f32, cx: &App) -> gpui_kit::D
 }
 
 /// A vertical scrollbar laid over a scrolling element; place it in a `relative` parent.
+#[track_caller]
 pub fn scrollbar<H: ScrollbarHandle + Clone>(handle: &H) -> Div {
     div()
         .absolute()
