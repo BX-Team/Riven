@@ -85,9 +85,11 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.RELEASE_TOKEN || github.token }}
 
-      - name: Set the version in Cargo.toml and Cargo.lock
+      - name: Set the version in Cargo.toml, Cargo.lock and the README
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          PRERELEASE: ${{ inputs.prerelease }}
         run: |
           sed -i "0,/^version = \".*\"$/s//version = \"$VERSION\"/" Cargo.toml
           for crate in riven $(ls crates); do
@@ -95,6 +97,10 @@ jobs:
           done
           grep -q "^version = \"$VERSION\"$" Cargo.toml
           cargo metadata --locked --format-version 1 >/dev/null
+          if [ "$PRERELEASE" != true ]; then
+            sed -i "s|nix run github:BX-Team/Riven/v[^ ]*|nix run github:BX-Team/Riven/$TAG|" README.md
+            grep -qF "nix run github:BX-Team/Riven/$TAG" README.md
+          fi
 
       - name: Commit the bump and push the tag
         id: push
@@ -104,7 +110,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add Cargo.toml Cargo.lock
+          git add Cargo.toml Cargo.lock README.md
           git commit -m "chore(release): bump version to $VERSION"
           git tag -a "$TAG" -m "Riven $VERSION"
           git push origin HEAD:"$GITHUB_REF_NAME"
@@ -222,6 +228,7 @@ jobs:
           DESCRIPTION: ${{ inputs.description }}
           CHANGELOG: ${{ steps.changelog.outputs.changelog }}
           VERSION: ${{ needs.prepare.outputs.version }}
+          TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           rpm="${VERSION//-/\~}"
           {
@@ -242,8 +249,8 @@ jobs:
             echo "| Debian, Ubuntu | \`riven_${VERSION}_amd64.deb\` / \`riven_${VERSION}_arm64.deb\` |"
             echo "| Fedora, openSUSE | \`riven-${rpm}-1.x86_64.rpm\` / \`riven-${rpm}-1.aarch64.rpm\` |"
             echo "| Arch | \`riven-${VERSION//-/_}-1-x86_64.pkg.tar.zst\` |"
+            echo "| NixOS | \`nix run github:BX-Team/Riven/${TAG}\` |"
             cat <<'EOF'
-          | NixOS | `nix run github:BX-Team/Riven` |
           | Servers (no GUI) | `riven-cli-<arch>-<os>` archives |
 
           The macOS app is not notarized: open it once with right-click → Open.

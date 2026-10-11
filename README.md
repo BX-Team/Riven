@@ -78,8 +78,10 @@ Every command is described in the [documentation](https://bxteam.org/docs/riven)
 Run the launcher without installing:
 
 ```bash
-nix run github:BX-Team/Riven
+nix run github:BX-Team/Riven/v1.0.0
 ```
+
+Without a tag Nix takes `master`, which may not be in Cachix yet and then compiles from source.
 
 Releases are built for `x86_64-linux` and `aarch64-linux` and pushed to Cachix, so a tagged version downloads instead of compiling:
 
