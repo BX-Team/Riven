@@ -324,14 +324,14 @@ pub fn arguments(dirs: &Dirs, prepared: &Prepared, launch: &Launch) -> Vec<Strin
         .map(|value| {
             substitute(value, &vars)
                 .split(os::CLASSPATH_SEPARATOR)
-                .map(str::to_owned)
+                .map(same_path)
                 .collect()
         })
         .unwrap_or_default();
     let classpath: Vec<String> = classpath
         .iter()
         .map(|p| path(p))
-        .filter(|p| !modules.contains(p))
+        .filter(|p| !modules.contains(&same_path(p)))
         .collect();
     vars.insert("classpath", classpath.join(os::CLASSPATH_SEPARATOR));
 
@@ -344,6 +344,11 @@ pub fn arguments(dirs: &Dirs, prepared: &Prepared, launch: &Launch) -> Vec<Strin
         .chain([main_class])
         .chain(game.iter().map(|a| substitute(a, &vars)))
         .collect()
+}
+
+/// A path in one spelling: on Windows library paths mix `\\` and the `/` of Maven paths.
+fn same_path(path: &str) -> String {
+    path.replace('\\', "/")
 }
 
 /// JVM options for versions whose metadata lists none, as Mojang's launcher adds them.
@@ -457,7 +462,7 @@ mod tests {
             [
                 dirs.libraries()
                     .join("net/minecraft/launchwrapper/1.5/launchwrapper-1.5.jar"),
-                dirs.versions().join("1.5.2/1.5.2.jar"),
+                dirs.versions().join("1.5.2").join("1.5.2.jar"),
             ]
             .map(|p| p.display().to_string())
         );
@@ -504,10 +509,15 @@ mod tests {
             [
                 dirs.libraries()
                     .join("com/google/guava/guava/32.1.2/guava-32.1.2.jar"),
-                dirs.versions().join("1.20.1/1.20.1.jar"),
+                dirs.versions().join("1.20.1").join("1.20.1.jar"),
             ]
             .map(|p| p.display().to_string())
             .join(os::CLASSPATH_SEPARATOR)
+        );
+        assert_eq!(
+            same_path(r"C:\data\libraries/cpw/mods/a.jar"),
+            same_path(r"C:\data\libraries\cpw/mods/a.jar"),
+            "Windows module paths match their classpath entries"
         );
         assert_eq!(after(&args, "--uuid"), "b50ad385829d3141a2167e7d7539ba7f");
         assert_eq!(after(&args, "--xuid"), "42");
