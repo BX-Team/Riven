@@ -1,10 +1,13 @@
 use std::rc::Rc;
 
+use std::path::PathBuf;
+
+use gpui_kit::base::input::{InputEvent, InputState};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
     AnyElement, App, AppContext as _, Context, Entity, Global, InteractiveElement as _,
-    IntoElement, ParentElement as _, PathPromptOptions, Render, SharedString,
-    StatefulInteractiveElement as _, Styled as _, Window, div, px,
+    IntoElement, ParentElement as _, PathPromptOptions, Render, ScrollHandle, SharedString,
+    StatefulInteractiveElement as _, Styled as _, Subscription, Window, div, px,
 };
 use riven_format::JavaChoice;
 use riven_launch::java::{self, JavaInstall};
@@ -12,7 +15,9 @@ use rust_i18n::t;
 
 use super::runtime;
 use super::theme::ActiveTheme as _;
-use super::ui::{Button, IconName, W_SEMIBOLD, h_flex, icon, motion, v_flex};
+use super::ui::{
+    Button, ContainScroll as _, IconName, TextField, W_SEMIBOLD, h_flex, icon, motion, v_flex,
+};
 
 /// The Java runtimes found on this machine, shared by every picker; scanned on first use.
 #[derive(Default)]
@@ -61,6 +66,9 @@ pub struct JavaPicker {
     required: Option<u32>,
     error: Option<SharedString>,
     on_change: OnChange,
+    /// Where a path can be typed instead of browsed; made on first render, which has a window.
+    path: Option<(Entity<InputState>, Subscription)>,
+    scroll: ScrollHandle,
 }
 
 impl JavaPicker {
@@ -80,6 +88,8 @@ impl JavaPicker {
             required,
             error: None,
             on_change: Rc::new(on_change),
+            path: None,
+            scroll: ScrollHandle::new(),
         })
     }
 
@@ -104,6 +114,19 @@ impl JavaPicker {
             let Some(path) = paths.into_iter().next() else {
                 return;
             };
+            let _ = this.update(cx, |this, cx| this.try_path(path, cx));
+        })
+        .detach();
+    }
+
+    /// Probes a typed or picked path; a Java home or its `bin` folder stands for the executable inside.
+    fn try_path(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        let exe = if cfg!(windows) { "java.exe" } else { "java" };
+        let path = [path.join("bin").join(exe), path.join(exe)]
+            .into_iter()
+            .find(|p| path.is_dir() && p.is_file())
+            .unwrap_or(path);
+        cx.spawn(async move |this, cx| {
             let probe = path.clone();
             let found = runtime::blocking(move || java::probe(&probe))
                 .await
@@ -126,6 +149,30 @@ impl JavaPicker {
             });
         })
         .detach();
+    }
+
+    fn typed(&mut self, cx: &mut Context<Self>) {
+        let Some((input, _)) = &self.path else {
+            return;
+        };
+        let text = input.read(cx).value().trim().to_string();
+        if !text.is_empty() {
+            self.try_path(PathBuf::from(text), cx);
+        }
+    }
+
+    fn path_input(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Entity<InputState> {
+        if let Some((input, _)) = &self.path {
+            return input.clone();
+        }
+        let input = cx.new(|cx| InputState::new(window, cx).placeholder(t!("java.path_hint")));
+        let sub = cx.subscribe(&input, |this, _, event, cx| {
+            if let InputEvent::PressEnter { .. } = event {
+                this.typed(cx);
+            }
+        });
+        self.path = Some((input.clone(), sub));
+        input
     }
 
     fn row(
@@ -233,6 +280,7 @@ fn describe(install: &JavaInstall) -> String {
 impl Render for JavaPicker {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let c = cx.theme().colors;
+        let path = self.path_input(window, cx);
         let (installs, scanning) = {
             let found = cx.default_global::<Found>();
             (found.installs.clone(), found.scanning)
@@ -287,6 +335,7 @@ impl Render for JavaPicker {
                     .id(SharedString::from(format!("{}:list", self.key)))
                     .max_h(px(300.))
                     .overflow_y_scroll()
+                    .contain_scroll(&self.scroll)
                     .rounded(px(8.))
                     .border_1()
                     .border_color(c.border)
@@ -297,6 +346,20 @@ impl Render for JavaPicker {
             .when_some(self.error.clone(), |col, e| {
                 col.child(div().text_color(c.warn).child(e))
             })
+            .child(
+                h_flex()
+                    .gap(px(8.))
+                    .child(
+                        TextField::new(&path)
+                            .flex_1()
+                            .font_family(cx.theme().mono.clone()),
+                    )
+                    .child(
+                        Button::new(SharedString::from(format!("{}:use", self.key)))
+                            .label(t!("java.use_path"))
+                            .on_click(cx.listener(|this, _, _, cx| this.typed(cx))),
+                    ),
+            )
             .child(
                 h_flex()
                     .gap(px(8.))

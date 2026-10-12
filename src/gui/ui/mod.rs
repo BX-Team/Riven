@@ -26,7 +26,8 @@ pub use gpui_kit::base::{h_flex, v_flex};
 use gpui_kit::base::{Scrollbar, ScrollbarHandle};
 use gpui_kit::{
     AnyView, App, AppContext as _, Context, Div, FontWeight, IntoElement, ParentElement as _,
-    Render, SharedString, Styled, Window, div, px, relative,
+    Render, ScrollHandle, SharedString, StatefulInteractiveElement, Styled, Window, div, px,
+    relative,
 };
 
 use super::theme::ActiveTheme as _;
@@ -89,6 +90,21 @@ pub fn tile(text: SharedString, size: f32, radius: f32, cx: &App) -> gpui_kit::D
         .font_weight(FontWeight::EXTRA_BOLD)
         .child(text)
 }
+
+/// A list scrolling inside a scrolling page keeps the wheel while it has more to show,
+/// instead of scrolling the page along with it.
+pub trait ContainScroll: StatefulInteractiveElement + Sized {
+    fn contain_scroll(self, handle: &ScrollHandle) -> Self {
+        let room = handle.clone();
+        self.track_scroll(handle).on_scroll_wheel(move |_, _, cx| {
+            if room.max_offset().y > px(0.) {
+                cx.stop_propagation();
+            }
+        })
+    }
+}
+
+impl<T: StatefulInteractiveElement> ContainScroll for T {}
 
 /// A vertical scrollbar laid over a scrolling element; place it in a `relative` parent.
 #[track_caller]

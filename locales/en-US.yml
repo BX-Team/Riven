@@ -338,6 +338,8 @@ java:
   auto: Automatic
   auto_hint: Riven downloads the Java this Minecraft version needs
   custom: Picked by hand
+  use_path: Use
+  path_hint: Path to java or a JDK folder
   browse: Browse…
   rescan: Search again
   scanning: Searching for Java…
