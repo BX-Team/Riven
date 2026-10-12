@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::time::Duration;
 
 use tokio::io::{AsyncBufReadExt as _, AsyncRead, BufReader};
 use tokio::sync::mpsc;
@@ -126,10 +127,18 @@ impl Game {
             tokio::spawn(lines(err, true, tx.clone()));
         }
         drop(tx);
-        while let Some((stderr, line)) = rx.recv().await {
+        // Processes the game leaves behind may hold its pipes open long after it exits.
+        let status = loop {
+            tokio::select! {
+                Some((stderr, line)) = rx.recv() => on_line(stderr, line),
+                status = self.child.wait() => break status.ok()?,
+            }
+        };
+        while let Ok(Some((stderr, line))) =
+            tokio::time::timeout(Duration::from_millis(300), rx.recv()).await
+        {
             on_line(stderr, line);
         }
-        let status = self.child.wait().await.ok()?;
         #[cfg(unix)]
         let signal = std::os::unix::process::ExitStatusExt::signal(&status).map(|s| 128 + s);
         #[cfg(not(unix))]
@@ -373,6 +382,28 @@ fn substitute(arg: &str, vars: &BTreeMap<&str, String>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn exit_is_seen_while_a_leftover_process_holds_the_pipes() {
+        let child = tokio::process::Command::new("sh")
+            .args(["-c", "sleep 30 & echo bye; exit 3"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let pid = child.id().unwrap();
+        let game = Game { child, pid };
+        let seen = std::sync::Mutex::new(Vec::new());
+        let code = tokio::time::timeout(
+            Duration::from_secs(5),
+            game.wait(|_, line| seen.lock().unwrap().push(line)),
+        )
+        .await
+        .expect("wait returns once the game exits");
+        assert_eq!(code, Some(3));
+        assert_eq!(*seen.lock().unwrap(), ["bye"]);
+    }
 
     fn prepared(minecraft: &str, json: &str) -> Prepared {
         Prepared {
