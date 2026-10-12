@@ -28,6 +28,10 @@ pub struct Session {
     pub log: VecDeque<(bool, SharedString)>,
     /// Why the pack could not be checked, shown under the status.
     pub notice: Option<SharedString>,
+    /// Stops the work while it has not started the game yet.
+    abort: Option<runtime::Abort>,
+    /// The instance's first pack install, which leaves nothing worth keeping when cancelled.
+    fresh: bool,
 }
 
 impl Session {
@@ -40,7 +44,14 @@ impl Session {
             },
             log: VecDeque::new(),
             notice: None,
+            abort: None,
+            fresh: false,
         }
+    }
+
+    /// Whether the work can still be stopped: it has not begun starting the game.
+    pub fn cancellable(&self) -> bool {
+        matches!(&self.phase, Phase::Working { stage, .. } if *stage != Stage::Starting)
     }
 
     pub fn busy(&self) -> bool {
@@ -66,7 +77,8 @@ impl Session {
                 }
             }
             Progress::Offline { .. } => self.notice = Some(rust_i18n::t!("launch.offline").into()),
-            Progress::Installed { .. } | Progress::Updated { .. } | Progress::Replaced { .. } => {}
+            Progress::Installed { .. } => self.fresh = false,
+            Progress::Updated { .. } | Progress::Replaced { .. } => {}
             Progress::Started { pid, played } => {
                 let now = Instant::now();
                 self.phase = Phase::Running {
@@ -87,14 +99,17 @@ impl Session {
 
 impl AppState {
     /// Starts `job` on tokio and folds its progress into the instance's session.
-    fn run_session<F, Fut>(&mut self, id: &str, job: F, cx: &mut Context<Self>)
+    fn run_session<F, Fut>(&mut self, id: &str, fresh: bool, job: F, cx: &mut Context<Self>)
     where
         F: FnOnce(mpsc::UnboundedSender<Progress>) -> Fut + Send + 'static,
         Fut: Future<Output = Result<(), LaunchError>>,
     {
         let (tx, mut rx) = mpsc::unbounded_channel();
-        self.sessions.insert(id.to_owned(), Session::new());
-        let done = runtime::pinned(move || job(tx));
+        let (done, abort) = runtime::pinned_abortable(move || job(tx));
+        let mut session = Session::new();
+        session.abort = Some(abort);
+        session.fresh = fresh;
+        self.sessions.insert(id.to_owned(), session);
         let id = id.to_owned();
         cx.spawn(async move |this, cx| {
             while let Some(first) = rx.recv().await {
@@ -138,9 +153,13 @@ impl AppState {
                     return;
                 }
             }
-            let result = done.await.unwrap_or(Ok(()));
+            let Ok(result) = done.await else {
+                let _ = this.update(cx, |s, cx| s.cancelled(&id, cx));
+                return;
+            };
             let _ = this.update(cx, |s, cx| {
                 if let Some(session) = s.sessions.get_mut(&id) {
+                    session.abort = None;
                     match result {
                         Err(e) => {
                             tracing::error!("{e}");
@@ -157,6 +176,31 @@ impl AppState {
         })
         .detach();
         self.tick(cx);
+        cx.notify();
+    }
+
+    /// Stops an install or a launch that has not started the game yet.
+    pub fn cancel(&mut self, id: &str) {
+        if let Some(session) = self.sessions.get(id).filter(|s| s.cancellable())
+            && let Some(abort) = &session.abort
+        {
+            abort.abort();
+        }
+    }
+
+    fn cancelled(&mut self, id: &str, cx: &mut Context<Self>) {
+        let fresh = self.sessions.get(id).is_some_and(|s| s.fresh);
+        if let Some(session) = self.sessions.get_mut(id) {
+            session.abort = None;
+            session.phase = Phase::Finished { code: None };
+            session.notice = Some(rust_i18n::t!("launch.cancelled").into());
+        }
+        if fresh {
+            self.delete_instance(id, cx);
+            return;
+        }
+        *self.revisions.entry(id.to_owned()).or_default() += 1;
+        self.reload_instances(cx);
         cx.notify();
     }
 
@@ -197,6 +241,7 @@ impl AppState {
         let instance = id.to_owned();
         self.run_session(
             id,
+            false,
             move |tx| async move {
                 game::play(&store, &instance, &account, &defaults, move |p| {
                     let _ = tx.send(p);
@@ -222,6 +267,7 @@ impl AppState {
             let instance = id.clone();
             self.run_session(
                 &id,
+                false,
                 move |tx| async move {
                     game::watch(&store, &instance, running, &defaults, move |p| {
                         let _ = tx.send(p);
@@ -239,9 +285,11 @@ impl AppState {
         let Some(store) = self.store.clone() else {
             return;
         };
+        let fresh = !riven_launch::own::from_pack(&store.game_dir(id));
         let instance = id.to_owned();
         self.run_session(
             id,
+            fresh,
             move |tx| async move {
                 game::install_pack(&store, &instance, request, move |p| {
                     let _ = tx.send(p);
@@ -267,9 +315,11 @@ impl AppState {
             return;
         };
         let defaults = self.settings.launch.clone();
+        let fresh = !riven_launch::own::from_pack(&store.game_dir(id));
         let instance = id.to_owned();
         self.run_session(
             id,
+            fresh,
             move |tx| async move {
                 let report = tx.clone();
                 game::install_pack(&store, &instance, request, move |p| {
@@ -333,6 +383,7 @@ impl AppState {
         let instance = id.to_owned();
         self.run_session(
             id,
+            false,
             move |tx| async move {
                 riven_launch::modpack::update(&store, &instance, version, move |p| {
                     let _ = tx.send(p);

@@ -1,6 +1,7 @@
 common:
   cancel: Cancel
   close: Close
+  stop: Stop
 titlebar:
   developer: Developer mode
 sidebar:
@@ -109,6 +110,8 @@ launch:
   pack_current: Pack up to date
   pack_newer: "%{version} is out"
   update_pack: Update
+  cancel: Cancel
+  cancelled: Cancelled
   preparing: Preparing…
   stop: Stop
   running: "Running · %{time}"

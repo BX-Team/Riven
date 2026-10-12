@@ -103,8 +103,18 @@ pub struct NewInstance {
 
     /// What is running, shown with a spinner; actions wait for it.
     busy: Option<SharedString>,
+    /// Stops what is running; closing the dialog stops it too.
+    abort: Option<runtime::Abort>,
     error: Option<SharedString>,
     _subs: Vec<Subscription>,
+}
+
+impl Drop for NewInstance {
+    fn drop(&mut self) {
+        if let Some(abort) = &self.abort {
+            abort.abort();
+        }
+    }
 }
 
 fn modrinth() -> Modrinth {
@@ -273,6 +283,7 @@ impl NewInstance {
             prepared: None,
             groups: BTreeMap::new(),
             busy: None,
+            abort: None,
             error: None,
             _subs: subs,
         };
@@ -490,14 +501,17 @@ impl NewInstance {
             })
             .detach();
         }
-        let result = runtime::spawn(work);
+        let (result, abort) = runtime::spawn_abortable(work);
+        self.abort = Some(abort);
         cx.spawn(async move |this, cx| {
-            let result = result.await.unwrap_or_else(|_| Err("cancelled".into()));
+            let result = result.await;
             let _ = this.update(cx, |this, cx| {
                 this.busy = None;
+                this.abort = None;
                 match result {
-                    Ok(value) => done(this, value, cx),
-                    Err(e) => this.error = Some(e.into()),
+                    Ok(Ok(value)) => done(this, value, cx),
+                    Ok(Err(e)) => this.error = Some(e.into()),
+                    Err(_) => {}
                 }
                 cx.notify();
             });
@@ -1486,11 +1500,18 @@ impl Render for NewInstance {
             .child(content)
             .child(div().min_h(px(22.)).child(status));
         let busy = self.busy.is_some();
-        let cancel = Button::new("cancel")
-            .outline()
-            .size(ButtonSize::Md)
-            .label(t!("common.cancel"))
-            .on_click(|_, _, cx| AppState::global(cx).update(cx, |s, cx| s.close_modal(cx)));
+        let cancel = match self.abort.clone() {
+            Some(abort) => Button::new("stop")
+                .outline()
+                .size(ButtonSize::Md)
+                .label(t!("common.stop"))
+                .on_click(move |_, _, _| abort.abort()),
+            None => Button::new("cancel")
+                .outline()
+                .size(ButtonSize::Md)
+                .label(t!("common.cancel"))
+                .on_click(|_, _, cx| AppState::global(cx).update(cx, |s, cx| s.close_modal(cx))),
+        };
         let action = match self.mode {
             Mode::Modrinth => Button::new("install-modpack")
                 .primary()

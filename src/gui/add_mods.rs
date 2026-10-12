@@ -125,6 +125,8 @@ pub struct AddMods {
     details: Entity<Details>,
     /// The project id, link or file being installed.
     installing: Option<String>,
+    /// Stops the install; closing the dialog stops it too.
+    abort: Option<runtime::Abort>,
     /// `(done, total, current title)` while several projects install.
     progress: Option<(usize, usize, String)>,
     /// The last outcome; `true` marks a failure.
@@ -132,6 +134,14 @@ pub struct AddMods {
     problems: Vec<SharedString>,
     scroll: UniformListScrollHandle,
     _subs: Vec<Subscription>,
+}
+
+impl Drop for AddMods {
+    fn drop(&mut self) {
+        if let Some(abort) = &self.abort {
+            abort.abort();
+        }
+    }
 }
 
 fn modrinth() -> Modrinth {
@@ -362,6 +372,7 @@ impl AddMods {
             pages: HashMap::new(),
             details,
             installing: None,
+            abort: None,
             progress: None,
             status: None,
             problems: Vec::new(),
@@ -556,7 +567,8 @@ impl AddMods {
         cx.notify();
         let id = self.id.clone();
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let done = runtime::spawn(install(store, id, self.kind, job, tx));
+        let (done, abort) = runtime::spawn_abortable(install(store, id, self.kind, job, tx));
+        self.abort = Some(abort);
         cx.spawn_in(window, async move |this, cx| {
             while let Some(step) = rx.recv().await {
                 let alive = this.update(cx, |this, cx| {
@@ -567,12 +579,17 @@ impl AddMods {
                     return;
                 }
             }
-            let result = done
-                .await
-                .unwrap_or_else(|_| Err(LaunchError::Interrupted("cancelled".into())));
+            let result = done.await;
             let _ = this.update_in(cx, |this, window, cx| {
                 this.installing = None;
+                this.abort = None;
                 this.progress = None;
+                let Ok(result) = result else {
+                    this.status = Some((true, t!("launch.cancelled").into()));
+                    let _ = this.view.update(cx, |view, cx| view.reload(window, cx));
+                    cx.notify();
+                    return;
+                };
                 match result {
                     Ok(outcome) => this.finish(outcome, window, cx),
                     Err(LaunchError::Resolve(ResolveError::AlreadyPresent { .. })) => {
@@ -956,7 +973,16 @@ impl AddMods {
                     .gap(px(12.))
                     .child(left)
                     .child(div().flex_1())
-                    .child(right),
+                    .child(right)
+                    .when_some(self.abort.clone(), |row, abort| {
+                        row.child(
+                            Button::new("stop-install")
+                                .ghost()
+                                .size(ButtonSize::Xs)
+                                .label(t!("common.stop"))
+                                .on_click(move |_, _, _| abort.abort()),
+                        )
+                    }),
             )
             .when(!self.problems.is_empty(), |col| {
                 col.child(

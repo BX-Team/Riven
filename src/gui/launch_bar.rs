@@ -343,6 +343,15 @@ fn play_button(
     let id = id.to_owned();
     let state = state.clone();
     match session.map(|s| &s.phase) {
+        Some(Phase::Working { .. }) if session.is_some_and(Session::cancellable) => {
+            Button::new("cancel")
+                .outline()
+                .size(ButtonSize::Lg)
+                .icon(IconName::Close)
+                .label(t!("launch.cancel"))
+                .on_click(move |_, _, cx| state.update(cx, |s, _| s.cancel(&id)))
+                .into_any_element()
+        }
         Some(Phase::Working { .. }) => Button::new("play")
             .primary()
             .size(ButtonSize::Lg)
