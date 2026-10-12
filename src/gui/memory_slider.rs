@@ -86,6 +86,10 @@ impl MemorySlider {
         })
     }
 
+    pub fn value(&self) -> MemoryMb {
+        self.value
+    }
+
     /// Shows another value without reporting it, as when an override starts from the defaults.
     pub fn set(&mut self, value: MemoryMb, window: &mut Window, cx: &mut Context<Self>) {
         self.value = value;

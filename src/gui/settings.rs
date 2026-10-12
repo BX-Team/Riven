@@ -298,6 +298,8 @@ impl SettingsView {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let mut fields = Vec::new();
         let mut subs = Vec::new();
+        // On Linux the desktop's light or dark mode arrives from the portal after startup.
+        subs.push(cx.observe_window_appearance(window, |_, _, cx| reapply_theme(cx)));
         for kind in FIELDS {
             let value = kind.read(prefs(cx));
             let input = cx.new(|cx| InputState::new(window, cx).default_value(value));
@@ -320,7 +322,12 @@ impl SettingsView {
             }));
             areas.push((kind, area));
         }
-        subs.push(cx.observe(&AppState::global(cx), |_, _, cx| cx.notify()));
+        subs.push(
+            cx.observe_in(&AppState::global(cx), window, |this, _, window, cx| {
+                this.follow(window, cx);
+                cx.notify();
+            }),
+        );
         let java = JavaPicker::new(
             "settings-java",
             prefs(cx).launch.java.clone(),
@@ -360,6 +367,16 @@ impl SettingsView {
             .find(|(k, _)| *k == kind)
             .expect("every text setting has a field")
             .1
+    }
+
+    /// Shows what other views, such as the first-run setup, changed meanwhile.
+    fn follow(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let launch = prefs(cx).launch.clone();
+        if self.memory.read(cx).value() != launch.memory {
+            self.memory
+                .update(cx, |m, cx| m.set(launch.memory, window, cx));
+        }
+        self.java.update(cx, |j, cx| j.show(launch.java, cx));
     }
 
     /// Back to the first page, for each visit to the settings.
@@ -1006,7 +1023,7 @@ fn group_title(text: SharedString, cx: &App) -> AnyElement {
         .into_any_element()
 }
 
-/// One row of theme cards; picking a card also switches to its mode unless the system decides.
+/// One row of theme cards; picking one keeps the mode, which only the mode menu changes.
 pub(super) fn theme_picker(
     title: SharedString,
     list: &'static [theme::Spec],
@@ -1030,13 +1047,6 @@ pub(super) fn theme_picker(
                         s.appearance.dark = id.into();
                     } else {
                         s.appearance.light = id.into();
-                    }
-                    if s.appearance.mode != ThemeMode::System {
-                        s.appearance.mode = if dark {
-                            ThemeMode::Dark
-                        } else {
-                            ThemeMode::Light
-                        };
                     }
                 });
                 reapply_theme(cx);

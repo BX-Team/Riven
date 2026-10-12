@@ -93,6 +93,14 @@ impl JavaPicker {
         })
     }
 
+    /// Shows a choice made elsewhere without reporting it.
+    pub fn show(&mut self, choice: JavaChoice, cx: &mut Context<Self>) {
+        if self.choice != choice {
+            self.choice = choice;
+            cx.notify();
+        }
+    }
+
     fn pick(&mut self, choice: JavaChoice, cx: &mut Context<Self>) {
         self.error = None;
         self.choice = choice.clone();

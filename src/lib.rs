@@ -37,7 +37,8 @@ fn run_gui(arg: Option<String>) -> ExitCode {
 
 fn init_logging() {
     let filter = tracing_subscriber::EnvFilter::try_from_env("RIVEN_LOG")
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn"));
+        // Graphics driver probing and optional D-Bus services warn on healthy systems.
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn,wgpu_hal=error,zbus=error"));
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_writer(std::io::stderr)
