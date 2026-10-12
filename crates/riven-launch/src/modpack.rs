@@ -51,7 +51,7 @@ pub async fn update(
         .primary_file()
         .and_then(|f| f.url.clone())
         .ok_or_else(|| LaunchError::Download(version.number.clone()))?;
-    report(Progress::Stage(Stage::Pack));
+    report(Progress::Stage(Stage::Convert));
     let archive = packs_dir()?.join(format!("{project}-{}.riven", version.id));
     riven_build::ship::archive_mrpack(&url, &archive, |_| {})
         .await

@@ -125,9 +125,13 @@ pub(super) fn stage_label(stage: Stage) -> String {
     match stage {
         Stage::SignIn => t!("launch.stage.sign_in"),
         Stage::Pack => t!("launch.stage.pack"),
+        Stage::Convert => t!("launch.stage.convert"),
+        Stage::PackDownload => t!("launch.stage.pack_download"),
+        Stage::PackInstall => t!("launch.stage.pack_install"),
         Stage::Metadata => t!("launch.stage.metadata"),
         Stage::Java => t!("launch.stage.java"),
         Stage::Game => t!("launch.stage.game"),
+        Stage::Loader => t!("launch.stage.loader"),
         Stage::Starting => t!("launch.stage.starting"),
     }
     .into()
@@ -267,6 +271,9 @@ fn status(
             let amount = match (stage, fraction) {
                 (Stage::Java | Stage::Game, Some(_)) => {
                     format!("{} / {} MB", megabytes(*done), megabytes(*total))
+                }
+                (Stage::PackDownload | Stage::PackInstall | Stage::Loader, Some(_)) => {
+                    format!("{done} / {total}")
                 }
                 (_, Some(f)) => format!("{:.0}%", f * 100.),
                 _ => String::new(),

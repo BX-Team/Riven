@@ -119,10 +119,14 @@ launch:
   scanning: Reading the instance files
   stage:
     sign_in: Signing in to Microsoft
-    pack: Updating the pack
+    pack: Checking the pack for updates
+    convert: Preparing the Modrinth pack
+    pack_download: Downloading pack files
+    pack_install: Installing pack files
     metadata: Reading version info
     java: Downloading Java
     game: Downloading the game
+    loader: Installing the mod loader
     starting: Starting the game
   played: "%{total} played"
   played_last: "%{total} played · last %{last}"

@@ -18,13 +18,21 @@ use crate::{LaunchError, io};
 pub enum Stage {
     /// Refreshing a Microsoft account's session.
     SignIn,
-    /// Checking the pack's channel and swapping changed files in.
+    /// Checking the pack's channel for a newer release.
     Pack,
+    /// Turning a Modrinth modpack into a pack release.
+    Convert,
+    /// Fetching the pack's changed files; amounts count files.
+    PackDownload,
+    /// Swapping the fetched files into the game directory; amounts count files.
+    PackInstall,
     /// Reading version and loader metadata.
     Metadata,
     Java,
-    /// Libraries, assets, the client jar and loader processors.
+    /// Libraries, assets and the client jar.
     Game,
+    /// Forge and NeoForge installer processors; amounts count processors.
+    Loader,
     Starting,
 }
 
@@ -178,11 +186,17 @@ async fn apply(
     let http = riven_sources::client();
     let release = pending.release.clone();
     let sink = report.clone();
+    let shown = std::sync::Mutex::new(None);
     let progress = move |e: install::Event| {
-        let (done, total) = match e {
-            install::Event::Downloading { done, total } => (done, total * 2),
-            install::Event::Installing { done, total } => (total + done, total * 2),
+        let (stage, done, total) = match e {
+            install::Event::Downloading { done, total } => (Stage::PackDownload, done, total),
+            install::Event::Installing { done, total } => (Stage::PackInstall, done, total),
         };
+        let mut shown = shown.lock().unwrap_or_else(|e| e.into_inner());
+        if *shown != Some(stage) {
+            *shown = Some(stage);
+            sink(Progress::Stage(stage));
+        }
         sink(Progress::Amount {
             done: done as u64,
             total: total as u64,
@@ -281,7 +295,8 @@ pub async fn play(
     let progress = move |event: Event| {
         sink(match event {
             Event::Step(Step::Java) => Progress::Stage(Stage::Java),
-            Event::Step(Step::Files | Step::Processors) => Progress::Stage(Stage::Game),
+            Event::Step(Step::Files) => Progress::Stage(Stage::Game),
+            Event::Step(Step::Processors) => Progress::Stage(Stage::Loader),
             Event::Amount { done, total } => Progress::Amount { done, total },
         })
     };

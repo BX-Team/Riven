@@ -119,10 +119,14 @@ launch:
   scanning: Чтение файлов инстанса
   stage:
     sign_in: Вход в аккаунт Microsoft
-    pack: Обновление пака
+    pack: Проверка обновлений пака
+    convert: Подготовка пака с Modrinth
+    pack_download: Скачивание файлов пака
+    pack_install: Установка файлов пака
     metadata: Получение данных о версии
     java: Загрузка Java
     game: Загрузка игры
+    loader: Установка загрузчика модов
     starting: Запуск игры
   played: "Наиграно %{total}"
   played_last: "Наиграно %{total} · последний запуск %{last}"
