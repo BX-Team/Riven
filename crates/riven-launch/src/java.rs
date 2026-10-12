@@ -83,11 +83,10 @@ fn parse(output: &str) -> Option<(String, String, String)> {
             _ => {}
         }
     }
-    Some((
-        version?,
-        vendor.unwrap_or_default(),
-        arch.unwrap_or_default(),
-    ))
+    let vendor = vendor
+        .filter(|v| !v.is_empty() && v != "N/A")
+        .unwrap_or_else(|| "OpenJDK".into());
+    Some((version?, vendor, arch.unwrap_or_default()))
 }
 
 /// Runs `java` once to learn its version; hangs and crashes count as not Java.
@@ -171,11 +170,16 @@ fn patterns() -> Vec<PathBuf> {
             "/opt/java/*",
             "/opt/jdk/*",
             "/run/current-system/sw",
+            "/nix/var/nix/profiles/default",
         ] {
             out.push(bin(PathBuf::from(root)));
         }
+        if let Some(user) = std::env::var_os("USER") {
+            out.push(bin(Path::new("/etc/profiles/per-user").join(user)));
+        }
         for root in [
             ".nix-profile",
+            ".local/state/nix/profiles/profile",
             ".sdkman/candidates/java/*",
             ".jdks/*",
             ".local/share/PrismLauncher/java/*",
@@ -233,6 +237,33 @@ fn patterns() -> Vec<PathBuf> {
     out
 }
 
+/// Whether a store path name looks like a JDK or JRE package: `…-openjdk-21.0.5+11`, `…-temurin-bin-25`.
+fn java_package(name: &str) -> bool {
+    let name = name.to_ascii_lowercase();
+    !name.ends_with(".drv")
+        && ["jdk", "jre", "temurin", "zulu", "graalvm", "corretto"]
+            .iter()
+            .any(|k| name.contains(k))
+}
+
+/// Every JDK in the Nix store, linked into a profile or not: nixpkgs keeps OpenJDK under `lib/openjdk`.
+fn nix_store() -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir("/nix/store") else {
+        return Vec::new();
+    };
+    entries
+        .flatten()
+        .filter(|e| java_package(&e.file_name().to_string_lossy()))
+        .flat_map(|e| {
+            let dir = e.path();
+            [
+                dir.join("bin").join(exe()),
+                dir.join("lib/openjdk/bin").join(exe()),
+            ]
+        })
+        .collect()
+}
+
 /// Java executables worth probing: `JAVA_HOME`, `PATH` and the usual install folders.
 pub fn candidates() -> Vec<PathBuf> {
     let mut paths = Vec::new();
@@ -249,6 +280,9 @@ pub fn candidates() -> Vec<PathBuf> {
     }
     for pattern in patterns() {
         paths.extend(expand(&pattern));
+    }
+    if cfg!(target_os = "linux") {
+        paths.extend(nix_store());
     }
     let mut seen = HashSet::new();
     paths
@@ -270,6 +304,11 @@ pub fn detect() -> Vec<JavaInstall> {
             .into_iter()
             .filter_map(|p| p.join().ok().flatten())
             .collect()
+    });
+    let mut seen = HashSet::new();
+    found.retain(|j| {
+        !j.path.starts_with("/nix/store")
+            || seen.insert((j.version.clone(), j.vendor.clone(), j.arch.clone()))
     });
     found.sort_by(|a, b| b.major.cmp(&a.major).then_with(|| a.path.cmp(&b.path)));
     found
