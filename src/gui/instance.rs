@@ -129,6 +129,17 @@ pub struct InstanceView {
 }
 
 impl InstanceView {
+    /// Whether the install runs into an empty table, which then shows its progress instead.
+    pub fn centered_progress(&self, cx: &App) -> bool {
+        matches!(self.tab, Tab::Mods | Tab::ResourcePacks | Tab::Shaders)
+            && self.mods.len() == 0
+            && AppState::global(cx)
+                .read(cx)
+                .sessions
+                .get(&self.id)
+                .is_some_and(|s| matches!(s.phase, super::session::Phase::Working { .. }))
+    }
+
     /// Modrinth projects among the files the table shows, as far as they are identified.
     pub fn known_projects(&self, kind: Kind) -> Vec<String> {
         if self.kind != kind {
@@ -671,8 +682,12 @@ impl InstanceView {
         out
     }
 
-    fn render_mods(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+    fn render_mods(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let c = cx.theme().colors;
+        let centered = self.centered_progress(cx);
+        let card = centered
+            .then(|| super::launch_bar::progress_card(&self.id, window, cx))
+            .flatten();
         let dir = self.game_dir.join(folder(self.kind));
         let busy = self.working;
         let actions = self.render_mod_actions(cx);
@@ -740,7 +755,18 @@ impl InstanceView {
                         .track_scroll(&self.scroll),
                     )
                     .child(scrollbar(&self.scroll))
-                    .when(self.mods.len() == 0 && !self.loading, |area| {
+                    .when_some(card, |area, card| {
+                        area.child(
+                            div()
+                                .absolute()
+                                .inset_0()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .child(card),
+                        )
+                    })
+                    .when(self.mods.len() == 0 && !self.loading && !centered, |area| {
                         area.child(
                             div()
                                 .absolute()
@@ -1022,7 +1048,7 @@ impl Render for InstanceView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let content = match self.tab {
             Tab::Mods | Tab::ResourcePacks | Tab::Shaders => {
-                self.render_mods(cx).into_any_element()
+                self.render_mods(window, cx).into_any_element()
             }
             Tab::Logs => self.logs.clone().into_any_element(),
             Tab::Configs => self.configs.clone().into_any_element(),

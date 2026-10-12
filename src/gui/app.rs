@@ -402,7 +402,13 @@ impl Render for RivenApp {
         let modal = st.modal.clone();
         let context = st.context_menu.clone();
         let bar = match &route {
-            Route::Instance(id) => Some(launch_bar::render(&self.state, id, window, cx)),
+            Route::Instance(id) => {
+                let centered = self
+                    .instance
+                    .as_ref()
+                    .is_some_and(|v| v.read(cx).centered_progress(cx));
+                Some(launch_bar::render(&self.state, id, centered, window, cx))
+            }
             _ => None,
         };
         let actions = self.render_actions(cx);

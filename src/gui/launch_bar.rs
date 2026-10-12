@@ -232,6 +232,75 @@ fn scanning(id: &str, done: usize, total: usize, window: &mut Window, cx: &mut A
         .into_any_element()
 }
 
+/// The install's progress as a card for the middle of an instance that has no content yet.
+pub(super) fn progress_card(id: &str, window: &mut Window, cx: &mut App) -> Option<AnyElement> {
+    let c = cx.theme().colors;
+    let Phase::Working { stage, done, total } = AppState::global(cx)
+        .read(cx)
+        .sessions
+        .get(id)?
+        .phase
+        .clone()
+    else {
+        return None;
+    };
+    let fraction = (total > 0).then(|| done as f32 / total as f32);
+    Some(
+        v_flex()
+            .w(px(420.))
+            .gap(px(12.))
+            .p(px(22.))
+            .rounded(px(12.))
+            .border_1()
+            .border_color(c.border)
+            .bg(c.panel)
+            .child(
+                h_flex()
+                    .gap(px(10.))
+                    .child(ui::motion::spinner(
+                        "install-card-spinner",
+                        icon(IconName::Loader, c.accent).size(px(16.)),
+                        cx,
+                    ))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .font_weight(W_SEMIBOLD)
+                            .text_size(px(15.))
+                            .child(stage_label(stage)),
+                    )
+                    .child(
+                        div()
+                            .flex_none()
+                            .text_size(px(12.))
+                            .font_family(cx.theme().mono.clone())
+                            .text_color(c.muted)
+                            .child(amount(stage, done, total)),
+                    ),
+            )
+            .child(progress_bar(id, fraction, window, cx))
+            .child(
+                div()
+                    .text_size(px(12.))
+                    .text_color(c.muted)
+                    .child(t!("launch.first_install_hint").to_string()),
+            )
+            .into_any_element(),
+    )
+}
+
+/// What a stage got through, in its own unit.
+fn amount(stage: Stage, done: u64, total: u64) -> String {
+    match stage {
+        _ if total == 0 => String::new(),
+        Stage::Java | Stage::Game => format!("{} / {} MB", megabytes(done), megabytes(total)),
+        Stage::PackDownload | Stage::PackInstall | Stage::Loader => format!("{done} / {total}"),
+        _ => format!("{:.0}%", done as f32 / total as f32 * 100.),
+    }
+}
+
 /// `pack` is the installed version and a newer one, when there is one.
 fn status(
     id: &str,
@@ -268,16 +337,7 @@ fn status(
     let body = match &phase {
         Phase::Working { stage, done, total } => {
             let fraction = (*total > 0).then(|| *done as f32 / *total as f32);
-            let amount = match (stage, fraction) {
-                (Stage::Java | Stage::Game, Some(_)) => {
-                    format!("{} / {} MB", megabytes(*done), megabytes(*total))
-                }
-                (Stage::PackDownload | Stage::PackInstall | Stage::Loader, Some(_)) => {
-                    format!("{done} / {total}")
-                }
-                (_, Some(f)) => format!("{:.0}%", f * 100.),
-                _ => String::new(),
-            };
+            let amount = amount(*stage, *done, *total);
             v_flex()
                 .gap(px(6.))
                 .child(
@@ -393,9 +453,11 @@ fn play_button(
 }
 
 /// The bar under every instance: what will start, its pack status, the account and Play.
+/// `centered` leaves the install's progress to the instance view, which shows it larger.
 pub fn render(
     state: &Entity<AppState>,
     id: &str,
+    centered: bool,
     window: &mut Window,
     cx: &mut App,
 ) -> impl IntoElement + use<> {
@@ -408,7 +470,9 @@ pub fn render(
     let newer = st.modpack_updates.get(id).map(|v| v.number.clone());
     let account = selected_account(st);
     let session = st.sessions.get(id);
-    let phase = session.map(|s| s.phase.clone());
+    let phase = session
+        .map(|s| s.phase.clone())
+        .filter(|p| !(centered && matches!(p, Phase::Working { .. })));
     let notice = session.and_then(|s| s.notice.clone());
     let scan = st.scans.get(id).copied();
     let busy = phase

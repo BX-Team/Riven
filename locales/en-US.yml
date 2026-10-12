@@ -112,6 +112,7 @@ launch:
   update_pack: Update
   cancel: Cancel
   cancelled: Cancelled
+  first_install_hint: Mods, resource packs and shaders show up here once they are installed
   preparing: Preparing…
   stop: Stop
   running: "Running · %{time}"
