@@ -83,7 +83,13 @@ nix run github:BX-Team/Riven/v1.0.0
 
 Without a tag Nix takes `master`, which may not be in Cachix yet and then compiles from source.
 
-Releases are built for `x86_64-linux` and `aarch64-linux` and pushed to Cachix, so a tagged version downloads instead of compiling:
+Releases are built for `x86_64-linux` and `aarch64-linux` and pushed to Cachix, so a tagged version downloads instead of compiling. The flake names the cache itself; accept it once:
+
+```bash
+nix run --accept-flake-config github:BX-Team/Riven/v1.0.0
+```
+
+Or trust it system-wide:
 
 ```nix
 nix = {

@@ -1,6 +1,13 @@
 {
   description = "Riven Launcher — Minecraft launcher and modpack toolkit";
 
+  nixConfig = {
+    extra-substituters = [ "https://bx-team.cachix.org" ];
+    extra-trusted-public-keys = [
+      "bx-team.cachix.org-1:tnGNc1rsS8QOav+VGxXCZzf/Y0/SGchOwVCCBA/eG6E="
+    ];
+  };
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     systems.url = "github:nix-systems/default-linux";
