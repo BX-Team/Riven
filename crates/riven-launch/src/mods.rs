@@ -9,7 +9,7 @@ use sha2::{Digest, Sha512};
 
 use crate::{LaunchError, io};
 
-pub(crate) const DISABLED: &str = ".disabled";
+pub(crate) use riven_sync::install::DISABLED;
 
 /// A content file in a game directory: a jar in `mods/`, a zip in `resourcepacks/`, …
 #[derive(Debug, Clone, PartialEq, Eq)]

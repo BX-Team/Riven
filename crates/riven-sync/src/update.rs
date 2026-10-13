@@ -22,6 +22,10 @@ pub struct Request {
     pub groups: Vec<String>,
     /// `source` is a newer build of the installed pack, even though it lives somewhere else.
     pub replaces: bool,
+    /// Pack files the player switched off or removed.
+    pub skip: Vec<install::Skip>,
+    /// Plans against the disk even when the channel or archive is unchanged.
+    pub recheck: bool,
 }
 
 pub enum Check {
@@ -105,6 +109,7 @@ pub async fn check(
             && s.etag.as_deref() == Some(digest.as_str())
             && s.side == side
             && request.groups.is_empty()
+            && !request.recheck
         {
             return Ok(Check::UpToDate {
                 version: s.version.clone(),
@@ -122,6 +127,7 @@ pub async fn check(
             .is_some_and(|s| s.source == link.pointer.as_str());
         let reuse_etag = same_pack
             && request.groups.is_empty()
+            && !request.recheck
             && state.as_ref().is_some_and(|s| s.side == side);
         let etag = state
             .as_ref()
@@ -155,6 +161,7 @@ pub async fn check(
         &install::Choice {
             side,
             groups: groups.clone(),
+            skip: request.skip.clone(),
         },
     )?;
     if let Some(s) = installed

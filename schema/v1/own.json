@@ -12,6 +12,13 @@
       },
       "default": []
     },
+    "pack": {
+      "description": "Pack files the player switched off or removed; pack updates keep them that way.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/PackChoice"
+      }
+    },
     "$schema": {
       "type": "string"
     },
@@ -236,6 +243,29 @@
       "enum": [
         "explicit",
         "dependency"
+      ]
+    },
+    "PackChoice": {
+      "description": "The player's say over one file of an instance's pack.",
+      "type": "object",
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/PackPath"
+        },
+        "project": {
+          "description": "The Modrinth project, which finds the file again when an update renames it.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "removed": {
+          "description": "Removed rather than switched off.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "path"
       ]
     }
   }

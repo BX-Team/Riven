@@ -53,7 +53,8 @@ pub async fn install(out: &Output, args: InstallArgs) -> anyhow::Result<ExitCode
         channel: args.channel,
         side: args.side.map(Into::into),
         groups: args.groups,
-        replaces: false,
+        skip: riven_launch::own::pack_skips(&dir)?,
+        ..Request::default()
     };
 
     let spinner = out.spinner("Checking the pack");

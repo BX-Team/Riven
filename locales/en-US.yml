@@ -70,6 +70,8 @@ memory:
   gb: "%{n} GB"
 mods:
   empty_mods: No mods yet
+  restore_pack: "Bring back %{n} removed from the pack"
+  restore_pack_hint: The pack installs the files you removed again
   empty_resourcepacks: No resource packs yet
   empty_shaders: No shaders yet; they need Iris among the mods
   open_page: Open on Modrinth
@@ -83,7 +85,7 @@ mods:
   modified: Modified
   search: Search mods
   search_count: "Search among %{n} mods"
-  locked: Mods come from the pack; own mods can be allowed in the instance settings
+  locked: Mods come from the pack; unlock it in the instance settings
   add: Add
   needs_loader: Vanilla instances cannot have mods; pick a loader in Settings
   check_updates: Check for updates
@@ -261,8 +263,8 @@ instance_settings:
   looking_up: Looking up the loader…
   played: Play time
   never_played: Not played yet
-  own_mods: Own mods
-  own_mods_hint: Add mods on top of the pack. Its own mods still update with it.
+  own_mods: Unlock the pack
+  own_mods_hint: Full control over mods — add your own, switch off or remove the pack's. The rest still updates with the pack.
   general: General
   pack: Pack
   pack_hint: Where the instance's pack comes from, its channel and optional parts.
@@ -334,6 +336,7 @@ logs:
   empty_hint: Start the game and its output appears here
 confirm:
   stop_title: Stop the game?
+  delete_pack_mod_body: The file leaves the instance and stays out through pack updates. "Bring back removed from the pack" returns it.
   stop_body: The game is closed at once; progress since the last save is lost.
   remove_account_title: "Remove %{name}?"
   remove_account_body: The account disappears from the launcher; you can add it again later.
@@ -343,9 +346,9 @@ confirm:
   delete_instance_body: "The instance folder is deleted with its worlds, configs and screenshots. This cannot be undone."
   delete_mod_title: "Delete %{name}?"
   delete_mod_body: The file was added by hand, so the launcher cannot download it again.
-  unlock_title: Allow own mods?
-  unlock_body: "Mods you add can conflict with the pack, and its author does not support them. If a pack update brings the same mod, the pack's version replaces yours."
-  unlock_action: Allow
+  unlock_title: Unlock the pack?
+  unlock_body: "A changed pack may not work as its author meant, and they do not support such changes. If a pack update brings the same mod, the pack's version replaces yours. Pack mods you switch off or remove stay that way through updates."
+  unlock_action: Unlock
 java:
   auto: Automatic
   auto_hint: Riven downloads the Java this Minecraft version needs

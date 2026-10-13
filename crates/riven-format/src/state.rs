@@ -36,6 +36,21 @@ pub struct StateFile {
 pub struct OwnContent {
     #[serde(default, serialize_with = "sorted")]
     pub content: Vec<Entry>,
+    /// Pack files the player switched off or removed; pack updates keep them that way.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pack: Vec<PackChoice>,
+}
+
+/// The player's say over one file of an instance's pack.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct PackChoice {
+    pub path: PackPath,
+    /// The Modrinth project, which finds the file again when an update renames it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project: Option<String>,
+    /// Removed rather than switched off.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub removed: bool,
 }
 
 /// `<config>/riven/trusted.json` — public keys pinned per pack URL on first install (TOFU).

@@ -23,7 +23,7 @@ pub use project::{
 };
 pub use release::{Asset, Channel, Release, ReleaseFile};
 pub use sign::{KeyPair, PublicKey, SignError};
-pub use state::{OwnContent, State, StateFile, Trusted};
+pub use state::{OwnContent, PackChoice, State, StateFile, Trusted};
 
 pub const SCHEMA_BASE: &str = "https://raw.githubusercontent.com/BX-Team/Riven/master/schema/v1/";
 

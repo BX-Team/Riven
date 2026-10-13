@@ -161,7 +161,11 @@ async fn update_pack(
     report(Progress::Stage(Stage::Pack));
     let files = riven_sync::Store::default_location().ok_or(LaunchError::NoDir("data"))?;
     let http = riven_sources::client();
-    let pending = match update::check(&files, &http, &game_dir, &Request::default()).await {
+    let request = Request {
+        skip: crate::own::pack_skips(&game_dir)?,
+        ..Request::default()
+    };
+    let pending = match update::check(&files, &http, &game_dir, &request).await {
         Ok(Check::Ready(pending)) => pending,
         Ok(Check::UpToDate { .. }) => return Ok(()),
         Err(e) => {
@@ -211,6 +215,7 @@ async fn apply(
     {
         tracing::warn!("{e}");
     }
+    crate::own::follow_pack(&game_dir, &release)?;
     let names = crate::own::yield_to_pack(&game_dir, &release, &state.files)?;
     if !names.is_empty() {
         report(Progress::Replaced { names });
@@ -232,13 +237,14 @@ async fn apply(
 pub async fn install_pack(
     store: &Instances,
     id: &str,
-    request: Request,
+    mut request: Request,
     report: impl Fn(Progress) + Send + Sync + 'static,
 ) -> Result<(), LaunchError> {
     let report: Report = Arc::new(report);
     let mut instance = store.load(id)?;
     let game_dir = store.game_dir(id);
     std::fs::create_dir_all(&game_dir).map_err(io(&game_dir))?;
+    request.skip = crate::own::pack_skips(&game_dir)?;
     report(Progress::Stage(Stage::Pack));
     let files = riven_sync::Store::default_location().ok_or(LaunchError::NoDir("data"))?;
     let http = riven_sources::client();

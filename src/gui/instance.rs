@@ -112,6 +112,8 @@ pub struct InstanceView {
     loading: bool,
     /// Installed from a pack, so its mods stay locked until the player allows their own.
     from_pack: bool,
+    /// Pack files of the shown kind the player removed.
+    removed_pack: usize,
     updates: Updates,
     /// The outcome of the last mod action; `true` marks a failure.
     notice: Option<(bool, SharedString)>,
@@ -192,6 +194,7 @@ impl InstanceView {
             screenshots,
             loading: true,
             from_pack,
+            removed_pack: 0,
             updates: Updates::Unchecked,
             notice: None,
             working: false,
@@ -246,6 +249,11 @@ impl InstanceView {
         }
         self.loading = true;
         self.from_pack = riven_launch::own::from_pack(&self.game_dir);
+        let shown = format!("{}/", folder(self.kind));
+        self.removed_pack = riven_launch::own::removed_pack_files(&self.game_dir)
+            .iter()
+            .filter(|p| p.as_str().starts_with(&shown))
+            .count();
         self.updates = Updates::Unchecked;
         let game_dir = self.game_dir.clone();
         let kind = self.kind;
@@ -416,6 +424,62 @@ impl InstanceView {
                 .is_some_and(|i| i.own_mods)
     }
 
+    /// Whether the player may switch off or remove the pack's own files: once the instance is unlocked.
+    fn pack_editable(&self, cx: &App) -> bool {
+        self.from_pack
+            && AppState::global(cx)
+                .read(cx)
+                .instance(&self.id)
+                .is_some_and(|i| i.own_mods)
+    }
+
+    /// Whether a row is the pack's and stays as the pack has it.
+    fn locked(&self, row: &ModRow, cx: &App) -> bool {
+        !self.editable(cx) || (row.origin == Origin::Pack && !self.pack_editable(cx))
+    }
+
+    fn pack_path(&self, row: &ModRow) -> Option<riven_format::PackPath> {
+        riven_format::PackPath::new(format!("{}/{}", folder(self.kind), row.file.name)).ok()
+    }
+
+    fn change_pack(
+        &mut self,
+        row: &ModRow,
+        change: riven_launch::own::PackChange,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(path) = self.pack_path(row) else {
+            return;
+        };
+        let (game_dir, file, project) =
+            (self.game_dir.clone(), row.file.clone(), row.project.clone());
+        self.change(
+            async move {
+                riven_launch::own::change_pack_file(&game_dir, &file, &path, project, change)
+            },
+            window,
+            cx,
+        );
+    }
+
+    /// Brings back the pack files the player removed, by checking the pack again.
+    fn restore_pack(&mut self, cx: &mut Context<Self>) {
+        if let Err(e) = riven_launch::own::restore_pack_files(&self.game_dir) {
+            self.notice = Some((true, e.to_string().into()));
+            cx.notify();
+            return;
+        }
+        let id = self.id.clone();
+        AppState::global(cx).update(cx, |s, cx| {
+            let request = riven_sync::update::Request {
+                recheck: true,
+                ..Default::default()
+            };
+            s.install_pack(&id, request, cx);
+        });
+    }
+
     fn has_loader(&self, cx: &App) -> bool {
         AppState::global(cx)
             .read(cx)
@@ -455,6 +519,15 @@ impl InstanceView {
     }
 
     fn set_enabled(&mut self, row: &ModRow, on: bool, window: &mut Window, cx: &mut Context<Self>) {
+        if row.origin == Origin::Pack {
+            let change = if on {
+                riven_launch::own::PackChange::Enable
+            } else {
+                riven_launch::own::PackChange::Disable
+            };
+            self.change_pack(row, change, window, cx);
+            return;
+        }
         let file = row.file.clone();
         self.change(
             async move { riven_launch::mods::set_enabled(&file, on).map(drop) },
@@ -466,7 +539,26 @@ impl InstanceView {
     /// Removes an own mod with its unused dependencies; asks first for hand-dropped files.
     fn remove(&mut self, row: &ModRow, window: &mut Window, cx: &mut Context<Self>) {
         match row.origin.clone() {
-            Origin::Pack => {}
+            Origin::Pack => {
+                let row = row.clone();
+                let view = cx.entity().downgrade();
+                super::dialogs::confirm(
+                    t!("confirm.delete_mod_title", name = row.title),
+                    t!("confirm.delete_pack_mod_body"),
+                    t!("mods.delete"),
+                    move |window, cx| {
+                        let _ = view.update(cx, |this, cx| {
+                            this.change_pack(
+                                &row,
+                                riven_launch::own::PackChange::Remove,
+                                window,
+                                cx,
+                            )
+                        });
+                    },
+                    cx,
+                );
+            }
             Origin::Own(entry) => {
                 let Some(store) = self.store(cx) else {
                     return;
@@ -637,6 +729,18 @@ impl InstanceView {
             ];
         }
         let mut out = Vec::new();
+        let removed = self.removed_pack;
+        if removed > 0 && self.pack_editable(cx) {
+            out.push(
+                Button::new("restore-pack")
+                    .ghost()
+                    .icon(IconName::Refresh)
+                    .label(t!("mods.restore_pack", n = removed))
+                    .tooltip(t!("mods.restore_pack_hint"))
+                    .on_click(cx.listener(|this, _, _, cx| this.restore_pack(cx)))
+                    .into_any_element(),
+            );
+        }
         let has_own = self
             .mods
             .rows()
@@ -852,7 +956,7 @@ impl InstanceView {
             MenuEntry::action(t!("mods.show_file"), move |_, cx| cx.reveal_path(&path))
                 .icon(IconName::Folder),
         );
-        if row.origin == Origin::Pack || !self.editable(cx) {
+        if self.locked(row, cx) {
             return entries;
         }
         let on = !row.file.enabled;
@@ -901,7 +1005,7 @@ impl InstanceView {
             self.row_menu(row, view.clone(), cx),
         );
         let cell = h_flex().w(px(ACTIONS_WIDTH)).justify_end().gap(px(6.));
-        let lead = if row.origin == Origin::Pack || !self.editable(cx) {
+        let lead = if self.locked(row, cx) {
             div()
                 .id(("pack-lock", ix))
                 .px(px(7.))

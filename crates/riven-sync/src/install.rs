@@ -74,6 +74,9 @@ pub fn choose_groups(
     Ok(groups)
 }
 
+/// The suffix that switches a content file off, the way other launchers do it.
+pub const DISABLED: &str = ".disabled";
+
 /// A file the release wants on disk.
 #[derive(Debug, Clone)]
 pub struct Wanted {
@@ -83,6 +86,39 @@ pub struct Wanted {
     /// Absolute mirrors.
     pub urls: Vec<String>,
     pub preserve: bool,
+    /// The player switched it off: it lives under its name plus [`DISABLED`].
+    pub disabled: bool,
+}
+
+/// A pack file the player switched off or removed, found by path or by Modrinth project.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Skip {
+    pub path: PackPath,
+    pub project: Option<String>,
+    pub removed: bool,
+}
+
+impl Skip {
+    fn covers(&self, path: &PackPath, urls: &[String]) -> bool {
+        &self.path == path
+            || self
+                .project
+                .as_deref()
+                .is_some_and(|p| urls.iter().any(|u| modrinth_project(u) == Some(p)))
+    }
+}
+
+/// The Modrinth project a CDN link belongs to: `https://cdn.modrinth.com/data/<project>/…`.
+pub fn modrinth_project(url: &str) -> Option<&str> {
+    let rest = url.split_once("cdn.modrinth.com/data/")?.1;
+    rest.split('/').next().filter(|p| !p.is_empty())
+}
+
+/// Where a pack file lives on disk, switched on or off.
+pub fn disabled_target(target: &Path) -> PathBuf {
+    let mut name = target.as_os_str().to_owned();
+    name.push(DISABLED);
+    PathBuf::from(name)
 }
 
 /// What an install will do.
@@ -167,6 +203,7 @@ fn included(
 pub struct Choice {
     pub side: InstallSide,
     pub groups: BTreeMap<String, bool>,
+    pub skip: Vec<Skip>,
 }
 
 /// Compares what the release wants with `state` and the disk.
@@ -187,18 +224,23 @@ pub fn plan(
         if !included(file.side, file.group.as_ref(), side, groups) {
             continue;
         }
-        let urls = file
+        let urls: Vec<String> = file
             .urls
             .iter()
             .map(|u| manifest_url.join(u).map(String::from))
             .collect::<Result<_, _>>()
             .map_err(|_| SyncError::BadLink(file.urls.join(" ")))?;
+        let skip = choice.skip.iter().find(|k| k.covers(&file.path, &urls));
+        if skip.is_some_and(|k| k.removed) {
+            continue;
+        }
         wanted.push(Wanted {
             path: file.path.clone(),
             hashes: file.hashes.clone(),
             size: file.size,
             urls,
             preserve: file.preserve,
+            disabled: skip.is_some(),
         });
     }
     let mut seen = HashSet::new();
@@ -206,7 +248,10 @@ pub fn plan(
         if !seen.insert(file.path.clone()) {
             return Err(SyncError::Conflict(file.path));
         }
-        let target = safe_target(dir, &file.path)?;
+        let mut target = safe_target(dir, &file.path)?;
+        if file.disabled {
+            target = disabled_target(&target);
+        }
         let prev = previous.get(&file.path);
         if !target.exists() {
             planned.install.push(file);
@@ -244,9 +289,12 @@ pub fn plan(
             continue;
         }
         let target = safe_target(dir, path)?;
-        if !target.exists() {
+        let Some(target) = [disabled_target(&target), target]
+            .into_iter()
+            .find(|t| t.exists())
+        else {
             continue;
-        }
+        };
         if prev.preserve && digest_file(&target)?.sha512 != prev.sha512 {
             continue;
         }
@@ -343,7 +391,10 @@ pub async fn apply(
         }
     }
     for (n, (file, blob)) in stored.into_iter().enumerate() {
-        let target = safe_target(dir, &file.path)?;
+        let mut target = safe_target(dir, &file.path)?;
+        if file.disabled {
+            target = disabled_target(&target);
+        }
         let temp = staging.join(n.to_string());
         place(&blob.path, &temp, &target, may_hardlink(&file.path))?;
         files.insert(
@@ -357,13 +408,15 @@ pub async fn apply(
     }
     for path in &planned.remove {
         let target = safe_target(dir, path)?;
-        if let Err(source) = std::fs::remove_file(&target)
-            && source.kind() != std::io::ErrorKind::NotFound
-        {
-            return Err(SyncError::Io {
-                path: target,
-                source,
-            });
+        for target in [disabled_target(&target), target] {
+            if let Err(source) = std::fs::remove_file(&target)
+                && source.kind() != std::io::ErrorKind::NotFound
+            {
+                return Err(SyncError::Io {
+                    path: target,
+                    source,
+                });
+            }
         }
     }
     let _ = std::fs::remove_dir_all(&staging);
@@ -382,6 +435,7 @@ mod tests {
         dir: PathBuf,
         url: Url,
         http: reqwest::Client,
+        skip: Vec<Skip>,
     }
 
     impl Fixture {
@@ -397,6 +451,7 @@ mod tests {
                 root,
                 url: Url::parse("http://127.0.0.1:9/releases/1.json").unwrap(),
                 http: reqwest::Client::new(),
+                skip: Vec::new(),
             }
         }
 
@@ -426,6 +481,7 @@ mod tests {
             let choice = Choice {
                 side: InstallSide::Client,
                 groups: groups.clone(),
+                skip: self.skip.clone(),
             };
             let planned = plan(&self.dir, release, &self.url, state.as_ref(), &choice).unwrap();
             let files = apply(&self.store, &self.http, &self.dir, &planned, &|_| {})
@@ -601,5 +657,64 @@ mod tests {
             safe_target(&fx.dir, &path),
             Err(SyncError::Symlink(_))
         ));
+    }
+
+    #[tokio::test]
+    async fn switched_off_and_removed_files_stay_so_across_updates() {
+        let mut f = Fixture::new("skip");
+        let modrinth = |mut file: ReleaseFile, project: &str| {
+            file.urls = vec![format!(
+                "https://cdn.modrinth.com/data/{project}/versions/v/{}",
+                file.path.file_name()
+            )];
+            file
+        };
+        let v1 = release(
+            "1",
+            vec![
+                modrinth(f.file("mods/a-1.jar", "a1", Side::Both, false), "AAA"),
+                f.file("mods/b.jar", "b", Side::Both, false),
+                f.file("mods/c.jar", "c", Side::Both, false),
+            ],
+        );
+        f.install(&v1).await;
+        std::fs::rename(
+            f.dir.join("mods/a-1.jar"),
+            f.dir.join("mods/a-1.jar.disabled"),
+        )
+        .unwrap();
+        std::fs::remove_file(f.dir.join("mods/b.jar")).unwrap();
+        f.skip = vec![
+            Skip {
+                path: PackPath::new("mods/a-1.jar").unwrap(),
+                project: Some("AAA".into()),
+                removed: false,
+            },
+            Skip {
+                path: PackPath::new("mods/b.jar").unwrap(),
+                project: None,
+                removed: true,
+            },
+        ];
+        let again = f.install(&v1).await;
+        assert!(
+            again.is_noop(),
+            "the player's choices are not changes to undo"
+        );
+
+        let v2 = release(
+            "2",
+            vec![
+                modrinth(f.file("mods/a-2.jar", "a2", Side::Both, false), "AAA"),
+                f.file("mods/b.jar", "b", Side::Both, false),
+                f.file("mods/c.jar", "c2", Side::Both, false),
+            ],
+        );
+        f.install(&v2).await;
+        assert_eq!(f.read("mods/a-2.jar.disabled"), "a2");
+        assert!(!f.dir.join("mods/a-2.jar").exists());
+        assert!(!f.dir.join("mods/a-1.jar.disabled").exists());
+        assert!(!f.dir.join("mods/b.jar").exists());
+        assert_eq!(f.read("mods/c.jar"), "c2");
     }
 }

@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use riven_format::{
-    Entry, EntryFile, Hashes, Instance, Java, Kind, OwnContent, PackPath, Project, Reason, Release,
-    Side, Source, StateFile, UpdatePolicy,
+    Entry, EntryFile, Hashes, Instance, Java, Kind, OwnContent, PackChoice, PackPath, Project,
+    Reason, Release, Side, Source, StateFile, UpdatePolicy,
 };
 use riven_resolve::{AddOptions, Downloaded, JarFetcher, Plan, Planner};
 use riven_sources::{Cache, Known, Modrinth};
@@ -474,6 +474,7 @@ impl Workbench {
                 .into_iter()
                 .filter(|e| keep.contains(&e.id))
                 .collect(),
+            pack: load(&self.game_dir)?.pack,
         };
         let ids: HashSet<String> = own.content.iter().map(|e| e.id.clone()).collect();
         for entry in &mut own.content {
@@ -502,6 +503,99 @@ impl Workbench {
         }
         std::fs::rename(&temp, &target).map_err(io(&target))
     }
+}
+
+/// What the player does to one of the pack's files.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackChange {
+    Enable,
+    Disable,
+    Remove,
+}
+
+/// Switches a pack file on or off or removes it, and remembers that for pack updates.
+pub fn change_pack_file(
+    game_dir: &Path,
+    file: &mods::ContentFile,
+    path: &PackPath,
+    project: Option<String>,
+    change: PackChange,
+) -> Result<(), LaunchError> {
+    match change {
+        PackChange::Enable | PackChange::Disable => {
+            mods::set_enabled(file, change == PackChange::Enable)?;
+        }
+        PackChange::Remove => mods::delete(file)?,
+    }
+    let mut own = load(game_dir)?;
+    own.pack.retain(|c| &c.path != path);
+    if change != PackChange::Enable {
+        own.pack.push(PackChoice {
+            path: path.clone(),
+            project,
+            removed: change == PackChange::Remove,
+        });
+    }
+    save(game_dir, &own)
+}
+
+/// The pack files the player switched off or removed, for planning a pack update.
+pub fn pack_skips(game_dir: &Path) -> Result<Vec<install::Skip>, LaunchError> {
+    Ok(load(game_dir)?
+        .pack
+        .into_iter()
+        .map(|c| install::Skip {
+            path: c.path,
+            project: c.project,
+            removed: c.removed,
+        })
+        .collect())
+}
+
+/// Pack files the player removed, by path.
+pub fn removed_pack_files(game_dir: &Path) -> Vec<PackPath> {
+    load(game_dir)
+        .map(|o| {
+            o.pack
+                .into_iter()
+                .filter(|c| c.removed)
+                .map(|c| c.path)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Forgets which pack files the player removed, so the next pack check brings them back.
+pub fn restore_pack_files(game_dir: &Path) -> Result<(), LaunchError> {
+    let mut own = load(game_dir)?;
+    own.pack.retain(|c| !c.removed);
+    save(game_dir, &own)
+}
+
+/// Points the player's choices at the files an update renamed, by their Modrinth project.
+pub fn follow_pack(game_dir: &Path, release: &Release) -> Result<(), LaunchError> {
+    let mut own = load(game_dir)?;
+    let mut moved = false;
+    for choice in &mut own.pack {
+        let Some(project) = &choice.project else {
+            continue;
+        };
+        let renamed = release.files.iter().find(|f| {
+            f.urls
+                .iter()
+                .any(|u| install::modrinth_project(u) == Some(project.as_str()))
+        });
+        if let Some(file) = renamed
+            && file.path != choice.path
+        {
+            choice.path = file.path.clone();
+            moved = true;
+        }
+    }
+    if moved {
+        save(game_dir, &own)?;
+    }
+    Ok(())
 }
 
 /// Whether a release file is the same mod as one of the player's: same path, bytes or project.
@@ -636,6 +730,7 @@ mod tests {
         save(
             &dir,
             &OwnContent {
+                pack: vec![],
                 content: vec![
                     own_entry("sodium", "mods/sodium-0.6.jar", sodium),
                     own_entry("jei", "mods/jei.jar", Source::Url { url: "y".into() }),
