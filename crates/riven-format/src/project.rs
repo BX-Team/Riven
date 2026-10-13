@@ -63,6 +63,9 @@ pub struct Entry {
     pub reason: Reason,
     #[serde(default, serialize_with = "sorted_strings")]
     pub requires: Vec<String>,
+    /// Kept in the project but left out of releases, exports and test runs.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub disabled: bool,
 }
 
 impl Keyed for Entry {

@@ -81,6 +81,7 @@ pub fn selected(format: Format, project: &Project, side: Option<InstallSide>) ->
     project
         .content
         .iter()
+        .filter(|e| !e.disabled)
         .filter(|e| side.is_none_or(|s| e.side.includes(s)))
         .filter(|e| format != Format::Prism || group_default(project, e))
         .collect()

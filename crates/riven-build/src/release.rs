@@ -178,7 +178,7 @@ pub fn build_release(project: &Project, repo: &Path) -> Result<Built, Error> {
     let mut blobs: BTreeMap<String, Blob> = BTreeMap::new();
     let preserve = |path: &PackPath| glob::any(&project.files.preserve, path.as_str());
 
-    for entry in &project.content {
+    for entry in project.content.iter().filter(|e| !e.disabled) {
         let Entry { file, .. } = entry;
         match &entry.source {
             Source::Local { path } => {
@@ -471,6 +471,24 @@ mod tests {
             ]
         );
         assert_eq!(built.blobs.len(), 5);
+        let _ = std::fs::remove_dir_all(repo);
+    }
+
+    #[test]
+    fn disabled_entries_stay_out_of_releases() {
+        let repo = tempdir("disabled");
+        let mut project = project();
+        let shipped = |p: &Project| {
+            build_release(p, &repo)
+                .unwrap()
+                .release
+                .files
+                .iter()
+                .any(|f| f.path.as_str() == "mods/sodium.jar")
+        };
+        assert!(shipped(&project));
+        project.content[0].disabled = true;
+        assert!(!shipped(&project));
         let _ = std::fs::remove_dir_all(repo);
     }
 

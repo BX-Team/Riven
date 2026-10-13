@@ -114,6 +114,7 @@ pub fn direct_entry(
         update: UpdatePolicy::Follow,
         reason: Reason::Explicit,
         requires: Vec::new(),
+        disabled: false,
     })
 }
 

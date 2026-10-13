@@ -287,6 +287,7 @@ pub fn build_project(
             group: file.optional.then(|| OPTIONAL_GROUP.to_owned()),
             reason: Reason::Explicit,
             requires: vec![],
+            disabled: false,
         });
     }
 

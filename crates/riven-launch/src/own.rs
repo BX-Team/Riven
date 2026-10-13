@@ -260,6 +260,7 @@ impl Workbench {
                 update: UpdatePolicy::Pinned,
                 reason: Reason::Explicit,
                 requires: vec![],
+                disabled: false,
             });
         }
 
@@ -689,6 +690,7 @@ mod tests {
             update: UpdatePolicy::Follow,
             reason: Reason::Explicit,
             requires: vec![],
+            disabled: false,
         }
     }
 

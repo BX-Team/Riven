@@ -534,6 +534,21 @@ pub fn set_pinned(project: &mut Project, id: &str, pinned: bool) -> Result<(), A
     Ok(())
 }
 
+/// Keeps an entry in the project but out of releases, or brings it back.
+pub fn set_disabled(project: &mut Project, id: &str, disabled: bool) -> Result<(), AuthorError> {
+    entry_mut(project, id)?.disabled = disabled;
+    Ok(())
+}
+
+/// Plans moving a Modrinth entry to `version`, older or newer, with the dependencies it needs.
+pub async fn plan_switch(ws: &Workspace, id: &str, version: &str) -> Result<Plan, AuthorError> {
+    let modrinth = ws.modrinth();
+    let jars = ws.jars()?;
+    Ok(Planner::new(&modrinth, &jars, &ws.project)
+        .switch(id, version)
+        .await?)
+}
+
 pub fn set_side(project: &mut Project, id: &str, side: Side) -> Result<(), AuthorError> {
     entry_mut(project, id)?.side = side;
     Ok(())
@@ -631,7 +646,7 @@ pub async fn check(ws: &Workspace) -> Result<CheckReport, AuthorError> {
     let mods: Vec<Entry> = project
         .content
         .iter()
-        .filter(|e| e.kind == Kind::Mod)
+        .filter(|e| e.kind == Kind::Mod && !e.disabled)
         .cloned()
         .collect();
     let jars = &jars;

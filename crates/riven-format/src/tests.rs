@@ -46,6 +46,7 @@ fn entry(id: &str, path: &str, requires: &[&str]) -> Entry {
         update: UpdatePolicy::Follow,
         reason: Reason::Explicit,
         requires: requires.iter().map(|s| s.to_string()).collect(),
+        disabled: false,
     }
 }
 

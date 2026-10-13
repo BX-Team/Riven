@@ -70,6 +70,10 @@
             "type": "string"
           },
           "default": []
+        },
+        "disabled": {
+          "description": "Kept in the project but left out of releases, exports and test runs.",
+          "type": "boolean"
         }
       },
       "required": [

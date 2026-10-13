@@ -325,6 +325,7 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
             update: UpdatePolicy::Follow,
             reason: Reason::Explicit,
             requires: Vec::new(),
+            disabled: false,
         })
     }
 
@@ -488,6 +489,7 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
             new.group = entry.group.clone();
             new.update = entry.update;
             new.reason = entry.reason;
+            new.disabled = entry.disabled;
             pending.push(Pending {
                 parent: new.id.clone(),
                 side: new.side,
@@ -495,6 +497,34 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
             });
             self.plan.update.push((entry.clone(), new));
         }
+        self.resolve_dependencies(pending).await?;
+        self.metadata_rounds().await?;
+        self.link_requires().await;
+        self.plan_orphans();
+        Ok(self.finalize().await)
+    }
+
+    /// Plans moving one Modrinth entry to `version`, older or newer than the one it has.
+    pub async fn switch(mut self, id: &str, version: &str) -> Result<Plan, ResolveError> {
+        let entry = self
+            .pack
+            .entry(id)
+            .ok_or_else(|| ResolveError::UnknownEntry(id.to_owned()))?
+            .clone();
+        let next = self.source.version(version).await?;
+        let info = self.source.project(&next.project).await?;
+        let mut new = self.build_entry(entry.id.clone(), &info, &next, entry.kind)?;
+        new.side = entry.side;
+        new.group = entry.group.clone();
+        new.update = entry.update;
+        new.reason = entry.reason;
+        new.disabled = entry.disabled;
+        let pending = vec![Pending {
+            parent: new.id.clone(),
+            side: new.side,
+            version: next,
+        }];
+        self.plan.update.push((entry, new));
         self.resolve_dependencies(pending).await?;
         self.metadata_rounds().await?;
         self.link_requires().await;
