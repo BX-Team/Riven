@@ -177,6 +177,9 @@ pub struct Instance {
     /// The Modrinth modpack version this instance was installed from.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modrinth: Option<ModrinthPack>,
+    /// The GitHub release this instance's modpack was installed from.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub github: Option<GitHubPack>,
     /// RFC 3339.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_played: Option<String>,
@@ -201,6 +204,17 @@ pub struct ModrinthPack {
     pub project: String,
     /// Version id.
     pub version: String,
+}
+
+/// A modpack published as a GitHub release asset, followed like an app in Obtainium.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct GitHubPack {
+    /// `owner/name`.
+    pub repo: String,
+    /// The installed release's tag.
+    pub tag: String,
+    /// The asset's extension, `mrpack` or `riven`, which newer releases are searched for.
+    pub kind: String,
 }
 
 fn is_zero(n: &u64) -> bool {

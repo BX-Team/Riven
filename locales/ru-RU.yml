@@ -207,9 +207,8 @@ new_instance:
   creating: Создаю…
   empty: Свой
   from_pack: Ссылка или файл
-  pack_description: "Установка пака Riven по ссылке: версия Minecraft и загрузчик берутся из пака, обновления подтягиваются перед каждым запуском."
   link: Ссылка на пак
-  link_hint: "https://… или gh:владелец/репозиторий"
+  link_hint: "https://… или gh:владелец/репо"
   check: Проверить
   checking: Проверка…
   install: Установить
@@ -230,7 +229,12 @@ new_instance:
   importing: Импорт инстанса…
   bad_file: Выберите пак .riven, .mrpack или экспорт Prism (.zip)
   pick_file: Выбрать файл…
-  file_about: Пак .riven, сборка Modrinth .mrpack или инстанс, экспортированный из Prism Launcher или MultiMC (.zip). Файл можно и просто перетащить на окно.
+  or: или
+  drop_here: Перетащите файл пака сюда
+  recommended: рекомендуемая
+  no_builds: "Нет сборок %{loader} для этой версии"
+  result: Что получится
+  latest: последняя
   import_empty: Пак появится здесь после проверки
   loader_version: Версия загрузчика
   icon: Иконка
@@ -266,7 +270,7 @@ instance_settings:
   pack_source: Ссылка
   pack_version: Установленная версия
   pack_version_hint: Пак также проверяет обновления при каждом нажатии «Играть».
-  pack_version_modrinth: Новые версии с Modrinth ставятся только по кнопке «Обновить».
+  pack_version_modrinth: Новые версии с Modrinth или GitHub ставятся только по кнопке «Обновить».
   pack_check: Проверить
   pack_checking: Проверяю…
   pack_current: Актуально

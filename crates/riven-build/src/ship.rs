@@ -391,12 +391,20 @@ pub async fn archive_mrpack(
     out: &Path,
     stage: impl Fn(crate::import::ImportStage),
 ) -> Result<PathBuf, ArchiveError> {
+    archive_import(crate::import::ImportKind::Mrpack, source, out, stage).await
+}
+
+/// Turns a modpack of another format (path or URL) into an unsigned `.riven` archive at `out`.
+pub async fn archive_import(
+    kind: crate::import::ImportKind,
+    source: &str,
+    out: &Path,
+    stage: impl Fn(crate::import::ImportStage),
+) -> Result<PathBuf, ArchiveError> {
     let work = out.with_extension("import");
     let _ = std::fs::remove_dir_all(&work);
     let result = async {
-        let imported =
-            crate::import::import_pack(&work, crate::import::ImportKind::Mrpack, source, stage)
-                .await?;
+        let imported = crate::import::import_pack(&work, kind, source, stage).await?;
         let ws = imported.workspace;
         let built = release::build_release(&ws.project, &ws.dir).map_err(ShipError::from)?;
         if let Some(parent) = out.parent() {

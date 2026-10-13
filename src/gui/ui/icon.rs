@@ -20,6 +20,11 @@ pub enum IconName {
     FolderPlus,
     Image,
     Loader,
+    LoaderFabric,
+    LoaderForge,
+    LoaderNeoForge,
+    LoaderQuilt,
+    LoaderVanilla,
     Lock,
     More,
     Package,
@@ -41,7 +46,7 @@ pub enum IconName {
 
 impl IconName {
     #[cfg(test)]
-    pub const ALL: [IconName; 35] = [
+    pub const ALL: [IconName; 40] = [
         IconName::ArrowDown,
         IconName::ArrowLeft,
         IconName::ArrowUp,
@@ -60,6 +65,11 @@ impl IconName {
         IconName::FolderPlus,
         IconName::Image,
         IconName::Loader,
+        IconName::LoaderFabric,
+        IconName::LoaderForge,
+        IconName::LoaderNeoForge,
+        IconName::LoaderQuilt,
+        IconName::LoaderVanilla,
         IconName::Lock,
         IconName::More,
         IconName::Package,
@@ -99,6 +109,11 @@ impl IconName {
             Self::FolderPlus => "icons/folder-plus.svg",
             Self::Image => "icons/image.svg",
             Self::Loader => "icons/loader.svg",
+            Self::LoaderFabric => "icons/loader-fabric.svg",
+            Self::LoaderForge => "icons/loader-forge.svg",
+            Self::LoaderNeoForge => "icons/loader-neoforge.svg",
+            Self::LoaderQuilt => "icons/loader-quilt.svg",
+            Self::LoaderVanilla => "icons/loader-vanilla.svg",
             Self::Lock => "icons/lock.svg",
             Self::More => "icons/more.svg",
             Self::Package => "icons/package.svg",

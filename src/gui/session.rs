@@ -345,11 +345,15 @@ impl AppState {
 
     /// Looks for a newer Modrinth version of the modpack an instance was installed from.
     pub fn check_modpack(&mut self, id: &str, cx: &mut Context<Self>) {
-        let Some(pack) = self.instance(id).and_then(|i| i.modrinth.clone()) else {
+        let Some(instance) = self
+            .instance(id)
+            .filter(|i| riven_launch::modpack::follows(i))
+            .cloned()
+        else {
             self.modpack_updates.remove(id);
             return;
         };
-        let found = runtime::spawn(async move { riven_launch::modpack::newer(&pack).await });
+        let found = runtime::spawn(async move { riven_launch::modpack::newer(&instance).await });
         let id = id.to_owned();
         cx.spawn(async move |this, cx| {
             let found = match found.await {

@@ -39,7 +39,7 @@ pub struct AppState {
     /// Bumped when an install or update changed an instance's files, so open views read them again.
     pub revisions: HashMap<String, u64>,
     /// Newer Modrinth versions of the modpacks instances were installed from, by instance id.
-    pub modpack_updates: HashMap<String, riven_sources::Version>,
+    pub modpack_updates: HashMap<String, riven_launch::modpack::Newer>,
     /// `(read, to read)` while an instance's content files are hashed, by instance id.
     pub scans: HashMap<String, (usize, usize)>,
     pub(super) ticking: bool,

@@ -207,7 +207,6 @@ new_instance:
   creating: Creating…
   empty: Custom
   from_pack: Link or file
-  pack_description: "Install a Riven pack by its link: the pack picks the Minecraft version and loader, and updates come in before every launch."
   link: Pack link
   link_hint: "https://… or gh:owner/repo"
   check: Check
@@ -230,7 +229,12 @@ new_instance:
   importing: Importing the instance…
   bad_file: Pick a .riven pack, a .mrpack or a Prism export .zip
   pick_file: Choose a file…
-  file_about: A .riven pack, a Modrinth .mrpack, or an instance exported from Prism Launcher or MultiMC (.zip). You can also drop the file on the window.
+  or: or
+  drop_here: Drop a pack file here
+  recommended: recommended
+  no_builds: "No %{loader} builds for this version"
+  result: What you get
+  latest: latest
   import_empty: The pack shows here once it is checked
   loader_version: Loader version
   icon: Icon
@@ -266,7 +270,7 @@ instance_settings:
   pack_source: Link
   pack_version: Installed version
   pack_version_hint: The pack also checks for updates every time you press Play.
-  pack_version_modrinth: New Modrinth versions are installed only when you press Update.
+  pack_version_modrinth: New Modrinth or GitHub versions are installed only when you press Update.
   pack_check: Check now
   pack_checking: Checking…
   pack_current: Up to date

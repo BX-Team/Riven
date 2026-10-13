@@ -5,13 +5,14 @@ use std::time::Duration;
 
 use super::markdown::{self, Described};
 use futures_util::{StreamExt as _, stream};
+use gpui_kit::base::Scrollbar;
 use gpui_kit::base::input::{InputEvent, InputState};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
-    AnyElement, App, AppContext as _, Context, Entity, FontWeight, InteractiveElement as _,
-    IntoElement, ParentElement as _, PathPromptOptions, Render, SharedString,
-    StatefulInteractiveElement as _, Styled as _, Subscription, UniformListScrollHandle, Window,
-    div, img, px, relative, uniform_list,
+    AnyElement, App, AppContext as _, Context, Entity, ExternalPaths, FontWeight,
+    InteractiveElement as _, IntoElement, ParentElement as _, PathPromptOptions, Render,
+    SharedString, StatefulInteractiveElement as _, Styled as _, Subscription,
+    UniformListScrollHandle, Window, div, img, px, relative, uniform_list,
 };
 use riven_format::{Loader, LoaderKind, Release};
 use riven_sources::{Cache, Hit, Modrinth, Version};
@@ -36,7 +37,6 @@ const RESULTS: u32 = 40;
 const SEARCH_DELAY: Duration = Duration::from_millis(250);
 const PARALLEL_ICONS: usize = 8;
 const HIT_HEIGHT: f32 = 58.;
-const FIELD_WIDTH: f32 = 340.;
 
 const LOADERS: [Option<LoaderKind>; 5] = [
     None,
@@ -68,7 +68,10 @@ struct Prepared {
     release: Release,
     source: String,
     icon: Option<Vec<u8>>,
+    /// The name the link's page gives the pack.
+    title: Option<String>,
     modrinth: Option<riven_format::ModrinthPack>,
+    github: Option<riven_format::GitHubPack>,
 }
 
 /// "New instance": a Modrinth modpack, an empty game, or a pack from a link or file.
@@ -88,11 +91,16 @@ pub struct NewInstance {
 
     name: Entity<InputState>,
     mc_search: Entity<InputState>,
+    mc_scroll: UniformListScrollHandle,
     releases: Vec<SharedString>,
     minecraft: Option<SharedString>,
     loader: usize,
     loader_versions: Vec<SharedString>,
     loader_version: Option<SharedString>,
+    /// The build the loader suggests for the picked game version.
+    loader_recommended: Option<SharedString>,
+    loader_loading: bool,
+    loader_scroll: UniformListScrollHandle,
     loader_serial: u64,
     /// A picked icon: a preview file and the PNG to store.
     icon: Option<(PathBuf, Vec<u8>)>,
@@ -178,6 +186,17 @@ async fn preview(source: String) -> Result<Release, String> {
         .map_err(|e| e.to_string())
 }
 
+fn import_stage(stage: riven_build::import::ImportStage) -> SharedString {
+    use riven_build::import::ImportStage;
+    match stage {
+        ImportStage::Reading => t!("new_instance.stage_reading"),
+        ImportStage::Identifying { files } => t!("new_instance.stage_identifying", n = files),
+        ImportStage::Downloading => t!("new_instance.stage_downloading"),
+        ImportStage::Writing => t!("new_instance.stage_writing"),
+    }
+    .into()
+}
+
 /// Converts an `.mrpack` (path or URL) to a `.riven` archive named `stem` and reads its release.
 async fn prepare_mrpack(
     source: String,
@@ -186,14 +205,7 @@ async fn prepare_mrpack(
 ) -> Result<(Release, String), String> {
     let out = packs_dir()?.join(format!("{stem}.riven"));
     riven_build::ship::archive_mrpack(&source, &out, |stage| {
-        use riven_build::import::ImportStage;
-        let text = match stage {
-            ImportStage::Reading => t!("new_instance.stage_reading"),
-            ImportStage::Identifying { files } => t!("new_instance.stage_identifying", n = files),
-            ImportStage::Downloading => t!("new_instance.stage_downloading"),
-            ImportStage::Writing => t!("new_instance.stage_writing"),
-        };
-        let _ = progress.send(text.into());
+        let _ = progress.send(import_stage(stage));
     })
     .await
     .map_err(|e| e.to_string())?;
@@ -272,11 +284,15 @@ impl NewInstance {
             scroll: UniformListScrollHandle::new(),
             name,
             mc_search,
+            mc_scroll: UniformListScrollHandle::new(),
             releases: Vec::new(),
             minecraft: None,
             loader: 0,
             loader_versions: Vec::new(),
             loader_version: None,
+            loader_recommended: None,
+            loader_loading: false,
+            loader_scroll: UniformListScrollHandle::new(),
             loader_serial: 0,
             icon: None,
             link,
@@ -443,10 +459,13 @@ impl NewInstance {
         self.loader_serial += 1;
         self.loader_versions.clear();
         self.loader_version = None;
+        self.loader_recommended = None;
         let (Some(kind), Some(minecraft)) = (LOADERS[self.loader], self.minecraft.clone()) else {
+            self.loader_loading = false;
             cx.notify();
             return;
         };
+        self.loader_loading = true;
         let serial = self.loader_serial;
         cx.spawn(async move |this, cx| {
             let found = runtime::spawn(async move {
@@ -462,7 +481,9 @@ impl NewInstance {
                 if this.loader_serial != serial {
                     return;
                 }
+                this.loader_loading = false;
                 if let Some((all, recommended)) = found {
+                    this.loader_recommended = recommended.clone().map(Into::into);
                     this.loader_version =
                         recommended.or_else(|| all.first().cloned()).map(Into::into);
                     this.loader_versions = all.into_iter().map(Into::into).collect();
@@ -545,7 +566,9 @@ impl NewInstance {
                     release,
                     source,
                     icon,
+                    title: None,
                     modrinth: Some(modrinth),
+                    github: None,
                 })
             },
             Some(rx),
@@ -559,17 +582,26 @@ impl NewInstance {
         if link.is_empty() {
             return;
         }
+        let (tx, rx) = mpsc::unbounded_channel();
         self.run(
             t!("new_instance.checking").into(),
             async move {
+                let linked = riven_launch::modpack::resolve(&link, |stage| {
+                    let _ = tx.send(import_stage(stage));
+                })
+                .await
+                .map_err(|e| e.to_string())?;
+                let release = preview(linked.source.clone()).await?;
                 Ok(Prepared {
-                    release: preview(link.clone()).await?,
-                    source: link,
-                    icon: None,
-                    modrinth: None,
+                    release,
+                    source: linked.source,
+                    icon: fetch_icon_png(linked.icon_url).await,
+                    title: linked.title,
+                    modrinth: linked.modrinth,
+                    github: linked.github,
                 })
             },
-            None,
+            Some(rx),
             |this, prepared, _| this.show_prepared(prepared),
             cx,
         );
@@ -622,7 +654,9 @@ impl NewInstance {
                         release,
                         source: keep_archive(&path)?,
                         icon: None,
+                        title: None,
                         modrinth: None,
+                        github: None,
                     })
                 },
                 None,
@@ -643,7 +677,9 @@ impl NewInstance {
                             release,
                             source,
                             icon: None,
+                            title: None,
                             modrinth: None,
+                            github: None,
                         })
                     },
                     Some(rx),
@@ -692,8 +728,11 @@ impl NewInstance {
             release,
             source,
             icon,
+            title: linked_title,
             modrinth,
+            github,
         } = prepared;
+        let title = title.or(linked_title);
         let typed = self.name.read(cx).value().trim().to_string();
         let name = match () {
             _ if !typed.is_empty() && self.mode != Mode::Modrinth => typed,
@@ -712,9 +751,10 @@ impl NewInstance {
         {
             tracing::warn!("{e}");
         }
-        if modrinth.is_some()
+        if (modrinth.is_some() || github.is_some())
             && let Err(e) = store.load(&id).and_then(|mut instance| {
                 instance.modrinth = modrinth;
+                instance.github = github;
                 store.save(&id, &instance)
             })
         {
@@ -735,6 +775,16 @@ impl NewInstance {
             s.close_modal(cx);
             s.install_pack(&id, request, cx);
         });
+    }
+
+    /// The name typed, else one made from the loader and the game version.
+    fn custom_name(&self, minecraft: &str, cx: &App) -> String {
+        let typed = self.name.read(cx).value().trim().to_string();
+        match (typed.is_empty(), LOADERS[self.loader]) {
+            (false, _) => typed,
+            (true, Some(kind)) => format!("{} {minecraft}", loader_display(kind)),
+            (true, None) => format!("Minecraft {minecraft}"),
+        }
     }
 
     fn pick_icon(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -786,12 +836,7 @@ impl NewInstance {
             return;
         };
         let kind = LOADERS[self.loader];
-        let typed = self.name.read(cx).value().trim().to_string();
-        let name = match (typed.is_empty(), kind) {
-            (false, _) => typed,
-            (true, Some(kind)) => format!("{} {minecraft}", loader_display(kind)),
-            (true, None) => format!("Minecraft {minecraft}"),
-        };
+        let name = self.custom_name(&minecraft, cx);
         let picked = self.loader_version.as_ref().map(ToString::to_string);
         let icon = self.icon.as_ref().map(|(_, png)| png.clone());
         let minecraft = minecraft.to_string();
@@ -1103,121 +1148,313 @@ impl NewInstance {
             .into_any_element()
     }
 
+    /// A list of versions to pick one from; `marked` gets a small tag beside it.
+    #[allow(clippy::too_many_arguments)]
+    fn version_list(
+        &self,
+        id: &'static str,
+        items: Vec<SharedString>,
+        picked: Option<SharedString>,
+        marked: Option<(SharedString, SharedString)>,
+        empty: SharedString,
+        scroll: &UniformListScrollHandle,
+        pick: impl Fn(&mut Self, SharedString, &mut Context<Self>) + 'static,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let c = cx.theme().colors;
+        let frame = div()
+            .relative()
+            .flex_1()
+            .min_h_0()
+            .rounded(px(8.))
+            .border_1()
+            .border_color(c.border)
+            .bg(c.bg);
+        if items.is_empty() {
+            return frame
+                .flex()
+                .items_center()
+                .justify_center()
+                .p(px(12.))
+                .text_center()
+                .text_color(c.muted)
+                .child(empty)
+                .into_any_element();
+        }
+        let pick = Rc::new(pick);
+        frame
+            .child(
+                uniform_list(
+                    id,
+                    items.len(),
+                    cx.processor(move |_, range: std::ops::Range<usize>, _, cx| {
+                        let c = cx.theme().colors;
+                        range
+                            .map(|ix| {
+                                let version = items[ix].clone();
+                                let on = picked.as_ref() == Some(&version);
+                                let tag = marked
+                                    .as_ref()
+                                    .filter(|(v, _)| *v == version)
+                                    .map(|(_, tag)| tag.clone());
+                                let pick = pick.clone();
+                                let chosen = version.clone();
+                                h_flex()
+                                    .id((id, ix))
+                                    .w_full()
+                                    .h(px(30.))
+                                    .px(px(10.))
+                                    .gap(px(8.))
+                                    .rounded(px(6.))
+                                    .cursor_pointer()
+                                    .map(|r| {
+                                        if on {
+                                            r.bg(c.sel).font_weight(FontWeight::SEMIBOLD)
+                                        } else {
+                                            r.text_color(c.text2).hover(|s| s.bg(c.row))
+                                        }
+                                    })
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        pick(this, chosen.clone(), cx);
+                                        cx.notify();
+                                    }))
+                                    .child(div().flex_1().min_w_0().truncate().child(version))
+                                    .when_some(tag, |r, tag| {
+                                        r.child(
+                                            div()
+                                                .flex_none()
+                                                .px(px(6.))
+                                                .rounded(px(4.))
+                                                .bg(c.row)
+                                                .text_size(px(11.))
+                                                .text_color(c.muted)
+                                                .child(tag),
+                                        )
+                                    })
+                                    .when(on, |r| r.child(icon(IconName::Check, c.accent)))
+                                    .into_any_element()
+                            })
+                            .collect::<Vec<_>>()
+                    }),
+                )
+                .size_full()
+                .p(px(4.))
+                .track_scroll(scroll),
+            )
+            .child(
+                // Both lists come from this one call site, so each bar needs an id of its own.
+                div().absolute().inset_0().child(
+                    Scrollbar::vertical(scroll)
+                        .id(SharedString::from(format!("{id}-bar")))
+                        .viewport_from_layout(),
+                ),
+            )
+            .into_any_element()
+    }
+
+    /// The loaders as cards with their logos, one picked.
+    fn render_loaders(&self, cx: &mut Context<Self>) -> AnyElement {
+        let c = cx.theme().colors;
+        let cards = LOADERS.iter().enumerate().map(|(i, kind)| {
+            let on = i == self.loader;
+            h_flex()
+                .id(("loader-card", i))
+                .flex_1()
+                .min_w_0()
+                .h(px(44.))
+                .px(px(12.))
+                .gap(px(8.))
+                .rounded(px(8.))
+                .border_1()
+                .cursor_pointer()
+                .map(|d| {
+                    if on {
+                        d.border_color(c.accent)
+                            .bg(c.accent.opacity(0.1))
+                            .font_weight(FontWeight::SEMIBOLD)
+                    } else {
+                        d.border_color(c.border)
+                            .text_color(c.text2)
+                            .hover(|s| s.bg(c.row))
+                    }
+                })
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    if this.loader != i {
+                        this.loader = i;
+                        this.load_loader_versions(cx);
+                    }
+                }))
+                .child(icon(loader_icon(*kind), if on { c.accent } else { c.muted }).size(px(18.)))
+                .child(div().truncate().child(loader_label(*kind)))
+        });
+        h_flex().gap(px(8.)).children(cards).into_any_element()
+    }
+
     fn render_custom(&self, height: f32, cx: &mut Context<Self>) -> AnyElement {
         let c = cx.theme().colors;
-        let pick_mc = cx.entity().downgrade();
-        let pick_loader = pick_mc.clone();
-        let pick_build = pick_mc.clone();
-        let versions = self
+        let kind = LOADERS[self.loader];
+        let query = self.mc_search.read(cx).value().trim().to_lowercase();
+        let releases: Vec<SharedString> = self
             .releases
             .iter()
-            .map(|r| MenuItem::new(r.clone(), r.clone()))
+            .filter(|r| r.to_lowercase().contains(&query))
+            .cloned()
             .collect();
-        let loaders = LOADERS
-            .iter()
-            .enumerate()
-            .map(|(i, l)| MenuItem::new(i.to_string(), loader_label(*l)))
-            .collect();
-        let builds: Vec<MenuItem> = self
-            .loader_versions
-            .iter()
-            .map(|v| MenuItem::new(v.clone(), v.clone()))
-            .collect();
-        let has_loader = LOADERS[self.loader].is_some();
+        let releases_empty = if self.releases.is_empty() {
+            t!("new_instance.loading")
+        } else {
+            t!("add_mods.nothing")
+        };
+        let label = |text: SharedString| {
+            div()
+                .flex_1()
+                .text_size(px(12.))
+                .text_color(c.muted)
+                .child(text)
+        };
+        let minecraft = v_flex()
+            .flex_1()
+            .min_w_0()
+            .gap(px(6.))
+            .child(
+                h_flex()
+                    .h(px(32.))
+                    .gap(px(10.))
+                    .child(label(t!("new_instance.minecraft").into()))
+                    .child(
+                        TextField::new(&self.mc_search)
+                            .leading(IconName::Search)
+                            .w(px(200.)),
+                    ),
+            )
+            .child(
+                self.version_list(
+                    "mc-release",
+                    releases,
+                    self.minecraft.clone(),
+                    self.releases
+                        .first()
+                        .map(|v| (v.clone(), t!("new_instance.latest").into())),
+                    releases_empty.into(),
+                    &self.mc_scroll,
+                    |this, v, cx| {
+                        this.minecraft = Some(v);
+                        this.load_loader_versions(cx);
+                    },
+                    cx,
+                ),
+            );
+        let builds = kind.map(|kind| {
+            let empty = if self.loader_loading {
+                t!("new_instance.loading")
+            } else {
+                t!("new_instance.no_builds", loader = loader_display(kind))
+            };
+            v_flex()
+                .w(px(310.))
+                .flex_none()
+                .gap(px(6.))
+                .child(
+                    h_flex()
+                        .h(px(32.))
+                        .child(label(t!("new_instance.loader_version").into())),
+                )
+                .child(
+                    self.version_list(
+                        "loader-build",
+                        self.loader_versions.clone(),
+                        self.loader_version.clone(),
+                        self.loader_recommended
+                            .clone()
+                            .map(|v| (v, t!("new_instance.recommended").into())),
+                        empty.into(),
+                        &self.loader_scroll,
+                        |this, v, _| this.loader_version = Some(v),
+                        cx,
+                    ),
+                )
+        });
         let left = v_flex()
             .flex_1()
             .min_w_0()
+            .h(px(height))
             .gap(px(14.))
             .child(field(
-                t!("new_instance.name"),
-                TextField::new(&self.name).w(px(FIELD_WIDTH)),
-                cx,
-            ))
-            .child(field(
-                t!("new_instance.minecraft"),
-                Dropdown::new(
-                    "minecraft",
-                    versions,
-                    self.minecraft.clone(),
-                    move |v, _, cx| {
-                        let _ = pick_mc.update(cx, |this, cx| {
-                            this.minecraft = Some(v);
-                            this.load_loader_versions(cx);
-                        });
-                    },
-                )
-                .width(px(FIELD_WIDTH))
-                .placeholder(t!("new_instance.loading").to_string())
-                .searchable(&self.mc_search),
+                t!("new_instance.loader"),
+                self.render_loaders(cx),
                 cx,
             ))
             .child(
-                div()
-                    .max_w(px(FIELD_WIDTH + 80.))
-                    .text_color(c.muted)
-                    .line_height(relative(1.5))
-                    .child(t!("new_instance.description").to_string()),
+                h_flex()
+                    .flex_1()
+                    .min_h_0()
+                    .items_stretch()
+                    .gap(px(12.))
+                    .child(minecraft)
+                    .children(builds),
             );
-        let icon_preview = match &self.icon {
+        let game = self.minecraft.clone().unwrap_or_default();
+        let loader = match (kind, &self.loader_version) {
+            (Some(kind), Some(v)) => format!("{} {v}", loader_display(kind)),
+            _ => loader_label(kind).to_string(),
+        };
+        let parts = [format!("Minecraft {game}"), loader];
+        let tile = match &self.icon {
             Some((path, _)) => img(path.clone())
                 .size(px(56.))
+                .flex_none()
                 .rounded(px(12.))
                 .into_any_element(),
             None => div()
                 .size(px(56.))
+                .flex_none()
                 .rounded(px(12.))
                 .bg(c.sel)
                 .flex()
                 .items_center()
                 .justify_center()
-                .child(icon(IconName::Image, c.muted).size(px(22.)))
+                .child(icon(loader_icon(kind), c.muted).size(px(24.)))
                 .into_any_element(),
         };
-        let right = side_panel(height, cx)
+        let summary = v_flex()
             .gap(px(14.))
+            .p(px(14.))
+            .rounded(px(10.))
+            .border_1()
+            .border_color(c.border)
+            .bg(c.bg)
+            .child(
+                h_flex().gap(px(12.)).child(tile).child(
+                    v_flex()
+                        .min_w_0()
+                        .child(
+                            div()
+                                .font_weight(FontWeight::BOLD)
+                                .text_size(px(15.))
+                                .truncate()
+                                .child(self.custom_name(&game, cx)),
+                        )
+                        .child(
+                            div()
+                                .mt(px(2.))
+                                .text_size(px(12.))
+                                .text_color(c.muted)
+                                .truncate()
+                                .child(parts.join(" · ")),
+                        ),
+                ),
+            )
             .child(field(
-                t!("new_instance.loader"),
-                Dropdown::new(
-                    "loader",
-                    loaders,
-                    Some(self.loader.to_string().into()),
-                    move |v, _, cx| {
-                        let _ = pick_loader.update(cx, |this, cx| {
-                            this.loader = v.parse().unwrap_or(0);
-                            this.load_loader_versions(cx);
-                        });
-                    },
-                )
-                .width(px(SIDE_WIDTH - 16.)),
+                t!("new_instance.name"),
+                TextField::new(&self.name),
                 cx,
             ))
-            .when(has_loader, |col| {
-                col.child(field(
-                    t!("new_instance.loader_version"),
-                    Dropdown::new(
-                        "loader-version",
-                        builds,
-                        self.loader_version.clone(),
-                        move |v, _, cx| {
-                            let _ = pick_build.update(cx, |this, cx| {
-                                this.loader_version = Some(v);
-                                cx.notify();
-                            });
-                        },
-                    )
-                    .width(px(SIDE_WIDTH - 16.))
-                    .placeholder(t!("new_instance.loading").to_string()),
-                    cx,
-                ))
-            })
-            .child(field(
-                t!("new_instance.icon"),
+            .child(
                 h_flex()
-                    .gap(px(12.))
-                    .child(icon_preview)
+                    .gap(px(8.))
                     .child(
                         Button::new("pick-icon")
-                            .icon(IconName::Folder)
+                            .icon(IconName::Image)
                             .label(t!("new_instance.pick_icon"))
                             .on_click(
                                 cx.listener(|this, _, window, cx| this.pick_icon(window, cx)),
@@ -1235,8 +1472,22 @@ impl NewInstance {
                                 })),
                         )
                     }),
-                cx,
-            ));
+            );
+        let right = side_panel(height, cx)
+            .gap(px(12.))
+            .child(
+                div()
+                    .text_size(px(12.))
+                    .text_color(c.muted)
+                    .child(t!("new_instance.result").to_string()),
+            )
+            .child(summary)
+            .child(
+                div()
+                    .text_color(c.muted)
+                    .line_height(relative(1.5))
+                    .child(t!("new_instance.description").to_string()),
+            );
         h_flex()
             .items_start()
             .gap(px(16.))
@@ -1248,45 +1499,95 @@ impl NewInstance {
 
     fn render_import(&self, height: f32, cx: &mut Context<Self>) -> AnyElement {
         let c = cx.theme().colors;
-        let left = v_flex()
-            .flex_1()
-            .min_w_0()
-            .gap(px(14.))
-            .child(field(
-                t!("new_instance.link"),
+        let busy = self.busy.is_some();
+        let link = v_flex()
+            .gap(px(10.))
+            .p(px(14.))
+            .rounded(px(10.))
+            .border_1()
+            .border_color(c.border)
+            .bg(c.bg)
+            .child(
+                h_flex()
+                    .gap(px(8.))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child(icon(IconName::ExternalLink, c.text2))
+                    .child(t!("new_instance.link").to_string()),
+            )
+            .child(
                 h_flex()
                     .gap(px(8.))
                     .child(TextField::new(&self.link).flex_1())
                     .child(
                         Button::new("check-link")
                             .label(t!("new_instance.check"))
-                            .disabled(self.busy.is_some())
+                            .disabled(busy)
                             .on_click(cx.listener(|this, _, _, cx| this.check_link(cx))),
                     ),
+            )
+            .child(chips(
+                ["Modrinth", "GitHub", ".mrpack", "packwiz", "Riven"],
                 cx,
-            ))
+            ));
+        let or = h_flex()
+            .gap(px(10.))
+            .text_size(px(12.))
+            .text_color(c.muted)
+            .child(div().flex_1().h(px(1.)).bg(c.border))
+            .child(t!("new_instance.or").to_string())
+            .child(div().flex_1().h(px(1.)).bg(c.border));
+        let drop = v_flex()
+            .id("pack-drop")
+            .flex_1()
+            .min_h_0()
+            .items_center()
+            .justify_center()
+            .gap(px(10.))
+            .p(px(16.))
+            .rounded(px(10.))
+            .border_1()
+            .border_dashed()
+            .border_color(c.border)
+            .drag_over::<ExternalPaths>(move |style, _, _, _| {
+                style.border_color(c.accent).bg(c.accent.opacity(0.06))
+            })
+            .on_drop(cx.listener(|this, paths: &ExternalPaths, _, cx| {
+                cx.stop_propagation();
+                if let Some(path) = paths.paths().first() {
+                    this.open_file(path.clone(), cx);
+                }
+            }))
             .child(
                 div()
-                    .text_color(c.muted)
-                    .line_height(relative(1.5))
-                    .child(t!("new_instance.pack_description").to_string()),
-            )
-            .child(div().h(px(1.)).bg(c.border))
-            .child(
-                h_flex().child(
-                    Button::new("pick-pack-file")
-                        .icon(IconName::Folder)
-                        .label(t!("new_instance.pick_file"))
-                        .disabled(self.busy.is_some())
-                        .on_click(cx.listener(|this, _, window, cx| this.pick_file(window, cx))),
-                ),
+                    .size(px(48.))
+                    .rounded(px(12.))
+                    .bg(c.sel)
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(icon(IconName::Upload, c.muted).size(px(22.))),
             )
             .child(
                 div()
-                    .text_color(c.muted)
-                    .line_height(relative(1.5))
-                    .child(t!("new_instance.file_about").to_string()),
-            );
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child(t!("new_instance.drop_here").to_string()),
+            )
+            .child(
+                Button::new("pick-pack-file")
+                    .icon(IconName::Folder)
+                    .label(t!("new_instance.pick_file"))
+                    .disabled(busy)
+                    .on_click(cx.listener(|this, _, window, cx| this.pick_file(window, cx))),
+            )
+            .child(chips([".riven", ".mrpack", "Prism Launcher", "MultiMC"], cx).justify_center());
+        let left = v_flex()
+            .flex_1()
+            .min_w_0()
+            .h(px(height))
+            .gap(px(12.))
+            .child(link)
+            .child(or)
+            .child(drop);
         let right = side_panel(height, cx)
             .gap(px(14.))
             .map(|col| match &self.prepared {
@@ -1412,6 +1713,34 @@ impl NewInstance {
             })
             .into_any_element()
     }
+}
+
+fn loader_icon(kind: Option<LoaderKind>) -> IconName {
+    match kind {
+        None => IconName::LoaderVanilla,
+        Some(LoaderKind::Fabric) => IconName::LoaderFabric,
+        Some(LoaderKind::Forge) => IconName::LoaderForge,
+        Some(LoaderKind::NeoForge) => IconName::LoaderNeoForge,
+        Some(LoaderKind::Quilt) => IconName::LoaderQuilt,
+    }
+}
+
+/// Small tags naming what a field or drop area takes.
+fn chips<const N: usize>(names: [&'static str; N], cx: &App) -> gpui_kit::Div {
+    let c = cx.theme().colors;
+    h_flex()
+        .flex_wrap()
+        .gap(px(6.))
+        .children(names.into_iter().map(|name| {
+            div()
+                .px(px(8.))
+                .py(px(2.))
+                .rounded(px(10.))
+                .bg(c.row)
+                .text_size(px(11.))
+                .text_color(c.text2)
+                .child(name)
+        }))
 }
 
 /// The right column of every mode, with a rule on its left.

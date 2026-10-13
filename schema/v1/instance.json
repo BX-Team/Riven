@@ -42,6 +42,17 @@
         }
       ]
     },
+    "github": {
+      "description": "The GitHub release this instance's modpack was installed from.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GitHubPack"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "last_played": {
       "description": "RFC 3339.",
       "type": [
@@ -262,6 +273,29 @@
       "required": [
         "project",
         "version"
+      ]
+    },
+    "GitHubPack": {
+      "description": "A modpack published as a GitHub release asset, followed like an app in Obtainium.",
+      "type": "object",
+      "properties": {
+        "repo": {
+          "description": "`owner/name`.",
+          "type": "string"
+        },
+        "tag": {
+          "description": "The installed release's tag.",
+          "type": "string"
+        },
+        "kind": {
+          "description": "The asset's extension, `mrpack` or `riven`, which newer releases are searched for.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo",
+        "tag",
+        "kind"
       ]
     }
   }

@@ -63,7 +63,8 @@ enum Remote {
 /// The pack an instance was installed from, and the changes to it waiting to be applied.
 struct PackPanel {
     state: State,
-    modrinth: Option<riven_format::ModrinthPack>,
+    /// The instance, when its pack follows a Modrinth project or GitHub releases.
+    upstream: Option<Instance>,
     channel: String,
     groups: BTreeMap<String, bool>,
     remote: Remote,
@@ -140,6 +141,7 @@ impl InstanceSettings {
                 overrides: Default::default(),
                 own_mods: false,
                 modrinth: None,
+                github: None,
                 last_played: None,
                 play_seconds: 0,
             }
@@ -273,7 +275,7 @@ impl InstanceSettings {
                     .to_owned(),
                 groups: state.groups.clone(),
                 state,
-                modrinth: instance.modrinth.clone(),
+                upstream: riven_launch::modpack::follows(&instance).then(|| instance.clone()),
                 remote: Remote::Unchecked,
             });
         let mut view = Self {
@@ -955,7 +957,7 @@ impl InstanceSettings {
         };
         pack.remote = Remote::Checking;
         let source = Self::pointer(pack);
-        let modrinth = pack.modrinth.clone();
+        let upstream = pack.upstream.clone();
         let id = self.id.clone();
         cx.notify();
         cx.spawn(async move |this, cx| {
@@ -966,9 +968,9 @@ impl InstanceSettings {
                     riven_sync::update::preview(&store, &riven_sources::client(), &source, None)
                         .await
                         .map_err(|e| e.to_string())?;
-                let newer = match modrinth {
-                    Some(m) => Some(
-                        riven_launch::modpack::newer(&m)
+                let newer = match upstream {
+                    Some(instance) => Some(
+                        riven_launch::modpack::newer(&instance)
                             .await
                             .map_err(|e| e.to_string())?,
                     ),
@@ -1021,7 +1023,7 @@ impl InstanceSettings {
             return;
         };
         let id = self.id.clone();
-        if pack.modrinth.is_some() && Self::group_changes(pack).is_empty() {
+        if pack.upstream.is_some() && Self::group_changes(pack).is_empty() {
             AppState::global(cx).update(cx, |s, cx| {
                 s.update_modpack(&id, cx);
                 s.close_modal(cx);
@@ -1056,9 +1058,14 @@ impl InstanceSettings {
             .get(&self.id)
             .is_some_and(super::session::Session::busy);
         let view = cx.entity().downgrade();
-        let source = match &pack.modrinth {
-            Some(m) => format!("https://modrinth.com/modpack/{}", m.project),
-            None => pack.state.source.trim_start_matches(r"\\?\").to_owned(),
+        let upstream = pack.upstream.as_ref();
+        let source = match (
+            upstream.and_then(|i| i.modrinth.as_ref()),
+            upstream.and_then(|i| i.github.as_ref()),
+        ) {
+            (Some(m), _) => format!("https://modrinth.com/modpack/{}", m.project),
+            (None, Some(g)) => format!("https://github.com/{}/releases/tag/{}", g.repo, g.tag),
+            _ => pack.state.source.trim_start_matches(r"\\?\").to_owned(),
         };
         let copy = source.clone();
         let channels: Vec<MenuItem> = CHANNELS
@@ -1071,7 +1078,7 @@ impl InstanceSettings {
             .map(|c| MenuItem::new(c.clone(), c))
             .collect();
         let has_channels = remote::channel_of(&pack.state.source).is_some();
-        let latest = match (&pack.remote, &pack.modrinth) {
+        let latest = match (&pack.remote, &pack.upstream) {
             (Remote::Ready(_), Some(_)) => AppState::global(cx)
                 .read(cx)
                 .modpack_updates
@@ -1190,7 +1197,7 @@ impl InstanceSettings {
                     ))
                     .row(setting_row(
                         t!("instance_settings.pack_version").to_string(),
-                        Some(if pack.modrinth.is_some() {
+                        Some(if pack.upstream.is_some() {
                             t!("instance_settings.pack_version_modrinth").into()
                         } else {
                             t!("instance_settings.pack_version_hint").into()

@@ -84,6 +84,7 @@ impl Instances {
             overrides: LaunchOverrides::default(),
             own_mods: false,
             modrinth: None,
+            github: None,
             last_played: None,
             play_seconds: 0,
         };
@@ -111,6 +112,7 @@ impl Instances {
             overrides: LaunchOverrides::default(),
             own_mods: false,
             modrinth: None,
+            github: None,
             last_played: None,
             play_seconds: 0,
         };
