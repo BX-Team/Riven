@@ -102,15 +102,15 @@
         {
           "type": "object",
           "properties": {
+            "type": {
+              "type": "string",
+              "const": "modrinth"
+            },
             "project": {
               "type": "string"
             },
             "version": {
               "type": "string"
-            },
-            "type": {
-              "type": "string",
-              "const": "modrinth"
             }
           },
           "required": [
@@ -122,6 +122,10 @@
         {
           "type": "object",
           "properties": {
+            "type": {
+              "type": "string",
+              "const": "github"
+            },
             "repo": {
               "type": "string"
             },
@@ -130,10 +134,6 @@
             },
             "asset": {
               "type": "string"
-            },
-            "type": {
-              "type": "string",
-              "const": "github"
             }
           },
           "required": [
@@ -146,12 +146,12 @@
         {
           "type": "object",
           "properties": {
-            "url": {
-              "type": "string"
-            },
             "type": {
               "type": "string",
               "const": "url"
+            },
+            "url": {
+              "type": "string"
             }
           },
           "required": [
@@ -162,12 +162,12 @@
         {
           "type": "object",
           "properties": {
-            "path": {
-              "$ref": "#/$defs/PackPath"
-            },
             "type": {
               "type": "string",
               "const": "local"
+            },
+            "path": {
+              "$ref": "#/$defs/PackPath"
             }
           },
           "required": [

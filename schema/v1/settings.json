@@ -162,12 +162,12 @@
           "description": "A specific `java` executable.",
           "type": "object",
           "properties": {
-            "path": {
-              "type": "string"
-            },
             "type": {
               "type": "string",
               "const": "path"
+            },
+            "path": {
+              "type": "string"
             }
           },
           "required": [
