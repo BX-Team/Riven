@@ -1,26 +1,44 @@
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
-    AnyElement, Context, FontWeight, InteractiveElement as _, IntoElement, ParentElement as _,
-    SharedString, StatefulInteractiveElement as _, Styled as _, Window, div, px, uniform_list,
+    AnyElement, ClickEvent, Context, FontWeight, InteractiveElement as _, IntoElement, MouseButton,
+    MouseDownEvent, ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _,
+    Window, canvas, div, px, uniform_list,
 };
 use riven_build::author;
 use riven_format::{Entry, Reason, Side, SourceKind, UpdatePolicy};
 use rust_i18n::t;
 
-use super::{DevView, Updates, dialogs};
+use super::{DevView, Edge, Tab, Updates, View, dialogs};
+use crate::gui::state::AppState;
 use crate::gui::theme::ActiveTheme as _;
 use crate::gui::ui::{
     ActionMenu, Button, IconName, MenuEntry, TextField, h_flex, icon, scrollbar, tooltip, v_flex,
 };
 
-const ROW_HEIGHT: f32 = 36.;
-const FILE_WIDTH: f32 = 300.;
-const SOURCE_WIDTH: f32 = 90.;
-const SIDE_WIDTH: f32 = 80.;
-const GROUP_WIDTH: f32 = 110.;
+const ROW_HEIGHT: f32 = 34.;
 const ACTIONS_WIDTH: f32 = 40.;
+const NAME: usize = 0;
+const FILE: usize = 1;
+const SOURCE: usize = 2;
+const SIDE: usize = 3;
+const GROUP: usize = 4;
 
-fn side_label(side: Side) -> SharedString {
+const COLUMN_GAP: f32 = 12.;
+/// The gaps between the five columns.
+pub(super) const COLUMN_GAPS: f32 = COLUMN_GAP * 4.;
+
+/// The list's columns side by side, each as wide as set; what does not fit is cut off on the right.
+fn columns(cells: [AnyElement; 5]) -> gpui_kit::Div {
+    h_flex()
+        .relative()
+        .flex_1()
+        .min_w_0()
+        .overflow_hidden()
+        .gap(px(COLUMN_GAP))
+        .children(cells)
+}
+
+pub(super) fn side_label(side: Side) -> SharedString {
     match side {
         Side::Client => t!("dev.side_client"),
         Side::Server => t!("dev.side_server"),
@@ -30,38 +48,56 @@ fn side_label(side: Side) -> SharedString {
 }
 
 impl DevView {
-    pub(super) fn render_content(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn render_content(&self, view: &View, cx: &mut Context<Self>) -> AnyElement {
         let c = cx.theme().colors;
         let theme = cx.theme();
-        let head = |label: String, width: Option<f32>| {
-            let cell = div().child(label.to_uppercase());
-            match width {
-                Some(w) => cell.w(px(w)).flex_none(),
-                None => cell.flex_1().min_w_0(),
-            }
+        let project = self.project.as_ref().map(|ws| &ws.project);
+        let widths: [f32; 5] = std::array::from_fn(|i| self.width(Edge::Column(i), cx));
+        let head = |label: String, column: usize, cx: &mut Context<Self>| {
+            div()
+                .relative()
+                .whitespace_nowrap()
+                .w(px(widths[column]))
+                .flex_none()
+                .child(div().truncate().child(label.to_uppercase()))
+                .child(self.edge_handle(Edge::Column(column), cx).right(px(-9.)))
+                .into_any_element()
         };
         let (update_label, update_busy, ready) = match &self.updates {
             Updates::Unchecked => (t!("dev.check_updates"), false, false),
             Updates::Checking => (t!("dev.checking_updates"), true, false),
             Updates::Ready(plan) => (t!("dev.update_n", n = plan.update.len()), false, true),
         };
-        let view = cx.entity().downgrade();
+        let add = cx.entity().downgrade();
+        let empty = self.shown.is_empty();
         v_flex()
             .size_full()
             .child(
                 h_flex()
                     .flex_none()
+                    .h(px(40.))
                     .gap(px(10.))
                     .px(px(14.))
-                    .py(px(10.))
                     .border_b_1()
                     .border_color(c.row)
                     .child(
-                        TextField::new(&self.filter)
-                            .leading(IconName::Search)
-                            .w(px(280.)),
+                        div()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child(view.label(project)),
+                    )
+                    .child(
+                        div()
+                            .font_family(theme.mono.clone())
+                            .text_size(px(12.))
+                            .text_color(c.muted)
+                            .child(self.shown.len().to_string()),
                     )
                     .child(div().flex_1())
+                    .child(
+                        TextField::new(&self.filter)
+                            .leading(IconName::Search)
+                            .w(px(240.)),
+                    )
                     .child({
                         let button = Button::new("dev-updates")
                             .icon(IconName::Refresh)
@@ -71,7 +107,7 @@ impl DevView {
                                 if ready {
                                     this.review_updates(window, cx)
                                 } else {
-                                    this.check_updates(cx)
+                                    this.check_updates(true, cx)
                                 }
                             }));
                         if ready { button.primary() } else { button }
@@ -83,7 +119,7 @@ impl DevView {
                             .label(t!("dev.add"))
                             .disabled(self.busy.is_some())
                             .on_click(move |_, window, cx| {
-                                dialogs::open_add(view.clone(), window, cx)
+                                dialogs::open_add(add.clone(), window, cx)
                             }),
                     ),
             )
@@ -92,16 +128,29 @@ impl DevView {
                     .flex_none()
                     .gap(px(12.))
                     .px(px(14.))
-                    .py(px(8.))
+                    .py(px(7.))
                     .font_family(theme.mono.clone())
                     .text_size(px(11.))
                     .text_color(c.muted)
                     .font_weight(FontWeight::MEDIUM)
-                    .child(head(t!("mods.name").to_string(), None))
-                    .child(head(t!("dev.file").to_string(), Some(FILE_WIDTH)))
-                    .child(head(t!("dev.source").to_string(), Some(SOURCE_WIDTH)))
-                    .child(head(t!("dev.side").to_string(), Some(SIDE_WIDTH)))
-                    .child(head(t!("dev.group").to_string(), Some(GROUP_WIDTH)))
+                    .child(
+                        columns([
+                            head(t!("mods.name").to_string(), NAME, cx),
+                            head(t!("dev.file").to_string(), FILE, cx),
+                            head(t!("dev.source").to_string(), SOURCE, cx),
+                            head(t!("dev.side").to_string(), SIDE, cx),
+                            head(t!("dev.group").to_string(), GROUP, cx),
+                        ])
+                        .child({
+                            let width = self.columns_width.clone();
+                            canvas(
+                                move |bounds, _, _| width.set(f32::from(bounds.size.width)),
+                                |_, _, _, _| {},
+                            )
+                            .absolute()
+                            .inset_0()
+                        }),
+                    )
                     .child(div().w(px(ACTIONS_WIDTH)).flex_none()),
             )
             .child(
@@ -122,7 +171,19 @@ impl DevView {
                         .size_full()
                         .track_scroll(&self.scroll),
                     )
-                    .child(scrollbar(&self.scroll)),
+                    .child(scrollbar(&self.scroll))
+                    .when(empty, |area| {
+                        area.child(
+                            div()
+                                .absolute()
+                                .inset_0()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .text_color(c.muted)
+                                .child(t!("dev.view_empty").to_string()),
+                        )
+                    }),
             )
             .into_any_element()
     }
@@ -154,23 +215,54 @@ impl DevView {
             .map(|g| g.name.clone());
         let pinned = entry.update == UpdatePolicy::Pinned;
         let dependency = entry.reason == Reason::Dependency;
+        let selected = self.selected.as_deref() == Some(entry.id.as_str());
+        let id = entry.id.clone();
+        let menu_id = entry.id.clone();
+        let widths: [f32; 5] = std::array::from_fn(|i| self.width(Edge::Column(i), cx));
         Some(
             h_flex()
                 .id(ix)
                 .w_full()
                 .h(px(ROW_HEIGHT))
+                .overflow_hidden()
                 .gap(px(12.))
                 .px(px(14.))
                 .border_t_1()
                 .border_color(c.row)
-                .hover(|s| s.bg(c.row))
-                .child(
+                .cursor_pointer()
+                .map(|r| {
+                    if selected {
+                        r.bg(c.sel)
+                    } else {
+                        r.hover(|s| s.bg(c.row))
+                    }
+                })
+                .when(entry.disabled, |r| r.opacity(0.55))
+                .on_mouse_down(
+                    MouseButton::Right,
+                    cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                        this.select_entry(menu_id.clone(), cx);
+                        let entries = this.entry_entries(&menu_id, cx);
+                        AppState::global(cx)
+                            .update(cx, |s, cx| s.open_context_menu(event.position, entries, cx));
+                    }),
+                )
+                .on_click(cx.listener(move |this, event: &ClickEvent, _, cx| {
+                    if event.click_count() >= 2 {
+                        this.show(Tab::Entry(id.clone()), cx);
+                    } else {
+                        this.select_entry(id.clone(), cx);
+                    }
+                }))
+                .child(columns([
                     h_flex()
-                        .flex_1()
-                        .min_w_0()
+                        .w(px(widths[NAME]))
+                        .flex_none()
+                        .overflow_hidden()
                         .gap(px(6.))
                         .child(
                             div()
+                                .min_w(px(60.))
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .truncate()
                                 .child(entry.name.clone()),
@@ -195,12 +287,24 @@ impl DevView {
                                     .text_color(c.text2)
                                     .child(t!("dev.dependency").to_string()),
                             )
-                        }),
-                )
-                .child(
+                        })
+                        .when(entry.disabled, |h| {
+                            h.child(
+                                div()
+                                    .flex_none()
+                                    .px(px(6.))
+                                    .rounded(px(4.))
+                                    .border_1()
+                                    .border_color(c.border)
+                                    .text_size(px(11.))
+                                    .text_color(c.muted)
+                                    .child(t!("dev.disabled").to_string()),
+                            )
+                        })
+                        .into_any_element(),
                     div()
                         .id(("file", ix))
-                        .w(px(FILE_WIDTH))
+                        .w(px(widths[FILE]))
                         .flex_none()
                         .truncate()
                         .font_family(theme.mono.clone())
@@ -213,30 +317,30 @@ impl DevView {
                             None => d
                                 .text_color(c.text2)
                                 .child(entry.file.path.file_name().to_owned()),
-                        }),
-                )
-                .child(
+                        })
+                        .into_any_element(),
                     div()
-                        .w(px(SOURCE_WIDTH))
+                        .w(px(widths[SOURCE]))
                         .flex_none()
+                        .truncate()
                         .text_color(source_color)
-                        .child(author::source_name(source)),
-                )
-                .child(
+                        .child(author::source_name(source))
+                        .into_any_element(),
                     div()
-                        .w(px(SIDE_WIDTH))
+                        .w(px(widths[SIDE]))
                         .flex_none()
+                        .truncate()
                         .text_color(c.text2)
-                        .child(side_label(entry.side)),
-                )
-                .child(
+                        .child(side_label(entry.side))
+                        .into_any_element(),
                     div()
-                        .w(px(GROUP_WIDTH))
+                        .w(px(widths[GROUP]))
                         .flex_none()
                         .truncate()
                         .text_color(if group.is_some() { c.text2 } else { c.muted })
-                        .child(group.unwrap_or_else(|| "—".into())),
-                )
+                        .child(group.unwrap_or_else(|| "—".into()))
+                        .into_any_element(),
+                ]))
                 .child(
                     h_flex()
                         .w(px(ACTIONS_WIDTH))
@@ -248,11 +352,37 @@ impl DevView {
         )
     }
 
-    /// Side, group, pinning, update and removal of one entry.
     fn entry_menu(&self, ix: usize, entry: &Entry, cx: &mut Context<Self>) -> ActionMenu {
+        let trigger = Button::new(("entry-menu", ix))
+            .ghost()
+            .size(crate::gui::ui::ButtonSize::Xs)
+            .icon(IconName::More);
+        ActionMenu::new(
+            ("entry-actions", ix),
+            trigger,
+            self.entry_entries(&entry.id, cx),
+        )
+    }
+
+    /// Opening, side, group, pinning, switching off, update and removal of one entry.
+    pub(super) fn entry_entries(&self, id: &str, cx: &mut Context<Self>) -> Vec<MenuEntry> {
+        let Some(entry) = self.project.as_ref().and_then(|ws| ws.project.entry(id)) else {
+            return Vec::new();
+        };
         let view = cx.entity().downgrade();
         let id = entry.id.clone();
-        let mut entries = vec![MenuEntry::Caption(t!("dev.side").into())];
+        let mut entries = Vec::new();
+        {
+            let (view, id) = (view.clone(), id.clone());
+            entries.push(
+                MenuEntry::action(t!("dev.open_entry"), move |_, cx| {
+                    let id = id.clone();
+                    let _ = view.update(cx, |this, cx| this.show(Tab::Entry(id), cx));
+                })
+                .icon(IconName::ExternalLink),
+            );
+        }
+        entries.push(MenuEntry::Caption(t!("dev.side").into()));
         for side in [Side::Client, Side::Server, Side::Both] {
             let (view, id) = (view.clone(), id.clone());
             entries.push(
@@ -305,6 +435,26 @@ impl DevView {
         }
         {
             let (view, id) = (view.clone(), id.clone());
+            let disabled = entry.disabled;
+            entries.push(
+                MenuEntry::action(
+                    if disabled {
+                        t!("dev.enable")
+                    } else {
+                        t!("dev.disable")
+                    },
+                    move |_, cx| {
+                        let id = id.clone();
+                        let _ = view.update(cx, |this, cx| {
+                            this.edit(|p| author::set_disabled(p, &id, !disabled), cx)
+                        });
+                    },
+                )
+                .icon(IconName::Power),
+            );
+        }
+        {
+            let (view, id) = (view.clone(), id.clone());
             entries.push(
                 MenuEntry::action(t!("dev.update_one"), move |window, cx| {
                     let id = id.clone();
@@ -325,20 +475,18 @@ impl DevView {
                 .danger(),
             );
         }
-        let trigger = Button::new(("entry-menu", ix))
-            .ghost()
-            .size(crate::gui::ui::ButtonSize::Xs)
-            .icon(IconName::More);
-        ActionMenu::new(("entry-actions", ix), trigger, entries)
+        entries
     }
 
-    fn check_updates(&mut self, cx: &mut Context<Self>) {
+    /// Looks up newer versions of everything; `loud` reports an up-to-date pack too.
+    pub(super) fn check_updates(&mut self, loud: bool, cx: &mut Context<Self>) {
         let Some(ws) = self.project.clone() else {
             return;
         };
+        if matches!(self.updates, Updates::Checking) {
+            return;
+        }
         self.updates = Updates::Checking;
-        self.error = None;
-        self.notice = None;
         cx.notify();
         cx.spawn(async move |this, cx| {
             let result =
@@ -349,23 +497,30 @@ impl DevView {
                 .unwrap_or_else(|_| Err(author::AuthorError::NoDataDir));
             let _ = this.update(cx, |this, cx| {
                 match result {
-                    Ok(plan) if plan.is_empty() => {
+                    Ok(plan) if plan.update.is_empty() => {
                         this.updates = Updates::Unchecked;
-                        this.notice = Some(t!("dev.up_to_date").into());
+                        if loud {
+                            this.notice = Some(t!("dev.up_to_date").into());
+                        }
                     }
                     Ok(plan) => this.updates = Updates::Ready(plan),
                     Err(e) => {
                         this.updates = Updates::Unchecked;
-                        this.error = Some(e.to_string().into());
+                        if loud {
+                            this.error = Some(e.to_string().into());
+                        } else {
+                            tracing::warn!("cannot check for updates: {e}");
+                        }
                     }
                 }
+                this.refresh_rows(cx);
                 cx.notify();
             });
         })
         .detach();
     }
 
-    fn review_updates(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn review_updates(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Updates::Ready(plan) = &self.updates else {
             return;
         };
@@ -374,11 +529,28 @@ impl DevView {
         dialogs::open_preview(t!("dev.updates_title").into(), plan, view, window, cx);
     }
 
-    fn update_entry(&mut self, id: String, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn update_entry(&mut self, id: String, window: &mut Window, cx: &mut Context<Self>) {
         self.plan(
             t!("dev.updates_title").into(),
             t!("dev.checking_updates").into(),
             move |ws| Box::pin(async move { author::plan_updates(&ws, &[id], None).await }),
+            window,
+            cx,
+        );
+    }
+
+    /// Plans moving an entry to another of its versions; the preview shows what comes along.
+    pub(super) fn switch_version(
+        &mut self,
+        id: String,
+        version: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.plan(
+            t!("dev.switch_title").into(),
+            t!("dev.switching").into(),
+            move |ws| Box::pin(async move { author::plan_switch(&ws, &id, &version).await }),
             window,
             cx,
         );

@@ -7,7 +7,7 @@ use gpui_kit::{
 use riven_format::DevPanel;
 use rust_i18n::t;
 
-use super::{Check, DevView, Panel};
+use super::{Check, DevView, Panel, Tab};
 use crate::gui::logs::display_line;
 use crate::gui::session::Phase;
 use crate::gui::state::AppState;
@@ -78,8 +78,8 @@ impl DevView {
     /// Rows of the Git or Log stream, a trailing status row included.
     fn stream_len(&self, cx: &Context<Self>) -> usize {
         match self.panel {
-            Panel::Check => 0,
-            Panel::Git => self.git.output.len() + usize::from(self.git.running.is_some()),
+            Panel::Problems => 0,
+            Panel::Output => self.git.output.len() + usize::from(self.git.running.is_some()),
             Panel::Log => {
                 let state = AppState::global(cx);
                 let s = state.read(cx);
@@ -124,8 +124,8 @@ impl DevView {
                 .into_any_element()
         };
         match self.panel {
-            Panel::Check => None,
-            Panel::Git => match self.git.output.get(ix) {
+            Panel::Problems => None,
+            Panel::Output => match self.git.output.get(ix) {
                 Some((error, text)) => Some(if text.starts_with("$ ") {
                     div()
                         .h(px(ROW))
@@ -206,14 +206,15 @@ impl DevView {
                 .gap(px(8.))
                 .child(div().flex_none().text_color(color).child(mark))
                 .child(div().flex_1().min_w_0().child(text))
-                .into_any_element()
         };
         match &self.check {
             Check::Idle => vec![],
             Check::Running => {
                 vec![self.status_row(true, c.muted, t!("dev.checking").to_string(), cx)]
             }
-            Check::Failed(e) => vec![line("✕", crate::gui::theme::danger(), e.to_string())],
+            Check::Failed(e) => {
+                vec![line("✕", crate::gui::theme::danger(), e.to_string()).into_any_element()]
+            }
             Check::Done(report) => {
                 let n = self
                     .project
@@ -222,25 +223,44 @@ impl DevView {
                 let mut out: Vec<AnyElement> = report
                     .issues
                     .iter()
-                    .cloned()
-                    .chain(report.problems.iter().map(ToString::to_string))
-                    .map(|text| line("✕", crate::gui::theme::danger(), text))
+                    .map(|text| {
+                        line("✕", crate::gui::theme::danger(), text.clone()).into_any_element()
+                    })
                     .collect();
+                out.extend(report.problems.iter().enumerate().map(|(i, problem)| {
+                    let id = problem.entry().to_owned();
+                    line("✕", crate::gui::theme::danger(), problem.to_string())
+                        .id(("dev-problem", i))
+                        .px(px(4.))
+                        .rounded(px(4.))
+                        .cursor_pointer()
+                        .hover(|s| s.bg(c.row))
+                        .on_click(
+                            cx.listener(move |this, _, _, cx| {
+                                this.show(Tab::Entry(id.clone()), cx)
+                            }),
+                        )
+                        .into_any_element()
+                }));
                 out.extend(
                     report
                         .unreadable
                         .iter()
-                        .map(|text| line("!", c.warn, text.clone())),
+                        .map(|text| line("!", c.warn, text.clone()).into_any_element()),
                 );
                 if report.is_clean() {
-                    out.insert(0, line("✓", c.ok, t!("dev.check_clean", n = n).to_string()));
+                    out.insert(
+                        0,
+                        line("✓", c.ok, t!("dev.check_clean", n = n).to_string())
+                            .into_any_element(),
+                    );
                 }
                 out
             }
         }
     }
 
-    fn problem_count(&self) -> usize {
+    pub(super) fn problem_count(&self) -> usize {
         match &self.check {
             Check::Done(r) => r.issues.len() + r.problems.len(),
             Check::Failed(_) => 1,
@@ -274,9 +294,9 @@ impl DevView {
         };
         let problems = self.problem_count();
         let check_label: SharedString = if problems > 0 {
-            format!("{} · {problems}", t!("dev.check")).into()
+            format!("{} · {problems}", t!("dev.problems")).into()
         } else {
-            t!("dev.check").into()
+            t!("dev.problems").into()
         };
         let log_live = self
             .test_instance()
@@ -295,18 +315,18 @@ impl DevView {
             .px(px(10.))
             .when(!hidden, |row| row.border_b_1().border_color(c.border))
             .child(
-                tab(Panel::Check, check_label, cx).when(problems > 0 && hidden, |t| {
+                tab(Panel::Problems, check_label, cx).when(problems > 0 && hidden, |t| {
                     t.text_color(crate::gui::theme::danger())
                 }),
             )
-            .child(tab(Panel::Git, "Git".into(), cx))
+            .child(tab(Panel::Output, t!("dev.output").into(), cx))
             .child(
-                tab(Panel::Log, t!("dev.log").into(), cx).when(log_live, |t| {
+                tab(Panel::Log, t!("dev.game_log").into(), cx).when(log_live, |t| {
                     t.child(div().ml(px(6.)).text_color(c.ok).child("●"))
                 }),
             )
             .child(div().flex_1())
-            .when(!hidden && self.panel == Panel::Git, |row| {
+            .when(!hidden && self.panel == Panel::Output, |row| {
                 row.child(self.git_clear_button(cx))
             })
             .when(
@@ -322,7 +342,7 @@ impl DevView {
                     )
                 },
             )
-            .when(!hidden && self.panel == Panel::Check, |row| {
+            .when(!hidden && self.panel == Panel::Problems, |row| {
                 row.child(
                     Button::new("dev-recheck")
                         .ghost()
@@ -340,16 +360,8 @@ impl DevView {
                 Button::new("dev-panel-fold")
                     .ghost()
                     .size(ButtonSize::Xs)
-                    .icon(if hidden {
-                        IconName::ChevronUp
-                    } else {
-                        IconName::ChevronDown
-                    })
-                    .tooltip(if hidden {
-                        t!("dev.panel_show")
-                    } else {
-                        t!("dev.panel_hide")
-                    })
+                    .icon(IconName::Close)
+                    .tooltip(t!("dev.panel_hide"))
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.set_panel(|p| p.hidden = !hidden, cx);
                         this.panel_seen = usize::MAX;
@@ -362,18 +374,11 @@ impl DevView {
     pub(super) fn render_panel(&self, cx: &mut Context<Self>) -> AnyElement {
         let c = cx.theme().colors;
         let mono = cx.theme().mono.clone();
-        let hidden = self.panel_prefs(cx).hidden;
-        if hidden {
-            return div()
-                .flex_none()
-                .border_t_1()
-                .border_color(c.border)
-                .bg(c.panel)
-                .child(self.panel_header(true, cx))
-                .into_any_element();
+        if self.panel_prefs(cx).hidden {
+            return div().into_any_element();
         }
         let body: AnyElement = match self.panel {
-            Panel::Check => v_flex()
+            Panel::Problems => v_flex()
                 .id("dev-panel-check")
                 .size_full()
                 .overflow_y_scroll()
@@ -386,7 +391,7 @@ impl DevView {
                 let len = self.stream_len(cx);
                 if len == 0 {
                     let hint = match panel {
-                        Panel::Git => t!("dev.git_output_empty"),
+                        Panel::Output => t!("dev.git_output_empty"),
                         _ => t!("dev.log_empty"),
                     };
                     div()

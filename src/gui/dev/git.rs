@@ -13,7 +13,6 @@ use riven_format::PackPath;
 use rust_i18n::t;
 use tokio::sync::mpsc;
 
-use super::sections::section_head;
 use super::{DevView, Panel, Tab};
 use crate::gui::runtime;
 use crate::gui::theme::ActiveTheme as _;
@@ -78,6 +77,8 @@ pub(super) enum GitOp {
     Commit(String),
     Pull,
     Push { has_upstream: bool },
+    Fetch,
+    Switch { branch: String, create: bool },
     Clone { url: String, dest: PathBuf },
 }
 
@@ -87,6 +88,8 @@ impl GitOp {
             GitOp::Commit(_) => t!("dev.git_committing"),
             GitOp::Pull => t!("dev.git_pulling"),
             GitOp::Push { .. } => t!("dev.git_pushing"),
+            GitOp::Fetch => t!("dev.git_fetching"),
+            GitOp::Switch { .. } => t!("dev.git_switching"),
             GitOp::Clone { .. } => t!("dev.git_cloning"),
         }
         .into()
@@ -100,6 +103,12 @@ impl GitOp {
             GitOp::Push {
                 has_upstream: false,
             } => "$ git push --set-upstream origin HEAD".into(),
+            GitOp::Fetch => "$ git fetch --prune".into(),
+            GitOp::Switch {
+                branch,
+                create: true,
+            } => format!("$ git switch -c {branch}"),
+            GitOp::Switch { branch, .. } => format!("$ git switch {branch}"),
             GitOp::Clone { url, .. } => format!("$ git clone {url}"),
         }
     }
@@ -183,7 +192,7 @@ impl DevView {
             return;
         }
         self.git.running = Some(op.label());
-        self.panel = Panel::Git;
+        self.panel = Panel::Output;
         self.push_output(false, op.command());
         cx.notify();
         let (tx, mut rx) = mpsc::unbounded_channel::<String>();
@@ -198,6 +207,10 @@ impl DevView {
                 GitOp::Pull => git::pull(dir.as_deref().expect("checked"), &line).await,
                 GitOp::Push { has_upstream } => {
                     git::push(dir.as_deref().expect("checked"), has_upstream, &line).await
+                }
+                GitOp::Fetch => git::fetch(dir.as_deref().expect("checked"), &line).await,
+                GitOp::Switch { branch, create } => {
+                    git::switch(dir.as_deref().expect("checked"), &branch, create, &line).await
                 }
                 GitOp::Clone { url, dest } => git::clone(&url, &dest, &line).await,
             }
@@ -266,6 +279,17 @@ impl DevView {
         }
     }
 
+    /// Another branch is checked out: its files replace the open ones.
+    pub(super) fn after_checkout(&mut self, cx: &mut Context<Self>) {
+        self.files.clear();
+        self.tabs.retain(|t| !matches!(t, Tab::File(_)));
+        if matches!(self.active, Tab::File(_)) {
+            self.active = Tab::Pack;
+        }
+        self.pages.clear();
+        self.reload_project(cx);
+    }
+
     /// After a pull the files on disk may differ: read the project and its tree again.
     fn reload_project(&mut self, cx: &mut Context<Self>) {
         let Some(dir) = self.project.as_ref().map(|ws| ws.dir.clone()) else {
@@ -298,11 +322,19 @@ impl DevView {
         }
     }
 
-    pub(super) fn render_git(&self, cx: &mut Context<Self>) -> AnyElement {
+    /// The Git sidebar: branch sync, changed files and the commit box.
+    pub(super) fn render_git_sidebar(&self, cx: &mut Context<Self>) -> AnyElement {
         let c = cx.theme().colors;
-        let mono = cx.theme().mono.clone();
         let busy = self.git.running.is_some();
         let installed = self.git.installed;
+        let head = self.side_head("Git".into(), cx).child(
+            Button::new("git-refresh")
+                .ghost()
+                .size(ButtonSize::Xs)
+                .icon(IconName::Refresh)
+                .tooltip(t!("dev.recheck"))
+                .on_click(cx.listener(|this, _, _, cx| this.refresh_git(cx))),
+        );
         let status = match &self.git.repo {
             Repo::Ready(status) => status,
             other => {
@@ -313,24 +345,38 @@ impl DevView {
                 };
                 return v_flex()
                     .size_full()
-                    .child(section_head("Git".into(), t!("dev.git_hint").into(), cx))
-                    .child(div().p(px(18.)).text_color(c.muted).child(text))
+                    .child(head)
+                    .child(
+                        div()
+                            .px(px(14.))
+                            .text_size(px(12.))
+                            .text_color(c.muted)
+                            .child(text),
+                    )
                     .into_any_element();
             }
         };
         let has_upstream = status.upstream.is_some();
         let branch = match (&status.branch, &status.upstream) {
-            (Some(b), Some(u)) => format!("{b} → {u}  ↑{} ↓{}", status.ahead, status.behind),
+            (Some(b), Some(u)) => format!("{b} → {u}"),
             (Some(b), None) => format!("{b} · {}", t!("dev.git_no_upstream")),
             (None, _) => t!("dev.git_detached").to_string(),
         };
-        let head = section_head("Git".into(), branch.into(), cx)
+        let sync = h_flex()
+            .flex_none()
+            .px(px(10.))
+            .pb(px(8.))
+            .gap(px(6.))
             .child(
-                Button::new("git-refresh")
+                Button::new("git-fetch")
                     .ghost()
+                    .size(ButtonSize::Xs)
                     .icon(IconName::Refresh)
-                    .tooltip(t!("dev.recheck"))
-                    .on_click(cx.listener(|this, _, _, cx| this.refresh_git(cx))),
+                    .tooltip(t!("dev.git_fetch"))
+                    .disabled(busy || !installed || !has_upstream)
+                    .on_click(
+                        cx.listener(|this, _, _, cx| this.run_git(GitOp::Fetch, |_, _| {}, cx)),
+                    ),
             )
             .child(
                 Button::new("git-pull")
@@ -358,43 +404,40 @@ impl DevView {
                         this.run_git(GitOp::Push { has_upstream }, |_, _| {}, cx)
                     })),
             );
-
         let clean = status.files.is_empty();
         let commit_box = v_flex()
-            .p(px(12.))
+            .flex_none()
+            .px(px(10.))
+            .py(px(10.))
             .gap(px(8.))
+            .border_t_1()
+            .border_color(c.border)
             .child(TextArea::new(&self.git.message))
+            .when(!installed, |col| {
+                col.child(
+                    div()
+                        .text_size(px(12.))
+                        .text_color(c.warn)
+                        .child(t!("dev.git_missing").to_string()),
+                )
+            })
             .child(
-                h_flex()
-                    .gap(px(8.))
-                    .when(!installed, |row| {
-                        row.child(
-                            div()
-                                .flex_1()
-                                .text_size(px(12.))
-                                .text_color(c.warn)
-                                .child(t!("dev.git_missing").to_string()),
-                        )
-                    })
-                    .child(div().flex_1())
-                    .child(
-                        Button::new("git-commit")
-                            .primary()
-                            .icon(IconName::Check)
-                            .label(t!("dev.git_commit_n", n = status.files.len()))
-                            .disabled(busy || clean || !installed)
-                            .on_click(cx.listener(|this, _, _, cx| this.commit(cx))),
-                    ),
+                Button::new("git-commit")
+                    .primary()
+                    .w_full()
+                    .icon(IconName::Check)
+                    .label(t!("dev.git_commit_n", n = status.files.len()))
+                    .disabled(busy || clean || !installed)
+                    .on_click(cx.listener(|this, _, _, cx| this.commit(cx))),
             );
-        let empty = |text: String| {
-            div()
-                .p(px(12.))
-                .text_color(c.muted)
-                .child(text)
-                .into_any_element()
-        };
         let files = if clean {
-            empty(t!("dev.git_clean").to_string())
+            div()
+                .px(px(14.))
+                .py(px(6.))
+                .text_size(px(12.))
+                .text_color(c.muted)
+                .child(t!("dev.git_clean").to_string())
+                .into_any_element()
         } else {
             self.git_list(
                 "git-files",
@@ -406,6 +449,70 @@ impl DevView {
                         .collect::<Vec<_>>()
                 }),
             )
+        };
+        v_flex()
+            .size_full()
+            .child(head)
+            .child(
+                div()
+                    .flex_none()
+                    .px(px(14.))
+                    .pb(px(6.))
+                    .truncate()
+                    .text_size(px(12.))
+                    .text_color(c.muted)
+                    .child(branch),
+            )
+            .child(sync)
+            .child(
+                h_flex()
+                    .flex_none()
+                    .h(px(26.))
+                    .px(px(14.))
+                    .border_t_1()
+                    .border_color(c.border)
+                    .text_size(px(11.))
+                    .text_color(c.muted)
+                    .child(div().flex_1().child(t!("dev.git_changed").to_uppercase()))
+                    .child(status.files.len().to_string()),
+            )
+            .child(div().relative().flex_1().min_h_0().child(files))
+            .child(commit_box)
+            .child(
+                h_flex().flex_none().px(px(10.)).pb(px(10.)).child(
+                    Button::new("git-history")
+                        .ghost()
+                        .w_full()
+                        .icon(IconName::History)
+                        .label(t!("dev.history"))
+                        .on_click(cx.listener(|this, _, _, cx| this.show(Tab::History, cx))),
+                ),
+            )
+            .into_any_element()
+    }
+
+    /// The History tab: what changed in the pack since `HEAD`, and the commits.
+    pub(super) fn render_history(&self, cx: &mut Context<Self>) -> AnyElement {
+        let c = cx.theme().colors;
+        let mono = cx.theme().mono.clone();
+        let Repo::Ready(status) = &self.git.repo else {
+            let text = match &self.git.repo {
+                Repo::None => t!("dev.git_none").to_string(),
+                Repo::Failed(e) => e.to_string(),
+                _ => t!("dev.git_reading").to_string(),
+            };
+            return div()
+                .p(px(18.))
+                .text_color(c.muted)
+                .child(text)
+                .into_any_element();
+        };
+        let empty = |text: String| {
+            div()
+                .p(px(12.))
+                .text_color(c.muted)
+                .child(text)
+                .into_any_element()
         };
         let pack = if self.git.diff.is_empty() {
             empty(t!("dev.git_pack_same").to_string())
@@ -455,52 +562,24 @@ impl DevView {
                 )
                 .child(div().relative().flex_1().min_h_0().child(body))
         };
-        v_flex()
+        h_flex()
             .size_full()
-            .child(head)
+            .items_start()
+            .gap(px(14.))
+            .p(px(18.))
             .child(
-                h_flex()
+                card(
+                    t!("dev.git_pack_changes").to_string(),
+                    (!self.git.diff.is_empty()).then_some(self.git.diff.len()),
+                    pack,
+                )
+                .flex_1()
+                .h_full(),
+            )
+            .child(
+                card(t!("dev.git_log").to_string(), None, log)
                     .flex_1()
-                    .min_h_0()
-                    .items_start()
-                    .gap(px(14.))
-                    .p(px(18.))
-                    .child(
-                        v_flex()
-                            .flex_1()
-                            .min_w_0()
-                            .h_full()
-                            .gap(px(14.))
-                            .child(
-                                card(
-                                    t!("dev.git_changed").to_string(),
-                                    Some(status.files.len()),
-                                    files,
-                                )
-                                .flex_1(),
-                            )
-                            .child(card(
-                                t!("dev.git_commit").to_string(),
-                                None,
-                                commit_box.into_any_element(),
-                            )),
-                    )
-                    .child(
-                        v_flex()
-                            .flex_1()
-                            .min_w_0()
-                            .h_full()
-                            .gap(px(14.))
-                            .child(
-                                card(
-                                    t!("dev.git_pack_changes").to_string(),
-                                    (!self.git.diff.is_empty()).then_some(self.git.diff.len()),
-                                    pack,
-                                )
-                                .flex_1(),
-                            )
-                            .child(card(t!("dev.git_log").to_string(), None, log).flex_1()),
-                    ),
+                    .h_full(),
             )
             .into_any_element()
     }

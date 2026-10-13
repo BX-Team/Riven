@@ -421,13 +421,16 @@ add_content:
     file_about: Zips from your disk are copied into the instance; the launcher cannot update them.
     pick_one: Pick a shader on the left to see what it is
 dev:
+  font_smaller: Smaller (Ctrl −)
+  font_bigger: Bigger (Ctrl +)
+  font_reset: Default size (Ctrl 0)
+  published_col: Published
+  git_local: local branch
   open_file: Open
   moved: "Moved %{name} to %{to}"
   pack_icon: Pack icon…
   pack_icon_hint: icon.png; launchers show it on the instance
-  sections: Sections
   content: Content
-  dependencies: Dependencies
   groups: Groups
   releases: Releases
   no_project: No project
@@ -476,11 +479,9 @@ dev:
   update_n: "Review %{n} updates"
   up_to_date: Everything is up to date
   nothing_to_do: Nothing to change
-  check: Check
   checking: Reading jar metadata…
   check_clean: "%{n} entries, no problems"
   recheck: Check again
-  log: Test run log
   files: Files
   new_file: New file
   new_folder: New folder
@@ -507,15 +508,8 @@ dev:
   group_members: "Entries (%{n}): %{names}"
   group_remove_title: "Remove group %{name}?"
   group_remove_body: Its entries stay in the pack and install for everyone.
-  dependencies_hint: What each added entry pulls in; select one to see why it is here.
-  orphans: Nothing needs these
-  why_pick: Select an entry to see why it is in the pack.
-  why_explicit: Added explicitly
-  why_dependency: Added as a dependency
   why_paths: Pulled in by
-  why_orphan: Nothing requires it any more
   why_needed_by: Needed by
-  why_needs: Needs
   releases_hint: Bump the version, build a release into dist/, point channels at it and publish it to GitHub Pages.
   version: Version
   version_hint: other version, Enter
@@ -586,7 +580,6 @@ dev:
   import_downloading: Downloading files that are not on Modrinth…
   import_writing: Writing the project…
   import_skipped: "%{n} files could not be identified and were left out"
-  git_hint: The repository the project lives in.
   git_none: This project is not in a git repository. Run git init in its folder to track changes.
   git_reading: Reading the repository…
   git_no_upstream: no upstream; the first push sets origin
@@ -600,7 +593,6 @@ dev:
   git_changed: Changed files
   git_clean: Nothing to commit
   git_staged: staged
-  git_commit: Commit
   git_commit_n: "Commit %{n} files"
   git_no_message: Write a commit message first
   git_missing: "git is not in PATH: commit, pull and push are off; reading still works."
@@ -634,7 +626,69 @@ dev:
   pull_take: "Take %{n}"
   pulled: "Copied %{n} files into overrides/"
   panel_hide: Hide the panel
-  panel_show: Show the panel
+  add_content: Add content
+  betas: Betas
+  channel: Channel
+  configs: Configs
+  details: Details
+  disable: Disable
+  disabled: disabled
+  enable: Enable
+  enabled: Enabled
+  entry_gone: This entry is no longer in the pack.
+  game_log: Game log
+  git_branches: Branches
+  git_fetch: Fetch from the remote
+  git_fetching: Fetching…
+  git_new_branch: New branch…
+  git_new_branch_hint: The branch starts at the current commit and is checked out right away.
+  git_none_short: no git
+  git_switching: Switching branch…
+  history: History
+  in_pack: in pack
+  inspector_hint: Pick an entry in a list to see it here; a double click opens its page.
+  kind_datapacks: Data packs
+  kind_files: Files
+  kind_mods: Mods
+  kind_resourcepacks: Resource packs
+  kind_shaders: Shaders
+  loader: Loader
+  modrinth_page: Modrinth page
+  open_entry: Open page
+  output: Output
+  pack_overview: Pack overview
+  pack_version: Pack version
+  pin_version: Pin version
+  problems: Problems
+  release: Release
+  review: Review
+  search: Search
+  search_nothing: Nothing found
+  search_placeholder: Mods, files, configs…
+  settings: Settings
+  status_sync: "%{push} to push · %{pull} to pull"
+  status_test_idle: not running
+  status_test_running: "running · %{time} min"
+  switch_title: Switch version
+  switching: Resolving dependencies…
+  test_failed: failed
+  toggle_inspector: Details panel
+  toggle_panel: Bottom panel
+  toggle_sidebar: Sidebar
+  versions: Versions
+  versions_hint: Click a version to move the entry to it; dependencies follow.
+  versions_loading: Loading versions from Modrinth…
+  versions_modrinth_only: Versions are listed for Modrinth entries only.
+  versions_none: No versions for this Minecraft version and loader.
+  view_changed: Changed on this branch
+  view_client: Client only
+  view_dependencies: Dependencies
+  view_disabled: Disabled
+  view_empty: Nothing here
+  view_problems: Problems
+  view_server: Server only
+  view_updates: Updates available
+  views: Views
 update:
   title: Updates
   button: Update

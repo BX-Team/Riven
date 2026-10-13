@@ -2,6 +2,7 @@ use gpui_kit::{Hsla, Styled as _, Svg, px, svg};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IconName {
+    Alert,
     ArrowDown,
     ArrowLeft,
     ArrowUp,
@@ -18,7 +19,10 @@ pub enum IconName {
     FilePlus,
     Folder,
     FolderPlus,
+    GitBranch,
+    History,
     Image,
+    LayoutGrid,
     Loader,
     LoaderFabric,
     LoaderForge,
@@ -28,6 +32,9 @@ pub enum IconName {
     Lock,
     More,
     Package,
+    PanelBottom,
+    PanelLeft,
+    PanelRight,
     Play,
     Plus,
     Power,
@@ -35,6 +42,7 @@ pub enum IconName {
     Search,
     Settings,
     Stop,
+    Tag,
     Terminal,
     Trash,
     Upload,
@@ -46,7 +54,8 @@ pub enum IconName {
 
 impl IconName {
     #[cfg(test)]
-    pub const ALL: [IconName; 40] = [
+    pub const ALL: [IconName; 48] = [
+        IconName::Alert,
         IconName::ArrowDown,
         IconName::ArrowLeft,
         IconName::ArrowUp,
@@ -63,7 +72,10 @@ impl IconName {
         IconName::FilePlus,
         IconName::Folder,
         IconName::FolderPlus,
+        IconName::GitBranch,
+        IconName::History,
         IconName::Image,
+        IconName::LayoutGrid,
         IconName::Loader,
         IconName::LoaderFabric,
         IconName::LoaderForge,
@@ -73,6 +85,9 @@ impl IconName {
         IconName::Lock,
         IconName::More,
         IconName::Package,
+        IconName::PanelBottom,
+        IconName::PanelLeft,
+        IconName::PanelRight,
         IconName::Play,
         IconName::Plus,
         IconName::Power,
@@ -80,6 +95,7 @@ impl IconName {
         IconName::Search,
         IconName::Settings,
         IconName::Stop,
+        IconName::Tag,
         IconName::Terminal,
         IconName::Trash,
         IconName::Upload,
@@ -91,6 +107,7 @@ impl IconName {
 
     pub(crate) fn path(self) -> &'static str {
         match self {
+            Self::Alert => "icons/alert.svg",
             Self::ArrowDown => "icons/arrow-down.svg",
             Self::ArrowLeft => "icons/arrow-left.svg",
             Self::ArrowUp => "icons/arrow-up.svg",
@@ -107,7 +124,10 @@ impl IconName {
             Self::FilePlus => "icons/file-plus.svg",
             Self::Folder => "icons/folder.svg",
             Self::FolderPlus => "icons/folder-plus.svg",
+            Self::GitBranch => "icons/git-branch.svg",
+            Self::History => "icons/history.svg",
             Self::Image => "icons/image.svg",
+            Self::LayoutGrid => "icons/layout-grid.svg",
             Self::Loader => "icons/loader.svg",
             Self::LoaderFabric => "icons/loader-fabric.svg",
             Self::LoaderForge => "icons/loader-forge.svg",
@@ -117,6 +137,9 @@ impl IconName {
             Self::Lock => "icons/lock.svg",
             Self::More => "icons/more.svg",
             Self::Package => "icons/package.svg",
+            Self::PanelBottom => "icons/panel-bottom.svg",
+            Self::PanelLeft => "icons/panel-left.svg",
+            Self::PanelRight => "icons/panel-right.svg",
             Self::Play => "icons/play.svg",
             Self::Plus => "icons/plus.svg",
             Self::Power => "icons/power.svg",
@@ -124,6 +147,7 @@ impl IconName {
             Self::Search => "icons/search.svg",
             Self::Settings => "icons/settings.svg",
             Self::Stop => "icons/stop.svg",
+            Self::Tag => "icons/tag.svg",
             Self::Terminal => "icons/terminal.svg",
             Self::Trash => "icons/trash.svg",
             Self::Upload => "icons/upload.svg",

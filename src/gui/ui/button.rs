@@ -3,7 +3,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
     AnyElement, App, ClickEvent, ElementId, FontWeight, InteractiveElement as _, IntoElement,
     ParentElement, RenderOnce, SharedString, StatefulInteractiveElement as _, StyleRefinement,
-    Styled, Window, div, px,
+    Styled, Window, div, px, relative,
 };
 
 use super::{IconName, W_HEAVY, icon, motion, tooltip};
@@ -228,6 +228,7 @@ impl RenderOnce for Button {
                 b.accessibility_label(t)
             })
             .h(px(size.height()))
+            .line_height(relative(1.4))
             .flex_none()
             .gap(px(8.))
             .rounded(px(size.radius()))

@@ -11,6 +11,7 @@ macro_rules! icons {
 }
 
 icons!(
+    "alert",
     "arrow-down",
     "arrow-left",
     "arrow-up",
@@ -27,7 +28,10 @@ icons!(
     "file-plus",
     "folder",
     "folder-plus",
+    "git-branch",
+    "history",
     "image",
+    "layout-grid",
     "loader",
     "loader-fabric",
     "loader-forge",
@@ -37,6 +41,9 @@ icons!(
     "lock",
     "more",
     "package",
+    "panel-bottom",
+    "panel-left",
+    "panel-right",
     "play",
     "plus",
     "power",
@@ -44,6 +51,7 @@ icons!(
     "search",
     "settings",
     "stop",
+    "tag",
     "terminal",
     "trash",
     "upload",

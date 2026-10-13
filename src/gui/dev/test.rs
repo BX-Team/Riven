@@ -6,6 +6,7 @@ use riven_sync::update::Request;
 use rust_i18n::t;
 
 use super::{DevView, Panel, dialogs};
+use crate::gui::session::Phase;
 use crate::gui::state::{AppState, Route};
 use crate::gui::ui::{Button, IconName, h_flex};
 
@@ -76,29 +77,28 @@ impl DevView {
         }
     }
 
-    /// The top bar's test controls: run or stop, and taking configs back.
+    /// The top bar's test controls: run, cancel or stop, and taking configs back.
     pub(super) fn render_test_controls(&self, cx: &mut Context<Self>) -> AnyElement {
         let state = AppState::global(cx);
-        let (busy, exists) = {
+        let (phase, cancellable, exists) = {
             let s = state.read(cx);
-            let busy = self
-                .test_instance()
-                .and_then(|id| s.sessions.get(&id))
-                .is_some_and(crate::gui::session::Session::busy);
+            let session = self.test_instance().and_then(|id| s.sessions.get(&id));
+            let phase = session.map(|s| s.phase.clone());
+            let cancellable = session.is_some_and(crate::gui::session::Session::cancellable);
             let exists = self
                 .test_instance()
                 .is_some_and(|id| s.instance(&id).is_some());
-            (busy, exists)
+            (phase, cancellable, exists)
         };
+        let busy = matches!(phase, Some(Phase::Working { .. } | Phase::Running { .. }));
         let view = cx.entity().downgrade();
         h_flex()
-            .gap(px(6.))
+            .gap(px(4.))
             .when(exists, |row| {
                 row.child(
                     Button::new("dev-pull-configs")
                         .ghost()
                         .icon(IconName::ArrowDown)
-                        .label(t!("dev.pull"))
                         .tooltip(t!("dev.pull_hint"))
                         .disabled(busy)
                         .on_click(move |_, window, cx| {
@@ -106,19 +106,27 @@ impl DevView {
                         }),
                 )
             })
-            .child(if busy {
-                Button::new("dev-test-stop")
+            .child(match phase {
+                Some(Phase::Running { .. }) => Button::new("dev-test-stop")
                     .icon(IconName::Stop)
                     .label(t!("dev.test_stop"))
-                    .on_click(cx.listener(|this, _, _, cx| this.stop_test(cx)))
-            } else {
-                Button::new("dev-test")
+                    .on_click(cx.listener(|this, _, _, cx| this.stop_test(cx))),
+                Some(Phase::Working { .. }) => Button::new("dev-test-cancel")
+                    .icon(IconName::Close)
+                    .label(t!("launch.cancel"))
+                    .disabled(!cancellable)
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        if let Some(id) = this.test_instance() {
+                            AppState::global(cx).update(cx, |s, _| s.cancel(&id));
+                        }
+                    })),
+                _ => Button::new("dev-test")
                     .primary()
                     .icon(IconName::Play)
                     .label(t!("dev.test"))
                     .tooltip(t!("dev.test_hint"))
                     .disabled(self.busy.is_some())
-                    .on_click(cx.listener(|this, _, _, cx| this.run_test(cx)))
+                    .on_click(cx.listener(|this, _, _, cx| this.run_test(cx))),
             })
             .into_any_element()
     }

@@ -14,7 +14,7 @@ use riven_format::Channel;
 use rust_i18n::t;
 
 use super::DevView;
-use super::sections::section_head;
+use super::overview::section_head;
 use crate::gui::theme::ActiveTheme as _;
 use crate::gui::ui::{
     ActionMenu, Button, ButtonSize, Dropdown, IconName, MenuEntry, MenuItem, Switch, TextField,

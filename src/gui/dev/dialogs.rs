@@ -734,6 +734,68 @@ pub fn open_new_path(
     open(dialog.into(), 480., cx);
 }
 
+/// "New branch": a name for a branch made from `HEAD` and checked out.
+pub struct NewBranch {
+    view: WeakEntity<DevView>,
+    input: Entity<InputState>,
+    _input: Subscription,
+}
+
+impl NewBranch {
+    fn create(&mut self, cx: &mut Context<Self>) {
+        let name = self.input.read(cx).value().trim().to_string();
+        if name.is_empty() || name.contains(char::is_whitespace) {
+            return;
+        }
+        let _ = self.view.update(cx, |view, cx| {
+            view.run_git(
+                GitOp::Switch {
+                    branch: name,
+                    create: true,
+                },
+                |this, cx| this.after_checkout(cx),
+                cx,
+            )
+        });
+        close(cx);
+    }
+}
+
+impl Render for NewBranch {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let action = Button::new("new-branch-create")
+            .primary()
+            .size(ButtonSize::Md)
+            .label(t!("new_instance.create"))
+            .on_click(cx.listener(|this, _, _, cx| this.create(cx)));
+        dialog_shell(
+            t!("dev.git_new_branch"),
+            t!("dev.git_new_branch_hint"),
+            TextField::new(&self.input),
+            vec![cancel(), action],
+            cx,
+        )
+    }
+}
+
+pub fn open_new_branch(view: WeakEntity<DevView>, window: &mut Window, cx: &mut App) {
+    let dialog = cx.new(|cx| {
+        let input = cx.new(|cx| InputState::new(window, cx).placeholder("feature/new-mods"));
+        input.update(cx, |s, cx| s.focus(window, cx));
+        let _input = cx.subscribe(&input, |this: &mut NewBranch, _, event: &InputEvent, cx| {
+            if let InputEvent::PressEnter { .. } = event {
+                this.create(cx);
+            }
+        });
+        NewBranch {
+            view,
+            input,
+            _input,
+        }
+    });
+    open(dialog.into(), 440., cx);
+}
+
 /// Creating a group, or changing an existing one's name, description and default.
 pub struct GroupForm {
     view: WeakEntity<DevView>,

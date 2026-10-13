@@ -1,9 +1,10 @@
 use gpui_kit::base::Selectable as _;
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
-    AnyElement, App, AppContext as _, Context, Entity, ExternalPaths, FontWeight,
-    InteractiveElement as _, IntoElement, ParentElement as _, Render, SharedString,
-    StatefulInteractiveElement as _, Styled as _, Subscription, Window, div, px, relative,
+    AnyElement, App, AppContext as _, Context, DispatchPhase, Entity, ExternalPaths, FocusHandle,
+    FontWeight, InteractiveElement as _, IntoElement, KeyBinding, MouseButton, MouseDownEvent,
+    NavigationDirection, ParentElement as _, Render, SharedString, StatefulInteractiveElement as _,
+    Styled as _, Subscription, Window, actions, canvas, div, px, relative,
 };
 use rust_i18n::t;
 
@@ -18,6 +19,19 @@ use super::ui::{self, Button, IconName, UiText as _, W_SEMIBOLD, caption, h_flex
 
 pub const SIDEBAR_WIDTH: f32 = 240.;
 
+actions!(riven, [Back, OpenSettings, NewInstance]);
+
+const KEY_CONTEXT: &str = "Riven";
+
+/// Binds the window-wide shortcuts.
+pub fn init(cx: &mut App) {
+    cx.bind_keys([
+        KeyBinding::new("escape", Back, Some(KEY_CONTEXT)),
+        KeyBinding::new("secondary-,", OpenSettings, Some(KEY_CONTEXT)),
+        KeyBinding::new("secondary-n", NewInstance, Some(KEY_CONTEXT)),
+    ]);
+}
+
 pub struct RivenApp {
     state: Entity<AppState>,
     instance: Option<Entity<InstanceView>>,
@@ -26,6 +40,10 @@ pub struct RivenApp {
     dev: Option<Entity<DevView>>,
     /// The route seen last, so settings open on their first page each time.
     route: Route,
+    /// Holds focus when nothing else does, so the window-wide shortcuts reach the app.
+    focus: FocusHandle,
+    /// The modal that last got focus, so each one takes it once.
+    modal_focus: u64,
     _state: Subscription,
 }
 
@@ -47,8 +65,11 @@ impl RivenApp {
             settings,
             dev: None,
             route: Route::Empty,
+            focus: cx.focus_handle(),
+            modal_focus: 0,
             _state,
         };
+        app.focus.focus(window, cx);
         app.sync(window, cx);
         cx.defer(super::welcome::open_if_new);
         cx.defer(super::updater::check_at_startup);
@@ -92,6 +113,55 @@ impl RivenApp {
 
     fn navigate(state: &Entity<AppState>, route: Route, cx: &mut App) {
         state.update(cx, |s, cx| s.navigate(route, cx));
+    }
+
+    /// Escape or the mouse's back button: closes the topmost popup, else leaves settings.
+    /// Escape stays in the developer section, where it belongs to the editor.
+    fn back(state: &Entity<AppState>, leave_dev: bool, cx: &mut App) {
+        state.update(cx, |s, cx| {
+            if s.context_menu.is_some() {
+                s.close_context_menu(cx);
+            } else if s.modal.is_some() {
+                s.close_modal(cx);
+            } else if s.route == Route::Settings || (leave_dev && s.route == Route::Developer) {
+                let home = s.home();
+                s.navigate(home, cx);
+            }
+        });
+    }
+
+    fn open_settings(&mut self, _: &OpenSettings, _: &mut Window, cx: &mut Context<Self>) {
+        self.state.update(cx, |s, cx| {
+            let route = if s.route == Route::Settings {
+                s.home()
+            } else {
+                Route::Settings
+            };
+            s.navigate(route, cx);
+        });
+    }
+
+    fn new_instance(&mut self, _: &NewInstance, window: &mut Window, cx: &mut Context<Self>) {
+        if self.state.read(cx).modal.is_none() {
+            super::new_instance::open(window, cx);
+        }
+    }
+
+    /// Gives a new modal focus unless its view already took it, so Escape closes it.
+    fn focus_modal(&mut self, modal: Option<&ui::Modal>, window: &mut Window, cx: &mut App) {
+        if window.focused(cx).is_none() {
+            self.focus.focus(window, cx);
+        }
+        let Some(m) = modal.filter(|m| m.serial != self.modal_focus) else {
+            return;
+        };
+        self.modal_focus = m.serial;
+        let focus = m.focus.clone();
+        window.on_next_frame(move |window, cx| {
+            if !focus.contains_focused(window, cx) {
+                focus.focus(window, cx);
+            }
+        });
     }
 
     /// The developer section's button, shown in the title bar in developer mode.
@@ -307,6 +377,24 @@ fn drop_zone(cx: &App) -> impl IntoElement {
         )
 }
 
+/// The mouse's back button, heard over the whole window, the modal backdrop included.
+fn back_button(state: Entity<AppState>) -> impl IntoElement {
+    canvas(
+        |_, _, _| (),
+        move |_, _, window, _| {
+            window.on_mouse_event(move |e: &MouseDownEvent, phase, _, cx| {
+                if phase == DispatchPhase::Bubble
+                    && e.button == MouseButton::Navigate(NavigationDirection::Back)
+                {
+                    RivenApp::back(&state, true, cx);
+                }
+            });
+        },
+    )
+    .absolute()
+    .size_0()
+}
+
 /// Screens are drawn again only when they change, not with every frame of a dialog over them.
 fn full() -> gpui_kit::StyleRefinement {
     gpui_kit::StyleRefinement::default().size_full()
@@ -338,6 +426,7 @@ pub fn nav_row(
         .selected(active)
         .justify_start()
         .h(px(30.))
+        .line_height(relative(1.4))
         .px(px(8.))
         .gap(px(8.))
         .rounded(px(6.))
@@ -401,6 +490,7 @@ impl Render for RivenApp {
         let route = st.route.clone();
         let modal = st.modal.clone();
         let context = st.context_menu.clone();
+        self.focus_modal(modal.as_ref(), window, cx);
         let bar = match &route {
             Route::Instance(id) => {
                 let centered = self
@@ -453,10 +543,19 @@ impl Render for RivenApp {
         let toast_bottom = if bar.is_some() { 88. } else { 16. };
         let toasts = super::toast::render(&self.state, toast_bottom, window, cx);
         let state = self.state.clone();
+        let back = self.state.clone();
         let edges = chrome::resize_edges(window);
         v_flex()
             .relative()
             .size_full()
+            .key_context(KEY_CONTEXT)
+            .track_focus(&self.focus)
+            .on_action({
+                let state = self.state.clone();
+                move |_: &Back, _, cx| Self::back(&state, false, cx)
+            })
+            .on_action(cx.listener(Self::open_settings))
+            .on_action(cx.listener(Self::new_instance))
             .bg(c.bg)
             .ui_text(cx)
             .child(title_bar)
@@ -475,6 +574,7 @@ impl Render for RivenApp {
             })
             .child(toasts)
             .child(drop_zone(cx))
+            .child(back_button(back))
             .when_some(context, |root, menu| {
                 let state = self.state.clone();
                 root.child(ui::context_menu(

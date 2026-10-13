@@ -4,7 +4,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
     AnyElement, App, ElementId, FontWeight, InteractiveElement as _, IntoElement,
     ParentElement as _, RenderOnce, Role, SharedString, StatefulInteractiveElement as _,
-    Styled as _, Window, div, px,
+    Styled as _, Window, div, px, relative,
 };
 
 use super::{h_flex, motion};
@@ -67,6 +67,7 @@ impl RenderOnce for Tabs {
                     .role(Role::Tab)
                     .selected(on)
                     .h(px(28.))
+                    .line_height(relative(1.4))
                     .px(px(12.))
                     .rounded(px(6.))
                     .cursor_pointer()

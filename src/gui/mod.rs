@@ -56,6 +56,8 @@ pub fn run(arg: Option<String>) -> ExitCode {
     app.run(move |cx| {
         gpui_kit::init(cx);
         theme::init(cx);
+        dev::init(cx);
+        app::init(cx);
         let state = AppState::init(cx);
         let settings = state.read(cx).settings.clone();
         set_language(settings.language.as_deref());

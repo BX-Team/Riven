@@ -246,7 +246,7 @@
       }
     },
     "DevPanel": {
-      "description": "The bottom panel of the developer section (Check, Git, Log).",
+      "description": "The developer section's panels: the bottom one (Problems, Output, Game log) and the side ones.",
       "type": "object",
       "properties": {
         "height": {
@@ -257,6 +257,40 @@
         },
         "hidden": {
           "type": "boolean"
+        },
+        "sidebar_hidden": {
+          "type": "boolean"
+        },
+        "inspector_hidden": {
+          "type": "boolean"
+        },
+        "sidebar_width": {
+          "description": "Widths in logical pixels; 0 keeps the built-in one.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "inspector_width": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "columns": {
+          "description": "The content list's name, file, source, side and group columns.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "minItems": 5,
+          "maxItems": 5
+        },
+        "editor_font": {
+          "description": "The file editor's text size; 0 keeps the built-in one.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
         }
       },
       "required": [

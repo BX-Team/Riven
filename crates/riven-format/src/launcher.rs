@@ -34,13 +34,50 @@ pub struct Settings {
     pub onboarded: bool,
 }
 
-/// The bottom panel of the developer section (Check, Git, Log).
+/// The developer section's panels: the bottom one (Problems, Output, Game log) and the side ones.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct DevPanel {
     /// Height in logical pixels.
     pub height: u32,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub hidden: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub sidebar_hidden: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub inspector_hidden: bool,
+    /// Widths in logical pixels; 0 keeps the built-in one.
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub sidebar_width: u32,
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub inspector_width: u32,
+    /// The content list's name, file, source, side and group columns.
+    #[serde(
+        default,
+        skip_serializing_if = "all_zero",
+        deserialize_with = "any_columns"
+    )]
+    pub columns: [u32; 5],
+    /// The file editor's text size; 0 keeps the built-in one.
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub editor_font: u32,
+}
+
+fn is_zero_u32(n: &u32) -> bool {
+    *n == 0
+}
+
+/// Reads a column list of any length, so adding or dropping a column keeps the settings readable.
+fn any_columns<'de, D: serde::Deserializer<'de>>(d: D) -> Result<[u32; 5], D::Error> {
+    let found: Vec<u32> = Deserialize::deserialize(d)?;
+    let mut out = [0; 5];
+    for (slot, w) in out.iter_mut().zip(found) {
+        *slot = w;
+    }
+    Ok(out)
+}
+
+fn all_zero(n: &[u32; 5]) -> bool {
+    n.iter().all(|w| *w == 0)
 }
 
 impl DevPanel {
@@ -56,6 +93,12 @@ impl Default for DevPanel {
         Self {
             height: Self::DEFAULT_HEIGHT,
             hidden: false,
+            sidebar_hidden: false,
+            inspector_hidden: false,
+            sidebar_width: 0,
+            inspector_width: 0,
+            columns: [0; 5],
+            editor_font: 0,
         }
     }
 }

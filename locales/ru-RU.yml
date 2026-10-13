@@ -421,13 +421,16 @@ add_content:
     file_about: Zip-файлы с диска копируются в инстанс; обновлять их лаунчер не сможет.
     pick_one: Выберите шейдер слева, чтобы увидеть описание
 dev:
+  font_smaller: Мельче (Ctrl −)
+  font_bigger: Крупнее (Ctrl +)
+  font_reset: Обычный размер (Ctrl 0)
+  published_col: Опубликована
+  git_local: локальная ветка
   open_file: Открыть
   moved: "%{name} перемещён в %{to}"
   pack_icon: Иконка пака…
   pack_icon_hint: icon.png; лаунчеры показывают её у инстанса
-  sections: Разделы
   content: Содержимое
-  dependencies: Зависимости
   groups: Группы
   releases: Релизы
   no_project: Нет проекта
@@ -476,11 +479,9 @@ dev:
   update_n: "Обновления: %{n}"
   up_to_date: Всё актуально
   nothing_to_do: Менять нечего
-  check: Проверка
   checking: Читаю метаданные jar…
   check_clean: "Записей: %{n}, проблем нет"
   recheck: Проверить заново
-  log: Лог тестового запуска
   files: Файлы
   new_file: Новый файл
   new_folder: Новая папка
@@ -507,15 +508,8 @@ dev:
   group_members: "Записей: %{n} — %{names}"
   group_remove_title: "Удалить группу %{name}?"
   group_remove_body: Её записи останутся в паке и будут ставиться всем.
-  dependencies_hint: Что тянет за собой каждая добавленная запись; выберите запись, чтобы узнать, почему она здесь.
-  orphans: Никому не нужны
-  why_pick: Выберите запись, чтобы узнать, почему она в паке.
-  why_explicit: Добавлена явно
-  why_dependency: Добавлена как зависимость
   why_paths: Кто её тянет
-  why_orphan: Её больше ничто не требует
   why_needed_by: Нужна для
-  why_needs: Требует
   releases_hint: Поднимите версию, соберите релиз в dist/, направьте на него каналы и опубликуйте на GitHub Pages.
   version: Версия
   version_hint: своя версия, Enter
@@ -586,7 +580,6 @@ dev:
   import_downloading: Загрузка файлов, которых нет на Modrinth…
   import_writing: Запись проекта…
   import_skipped: "%{n} файлов не удалось опознать, они пропущены"
-  git_hint: Репозиторий, в котором лежит проект.
   git_none: Проект не в git-репозитории. Выполните git init в его папке, чтобы отслеживать изменения.
   git_reading: Чтение репозитория…
   git_no_upstream: без upstream; первый push выставит origin
@@ -600,7 +593,6 @@ dev:
   git_changed: Изменённые файлы
   git_clean: Нечего коммитить
   git_staged: в индексе
-  git_commit: Коммит
   git_commit_n: "Закоммитить файлов: %{n}"
   git_no_message: Сначала напишите сообщение коммита
   git_missing: "git не найден в PATH: commit, pull и push недоступны, чтение работает."
@@ -634,7 +626,69 @@ dev:
   pull_take: "Забрать %{n}"
   pulled: "Скопировано в overrides/: %{n}"
   panel_hide: Скрыть панель
-  panel_show: Показать панель
+  add_content: Добавить контент
+  betas: Бета-версии
+  channel: Канал
+  configs: Конфиги
+  details: Сведения
+  disable: Отключить
+  disabled: отключён
+  enable: Включить
+  enabled: Включён
+  entry_gone: Этой записи больше нет в паке.
+  game_log: Лог игры
+  git_branches: Ветки
+  git_fetch: Получить изменения с сервера
+  git_fetching: Получаем изменения…
+  git_new_branch: Новая ветка…
+  git_new_branch_hint: Ветка создаётся от текущего коммита, и на неё сразу происходит переключение.
+  git_none_short: нет git
+  git_switching: Переключаем ветку…
+  history: История
+  in_pack: в паке
+  inspector_hint: Выберите запись в списке, чтобы увидеть её здесь; двойной щелчок открывает её страницу.
+  kind_datapacks: Датапаки
+  kind_files: Файлы
+  kind_mods: Моды
+  kind_resourcepacks: Ресурспаки
+  kind_shaders: Шейдеры
+  loader: Загрузчик
+  modrinth_page: Страница на Modrinth
+  open_entry: Открыть страницу
+  output: Вывод
+  pack_overview: О паке
+  pack_version: Версия пака
+  pin_version: Закрепить версию
+  problems: Проблемы
+  release: Релиз
+  review: Изменения
+  search: Поиск
+  search_nothing: Ничего не найдено
+  search_placeholder: Моды, файлы, конфиги…
+  settings: Настройки
+  status_sync: "%{push} к отправке · %{pull} к получению"
+  status_test_idle: не запущен
+  status_test_running: "запущен · %{time} мин"
+  switch_title: Сменить версию
+  switching: Подбираем зависимости…
+  test_failed: ошибка
+  toggle_inspector: Панель сведений
+  toggle_panel: Нижняя панель
+  toggle_sidebar: Боковая панель
+  versions: Версии
+  versions_hint: Щелчок по версии переводит запись на неё; зависимости подберутся сами.
+  versions_loading: Загружаем версии с Modrinth…
+  versions_modrinth_only: Список версий есть только у записей с Modrinth.
+  versions_none: Нет версий под эту версию Minecraft и загрузчик.
+  view_changed: Изменено в ветке
+  view_client: Только клиент
+  view_dependencies: Зависимости
+  view_disabled: Отключённые
+  view_empty: Здесь пусто
+  view_problems: С проблемами
+  view_server: Только сервер
+  view_updates: Есть обновления
+  views: Представления
 update:
   title: Обновления
   button: Обновить

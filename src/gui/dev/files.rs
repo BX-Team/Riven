@@ -19,6 +19,11 @@ use crate::gui::ui::{
 const TREE_ROW: f32 = 26.;
 
 /// The `riven.json` row above the tree, lit while hovered.
+/// The editor's text size in points unless the user picked another.
+const DEFAULT_FONT: f32 = 13.;
+const MIN_FONT: i32 = 9;
+const MAX_FONT: i32 = 28;
+
 fn tree_row(
     key: String,
     depth: usize,
@@ -345,7 +350,7 @@ impl DevView {
                 Tab::File(p) => {
                     p == &path || p.as_str().starts_with(&format!("{}/", path.as_str()))
                 }
-                Tab::Section(_) => false,
+                _ => false,
             })
             .cloned()
             .collect();
@@ -380,11 +385,11 @@ impl DevView {
         let view = cx.entity().downgrade();
         let active = match &self.active {
             Tab::File(p) => Some(p.as_str().to_owned()),
-            Tab::Section(_) => None,
+            _ => None,
         };
         let in_overrides = match &self.active {
             Tab::File(p) => in_tree(p).map(str::to_owned),
-            Tab::Section(_) => None,
+            _ => None,
         };
         self.tree
             .update(cx, |tree, cx| tree.set_active(in_overrides, cx));
@@ -494,6 +499,24 @@ impl DevView {
             .into_any_element()
     }
 
+    fn editor_font(&self, cx: &Context<Self>) -> f32 {
+        match self.layout(cx).editor_font {
+            0 => DEFAULT_FONT,
+            n => n as f32,
+        }
+    }
+
+    /// Makes the editor text bigger or smaller by `step` points; 0 brings the default back.
+    fn zoom_editor(&mut self, step: i32, cx: &mut Context<Self>) {
+        let size = if step == 0 {
+            0
+        } else {
+            (self.editor_font(cx) as i32 + step).clamp(MIN_FONT, MAX_FONT) as u32
+        };
+        self.set_layout(|p| p.editor_font = size, cx);
+        cx.notify();
+    }
+
     /// An editor tab: the file's path, Save, and the text with line numbers.
     pub(super) fn render_file(&self, path: &PackPath, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
@@ -521,6 +544,7 @@ impl DevView {
         file.editor.update(cx, |s, _| s.set_editor_style(style));
         let save_path = path.clone();
         let key_path = path.clone();
+        let font = self.editor_font(cx);
         v_flex()
             .size_full()
             .child(
@@ -540,6 +564,34 @@ impl DevView {
                             .text_size(px(12.))
                             .text_color(c.muted)
                             .child(path.as_str().to_owned()),
+                    )
+                    .child(
+                        Button::new("dev-font-smaller")
+                            .ghost()
+                            .size(ButtonSize::Xs)
+                            .label("A−")
+                            .tooltip(t!("dev.font_smaller"))
+                            .on_click(cx.listener(|this, _, _, cx| this.zoom_editor(-1, cx))),
+                    )
+                    .child(
+                        div()
+                            .id("dev-font-size")
+                            .min_w(px(22.))
+                            .text_center()
+                            .text_size(px(12.))
+                            .text_color(c.muted)
+                            .cursor_pointer()
+                            .tooltip(crate::gui::ui::tooltip(t!("dev.font_reset").into()))
+                            .on_click(cx.listener(|this, _, _, cx| this.zoom_editor(0, cx)))
+                            .child(format!("{font}")),
+                    )
+                    .child(
+                        Button::new("dev-font-bigger")
+                            .ghost()
+                            .size(ButtonSize::Xs)
+                            .label("A+")
+                            .tooltip(t!("dev.font_bigger"))
+                            .on_click(cx.listener(|this, _, _, cx| this.zoom_editor(1, cx))),
                     )
                     .when(read_only, |row| {
                         row.child(
@@ -570,15 +622,27 @@ impl DevView {
                     .min_h_0()
                     .bg(c.bg)
                     .font_family(mono)
-                    .text_size(px(12.5))
-                    .line_height(px(20.))
+                    .text_size(px(font))
+                    .line_height(px((font * 1.6).round()))
                     .text_color(c.text)
                     .on_key_down(cx.listener(move |this, event: &KeyDownEvent, _, cx| {
                         let key = &event.keystroke;
-                        if key.modifiers.secondary() && key.key == "s" {
-                            cx.stop_propagation();
-                            this.save_file(&key_path, cx);
+                        if !key.modifiers.secondary() {
+                            return;
                         }
+                        let zoom = match key.key.as_str() {
+                            "s" => {
+                                cx.stop_propagation();
+                                this.save_file(&key_path, cx);
+                                return;
+                            }
+                            "=" | "+" => 1,
+                            "-" => -1,
+                            "0" => 0,
+                            _ => return,
+                        };
+                        cx.stop_propagation();
+                        this.zoom_editor(zoom, cx);
                     }))
                     .child(Editor::new(&file.editor)),
             )

@@ -74,6 +74,8 @@ pub struct Status {
     pub log: Vec<Commit>,
     /// `riven.json` as committed in `HEAD`, if it is there.
     pub committed: Option<Project>,
+    /// Local branches, sorted.
+    pub branches: Vec<String>,
 }
 
 /// The project's folder relative to the repository root, `""` at the root.
@@ -236,6 +238,16 @@ pub fn status(dir: &Path) -> Result<Option<Status>, GitError> {
             });
     }
 
+    let mut branches: Vec<String> = repo
+        .references()
+        .map_err(read)?
+        .local_branches()
+        .map_err(read)?
+        .flatten()
+        .map(|r| r.name().shorten().to_string())
+        .collect();
+    branches.sort();
+
     Ok(Some(Status {
         branch,
         upstream,
@@ -244,6 +256,7 @@ pub fn status(dir: &Path) -> Result<Option<Status>, GitError> {
         files: files.into_values().collect(),
         log,
         committed,
+        branches,
     }))
 }
 
@@ -473,6 +486,25 @@ pub async fn push(
     } else {
         run(dir, &["push", "--set-upstream", "origin", "HEAD"], line).await
     }
+}
+
+/// Checks out another local branch, or creates it from `HEAD` first.
+pub async fn switch(
+    dir: &Path,
+    branch: &str,
+    create: bool,
+    line: &(dyn Fn(String) + Sync),
+) -> Result<(), GitError> {
+    if create {
+        run(dir, &["switch", "-c", branch], line).await
+    } else {
+        run(dir, &["switch", branch], line).await
+    }
+}
+
+/// Learns what the remote has, for the counts of commits to pull.
+pub async fn fetch(dir: &Path, line: &(dyn Fn(String) + Sync)) -> Result<(), GitError> {
+    run(dir, &["fetch", "--prune"], line).await
 }
 
 /// Clones `url` into `dest`, which must not exist yet.

@@ -208,3 +208,17 @@ fn older_window_settings_still_read() {
         serde_json::from_str(r#"{ "width": 1280, "height": 720, "maximized": true }"#).unwrap();
     assert!(window.fullscreen);
 }
+
+#[test]
+fn settings_read_column_lists_of_any_length() {
+    let read = |columns: &str| {
+        crate::from_str::<crate::Settings>(&format!(
+            r#"{{"format":1,"dev_panel":{{"height":240,"columns":{columns}}}}}"#
+        ))
+        .unwrap()
+        .dev_panel
+        .columns
+    };
+    assert_eq!(read("[1, 2, 3, 4]"), [1, 2, 3, 4, 0]);
+    assert_eq!(read("[1, 2, 3, 4, 5, 6]"), [1, 2, 3, 4, 5]);
+}
