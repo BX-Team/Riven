@@ -264,9 +264,28 @@ fn nix_store() -> Vec<PathBuf> {
         .collect()
 }
 
-/// Java executables worth probing: `JAVA_HOME`, `PATH` and the usual install folders.
+/// `java` executables a distribution ships alongside Riven, such as nixpkgs' JDKs, separated like `PATH`.
+pub const PROVIDED_ENV: &str = "RIVEN_JAVA_PATHS";
+
+fn provided_paths() -> Vec<PathBuf> {
+    std::env::var_os(PROVIDED_ENV)
+        .map(|v| std::env::split_paths(&v).collect())
+        .unwrap_or_default()
+}
+
+/// The provided `java` for `major`, preferred to downloading Temurin where downloads cannot run.
+pub fn provided(major: u32) -> Option<PathBuf> {
+    let major = if major == 16 { 17 } else { major };
+    provided_paths()
+        .into_iter()
+        .filter_map(|p| probe(&p))
+        .find(|j| j.major == major)
+        .map(|j| j.path)
+}
+
+/// Java executables worth probing: provided ones, `JAVA_HOME`, `PATH` and the usual install folders.
 pub fn candidates() -> Vec<PathBuf> {
-    let mut paths = Vec::new();
+    let mut paths = provided_paths();
     if let Some(home) = std::env::var_os("JAVA_HOME") {
         paths.push(PathBuf::from(home).join("bin").join(exe()));
     }

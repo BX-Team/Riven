@@ -308,14 +308,24 @@ pub async fn play(
     };
     let java = match &settings.java {
         JavaChoice::Auto => {
-            riven_game::java::ensure(
-                &http,
-                &dirs,
-                prepared.java_major(),
-                prepared.needs_x64_java(),
-                &progress,
-            )
-            .await?
+            let major = prepared.java_major();
+            let provided = tokio::task::spawn_blocking(move || crate::java::provided(major))
+                .await
+                .ok()
+                .flatten();
+            match provided {
+                Some(java) => java,
+                None => {
+                    riven_game::java::ensure(
+                        &http,
+                        &dirs,
+                        major,
+                        prepared.needs_x64_java(),
+                        &progress,
+                    )
+                    .await?
+                }
+            }
         }
         JavaChoice::Path { path } => {
             let path = PathBuf::from(path);
