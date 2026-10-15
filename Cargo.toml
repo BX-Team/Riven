@@ -58,6 +58,12 @@ opt-level = "s"
 panic = "abort"
 strip = true
 
+# CI smoke builds; full LTO stays in `release`, which the packages use.
+[profile.ci]
+inherits = "release"
+codegen-units = 16
+lto = "thin"
+
 [lib]
 name = "riven_lib"
 crate-type = ["rlib"]

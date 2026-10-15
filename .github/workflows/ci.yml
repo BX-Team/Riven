@@ -1,11 +1,10 @@
 name: CI
 
 on:
-  push:
-    branches: ["master"]
   pull_request:
     branches: ["master"]
   workflow_call:
+  workflow_dispatch:
 
 permissions: {}
 
@@ -21,7 +20,6 @@ env:
 jobs:
   format:
     name: Formatting
-    if: &not-release-bump "${{ !(github.event.head_commit.author.name == 'github-actions[bot]' && startsWith(github.event.head_commit.message, 'chore(release): bump version to ')) }}"
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -41,7 +39,6 @@ jobs:
 
   check:
     name: Lint & test (${{ matrix.name }})
-    if: *not-release-bump
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -52,7 +49,7 @@ jobs:
           - name: linux
             os: ubuntu-latest
           - name: windows
-            os: windows-latest
+            os: blacksmith-8vcpu-windows-2025
           - name: macos
             os: macos-latest
     steps:
@@ -89,7 +86,6 @@ jobs:
 
   build-cli:
     name: Build riven-cli (${{ matrix.target }})
-    if: *not-release-bump
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -117,26 +113,25 @@ jobs:
         with:
           key: build-cli-${{ matrix.target }}
 
-      - name: Build the release binary
-        run: cargo build --release --locked --no-default-features --features cli
+      - name: Build the binary
+        run: cargo build --profile ci --locked --no-default-features --features cli
 
       - name: Smoke-test the binary
         shell: bash
-        run: ./target/release/riven --version
+        run: ./target/ci/riven --version
 
       - name: Upload the binary
         uses: actions/upload-artifact@v7
         with:
           name: riven-cli-${{ matrix.target }}
           path: |
-            target/release/riven
-            target/release/riven.exe
+            target/ci/riven
+            target/ci/riven.exe
           if-no-files-found: error
           retention-days: 7
 
   nix:
     name: Nix flake check
-    if: *not-release-bump
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -154,7 +149,7 @@ jobs:
 
   gate:
     name: CI
-    if: "${{ always() && !(github.event.head_commit.author.name == 'github-actions[bot]' && startsWith(github.event.head_commit.message, 'chore(release): bump version to ')) }}"
+    if: ${{ always() }}
     needs: [format, check, build-cli, nix]
     runs-on: ubuntu-latest
     permissions: {}

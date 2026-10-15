@@ -215,8 +215,55 @@ jobs:
         shell: bash
         run: gh release upload "$TAG" out/* --clobber --repo "$GITHUB_REPOSITORY"
 
+  macos-build:
+    name: macOS (${{ matrix.target }})
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        target: [aarch64-apple-darwin, x86_64-apple-darwin]
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+
+      - name: Install the Rust toolchain
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          rustup toolchain install
+          rustup target add "$TARGET"
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          key: package-macos-${{ matrix.target }}
+
+      - name: Build riven and riven-cli
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          cargo build --release --locked --target "$TARGET"
+          cargo build --release --locked --no-default-features --features cli --target "$TARGET" --target-dir target/cli
+          mkdir -p bin/cli
+          cp "target/$TARGET/release/riven" bin/riven
+          cp "target/cli/$TARGET/release/riven" bin/cli/riven
+
+      - name: Upload the binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: riven-macos-${{ matrix.target }}
+          path: bin
+          if-no-files-found: error
+          retention-days: 1
+
   macos:
     name: macOS (universal)
+    needs: [macos-build]
     runs-on: macos-latest
     permissions:
       contents: write
@@ -227,15 +274,11 @@ jobs:
           ref: ${{ inputs.ref || github.sha }}
           persist-credentials: false
 
-      - name: Install the Rust toolchain
-        run: |
-          rustup toolchain install
-          rustup target add aarch64-apple-darwin x86_64-apple-darwin
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
+      - name: Download the binaries
+        uses: actions/download-artifact@v7
         with:
-          key: package-macos
+          pattern: riven-macos-*-apple-darwin
+          path: bin
 
       - name: Read the version
         id: version
@@ -243,17 +286,14 @@ jobs:
           version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "riven") | .version')"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Build riven and riven-cli for both architectures
+      - name: Join both architectures
         run: |
-          for target in aarch64-apple-darwin x86_64-apple-darwin; do
-            cargo build --release --locked --target "$target"
-            cargo build --release --locked --no-default-features --features cli --target "$target" --target-dir target/cli
-          done
           mkdir -p universal/cli
           lipo -create -output universal/riven \
-            target/aarch64-apple-darwin/release/riven target/x86_64-apple-darwin/release/riven
+            bin/riven-macos-aarch64-apple-darwin/riven bin/riven-macos-x86_64-apple-darwin/riven
           lipo -create -output universal/cli/riven \
-            target/cli/aarch64-apple-darwin/release/riven target/cli/x86_64-apple-darwin/release/riven
+            bin/riven-macos-aarch64-apple-darwin/cli/riven bin/riven-macos-x86_64-apple-darwin/cli/riven
+          chmod +x universal/riven universal/cli/riven
           universal/riven --version
           universal/cli/riven --version
 
