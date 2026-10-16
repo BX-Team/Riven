@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use futures_util::{StreamExt, stream};
-use riven_format::{Channel, Entry, InstallSide, KeyPair, Release, SignError};
+use riven_format::{Channel, Entry, InstallSide, KeyPair, Release, ReleaseNote, SignError};
 use riven_resolve::JarFetcher;
 
 use crate::author::AuthorError;
@@ -13,6 +13,8 @@ use crate::release::{self, Built};
 use crate::workspace::{StoreJars, Workspace, ensure_gitignore};
 
 const PARALLEL_DOWNLOADS: usize = 8;
+/// How many releases' notes a manifest carries, for players who skip versions.
+const NOTES_KEPT: usize = 10;
 pub const DIST: &str = "dist";
 pub const EXPORTS: &str = "exports";
 pub const DEFAULT_BRANCH: &str = "gh-pages";
@@ -107,17 +109,49 @@ pub fn signing_key(pack: &str, unsigned: bool) -> Result<Option<KeyPair>, ShipEr
         .ok_or_else(|| ShipError::NoKey(pack.to_owned()))
 }
 
-/// Builds the current version into `dist`, then points `channel` at it.
+/// Builds the current version into `dist` with the author's `notes`, then points `channel` at it.
 pub fn build(
     ws: &Workspace,
     dist: &Path,
     channel: &str,
     key: Option<&KeyPair>,
+    notes: Option<&str>,
 ) -> Result<(Built, Channel), ShipError> {
-    let built = release::build_release(&ws.project, &ws.dir)?;
+    let mut built = release::build_release(&ws.project, &ws.dir)?;
+    built.release.notes = release_notes(dist, &ws.project.version, notes);
     release::write_release(dist, &built, key)?;
     let pointer = release::publish(dist, channel, &ws.project.version, key)?;
     Ok((built, pointer))
+}
+
+/// `text` first, then the notes of the newest earlier release; a rebuild without text keeps the built ones.
+fn release_notes(dist: &Path, version: &str, text: Option<&str>) -> Vec<ReleaseNote> {
+    let read = |v: &str| -> Option<Release> {
+        let text = std::fs::read_to_string(dist.join("releases").join(format!("{v}.json"))).ok()?;
+        riven_format::from_str(&text).ok()
+    };
+    let text = text.map(str::trim).filter(|t| !t.is_empty());
+    if text.is_none()
+        && let Some(built) = read(version)
+    {
+        return built.notes;
+    }
+    let earlier = releases(dist)
+        .into_iter()
+        .find(|v| compare_versions(v, version) == Ordering::Less)
+        .and_then(|v| read(&v))
+        .map(|r| r.notes)
+        .unwrap_or_default();
+    let mut notes: Vec<ReleaseNote> = text
+        .map(|t| ReleaseNote {
+            version: version.to_owned(),
+            text: t.to_owned(),
+        })
+        .into_iter()
+        .chain(earlier.into_iter().filter(|n| n.version != version))
+        .collect();
+    notes.truncate(NOTES_KEPT);
+    notes
 }
 
 /// Writes the project as it is now to `.riven/test/<id>.riven`, unsigned, for a test instance.
@@ -356,6 +390,49 @@ pub async fn export(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn notes_carry_over_and_a_rebuild_keeps_its_own() {
+        let dist = std::env::temp_dir().join(format!("riven-notes-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dist);
+        std::fs::create_dir_all(dist.join("releases")).unwrap();
+        let write = |version: &str, notes: Vec<ReleaseNote>| {
+            let mut release: Release = riven_format::from_str(
+                r#"{ "format": 1, "id": "pack", "name": "Pack", "version": "0", "minecraft": "1.21.1",
+                     "loader": { "type": "fabric", "version": "0.16.10" }, "java": { "major": 21 } }"#,
+            )
+            .unwrap();
+            release.version = version.to_owned();
+            release.notes = notes;
+            let path = dist.join("releases").join(format!("{version}.json"));
+            std::fs::write(path, riven_format::to_string(&release)).unwrap();
+        };
+        let note = |v: &str, t: &str| ReleaseNote {
+            version: v.into(),
+            text: t.into(),
+        };
+
+        write("1.0.0", vec![note("1.0.0", "First")]);
+        let notes = release_notes(&dist, "1.1.0", Some(" Faster\n"));
+        assert_eq!(notes, [note("1.1.0", "Faster"), note("1.0.0", "First")]);
+        assert_eq!(
+            release_notes(&dist, "1.1.0", Some("  ")),
+            [note("1.0.0", "First")]
+        );
+
+        write("1.1.0", notes.clone());
+        assert_eq!(release_notes(&dist, "1.1.0", None), notes);
+
+        for minor in 2..14 {
+            let version = format!("1.{minor}.0");
+            let notes = release_notes(&dist, &version, Some("more"));
+            write(&version, notes);
+        }
+        let last = release_notes(&dist, "1.14.0", Some("last"));
+        assert_eq!(last.len(), NOTES_KEPT);
+        assert_eq!(last[0], note("1.14.0", "last"));
+        let _ = std::fs::remove_dir_all(&dist);
+    }
 
     #[test]
     fn versions_sort_numerically() {

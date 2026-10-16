@@ -20,6 +20,16 @@ pub struct Release {
     /// The pack's picture; launchers show it, nothing installs it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<Asset>,
+    /// The author's notes for players, newest first, this and recent earlier releases.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<ReleaseNote>,
+}
+
+/// What an author wrote about one release.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ReleaseNote {
+    pub version: String,
+    pub text: String,
 }
 
 /// A file a release references without installing it.
@@ -34,6 +44,9 @@ pub struct Asset {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ReleaseFile {
     pub path: PackPath,
+    /// The content entry's name, for players; overrides have none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
     pub size: u64,
     pub hashes: Hashes,
     /// Mirrors in order; relative ones resolve against the manifest URL.

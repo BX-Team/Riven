@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use gpui_kit::base::input::{InputEvent, InputState};
+use gpui_kit::base::input::{InputEvent, InputState, TextareaState};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
     AnyElement, AppContext as _, Context, Entity, FontWeight, InteractiveElement as _, IntoElement,
@@ -17,8 +17,8 @@ use super::DevView;
 use super::overview::section_head;
 use crate::gui::theme::ActiveTheme as _;
 use crate::gui::ui::{
-    ActionMenu, Button, ButtonSize, Dropdown, IconName, MenuEntry, MenuItem, Switch, TextField,
-    caption, h_flex, v_flex,
+    ActionMenu, Button, ButtonSize, Dropdown, IconName, MenuEntry, MenuItem, Switch, TextArea,
+    TextField, caption, h_flex, textarea, v_flex,
 };
 
 const BASE_CHANNELS: [&str; 2] = ["stable", "beta"];
@@ -53,6 +53,9 @@ pub(super) struct Releases {
     version: Entity<InputState>,
     branch: Entity<InputState>,
     remote: Entity<InputState>,
+    /// What changed, for players; emptied once a build carries it.
+    notes: Entity<TextareaState>,
+    clear_notes: bool,
     _subs: Vec<Subscription>,
 }
 
@@ -62,6 +65,7 @@ impl Releases {
             .new(|cx| InputState::new(window, cx).placeholder(t!("dev.version_hint").to_string()));
         let branch = cx.new(|cx| InputState::new(window, cx).default_value(DEFAULT_BRANCH));
         let remote = cx.new(|cx| InputState::new(window, cx).default_value(DEFAULT_REMOTE));
+        let notes = textarea(String::new(), (2, 8), window, cx);
         let subs = vec![
             cx.subscribe(&version, |this, input, event: &InputEvent, cx| {
                 if let InputEvent::PressEnter { .. } = event {
@@ -86,6 +90,8 @@ impl Releases {
             version,
             branch,
             remote,
+            notes,
+            clear_notes: false,
             _subs: subs,
         }
     }
@@ -100,6 +106,14 @@ fn change_line(change: &FileChange) -> (&'static str, &str) {
 }
 
 impl DevView {
+    /// Empties the release notes after a build took them.
+    pub(super) fn settle_releases(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if std::mem::take(&mut self.releases.clear_notes) {
+            let input = self.releases.notes.clone();
+            input.update(cx, |s, cx| s.set_value("", window, cx));
+        }
+    }
+
     fn dist(&self) -> Option<PathBuf> {
         self.project.as_ref().map(|ws| ws.dir.join(DIST))
     }
@@ -259,14 +273,16 @@ impl DevView {
         let channel = self.releases.channel.to_string();
         let unsigned = !self.releases.sign;
         let version = ws.project.version.clone();
+        let notes = self.releases.notes.read(cx).value().to_string();
         self.job(
             t!("dev.building").into(),
             async move {
                 let key = ship::signing_key(&ws.project.id, unsigned)?;
-                ship::build(&ws, &dist, &channel, key.as_ref())?;
+                ship::build(&ws, &dist, &channel, key.as_ref(), Some(&notes))?;
                 Ok::<_, ship::ShipError>(channel)
             },
             move |this, channel, cx| {
+                this.releases.clear_notes = true;
                 this.notice = Some(t!("dev.built", version = version, channel = channel).into());
                 this.refresh_dist();
                 cx.notify();
@@ -564,6 +580,17 @@ impl DevView {
         let unsigned_blocked = r.sign && r.key.is_none();
         self.card(t!("dev.build").into(), cx)
             .child(key_row)
+            .child(
+                v_flex()
+                    .gap(px(6.))
+                    .child(
+                        div()
+                            .text_size(px(12.))
+                            .text_color(c.muted)
+                            .child(t!("dev.release_notes").to_string()),
+                    )
+                    .child(TextArea::new(&r.notes)),
+            )
             .child(
                 h_flex()
                     .gap(px(10.))

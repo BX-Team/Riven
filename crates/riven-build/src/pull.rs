@@ -177,6 +177,7 @@ mod tests {
                 PackPath::new("config/a.toml").unwrap(),
                 StateFile {
                     sha512: hash("a = 1"),
+                    name: None,
                     preserve: false,
                 },
             ),
@@ -184,6 +185,7 @@ mod tests {
                 PackPath::new("config/b.toml").unwrap(),
                 StateFile {
                     sha512: hash("b = 1"),
+                    name: None,
                     preserve: false,
                 },
             ),
@@ -198,6 +200,7 @@ mod tests {
                 etag: None,
                 groups: BTreeMap::new(),
                 files,
+                changes: None,
             },
         )
         .unwrap();

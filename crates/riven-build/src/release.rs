@@ -148,6 +148,7 @@ fn blob_file(
 ) -> ReleaseFile {
     ReleaseFile {
         path,
+        name: None,
         size: blob.size,
         hashes: riven_format::Hashes {
             sha512: Some(blob.sha512.clone()),
@@ -196,11 +197,15 @@ pub fn build_release(project: &Project, repo: &Path) -> Result<Built, Error> {
                 }
                 let p = file.path.clone();
                 let keep = preserve(&p);
-                files.push(blob_file(p, &blob, entry.side, entry.group.clone(), keep));
+                files.push(ReleaseFile {
+                    name: Some(entry.name.clone()),
+                    ..blob_file(p, &blob, entry.side, entry.group.clone(), keep)
+                });
                 blobs.insert(blob.sha512.clone(), blob);
             }
             _ => files.push(ReleaseFile {
                 path: file.path.clone(),
+                name: Some(entry.name.clone()),
                 size: file.size,
                 hashes: file.hashes.clone(),
                 urls: vec![
@@ -278,6 +283,7 @@ pub fn build_release(project: &Project, repo: &Path) -> Result<Built, Error> {
             groups: project.groups.clone(),
             files,
             icon,
+            notes: Vec::new(),
         },
         blobs: blobs.into_values().collect(),
     })

@@ -133,6 +133,9 @@ enum Command {
         /// Build without a signature.
         #[arg(long)]
         unsigned: bool,
+        /// What changed, for players; shown by launchers when they update.
+        #[arg(long)]
+        notes: Option<String>,
     },
     /// Point a channel at an already built release; also how to roll back.
     Publish {
@@ -345,7 +348,8 @@ async fn dispatch(command: Command, out: &Output) -> anyhow::Result<ExitCode> {
             channel,
             out: dist,
             unsigned,
-        } => release::build(out, &channel, &dist, unsigned),
+            notes,
+        } => release::build(out, &channel, &dist, unsigned, notes.as_deref()),
         Command::Publish {
             channel,
             version,

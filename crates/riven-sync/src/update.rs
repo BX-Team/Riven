@@ -1,7 +1,7 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use riven_format::{InstallSide, Release, State, Trusted};
+use riven_format::{Changes, InstallSide, PackPath, Release, State, Trusted};
 use sha2::{Digest as _, Sha256};
 use url::Url;
 
@@ -48,6 +48,8 @@ pub struct Pending {
     etag: Option<String>,
     trusted: Trusted,
     trust_path: PathBuf,
+    /// What was installed before, when it was this pack.
+    previous: Option<State>,
 }
 
 fn is_archive(raw: &str) -> bool {
@@ -186,6 +188,7 @@ pub async fn check(
         etag,
         trusted,
         trust_path,
+        previous: installed.cloned(),
     })))
 }
 
@@ -207,6 +210,22 @@ impl Pending {
         }
     }
 
+    /// Whether this moves an installed pack to another version.
+    pub fn is_update(&self) -> bool {
+        self.previous
+            .as_ref()
+            .is_some_and(|p| p.version != self.release.version)
+    }
+
+    /// What this update changes for the player; a reinstall of the same version keeps the last update's.
+    pub fn changes(&self) -> Option<Changes> {
+        let previous = self.previous.as_ref()?;
+        if previous.version == self.release.version {
+            return previous.changes.clone();
+        }
+        Some(diff(previous, &self.release, &self.planned))
+    }
+
     /// Downloads and swaps the files in, then records the new state and any newly pinned key.
     pub async fn apply(
         self,
@@ -215,6 +234,7 @@ impl Pending {
         dir: &Path,
         progress: &(dyn Fn(Event) + Sync),
     ) -> Result<State, SyncError> {
+        let changes = self.changes();
         let files = install::apply(store, http, dir, &self.planned, progress).await?;
         let state = State {
             source: self.origin,
@@ -224,9 +244,171 @@ impl Pending {
             etag: self.etag,
             groups: self.groups,
             files,
+            changes,
         };
         install::save_state(dir, &state)?;
         trust::save(&self.trust_path, &self.trusted)?;
         Ok(state)
+    }
+}
+
+/// Folders whose files are content worth naming even without a recorded name.
+const CONTENT_FOLDERS: &[&str] = &["mods/", "resourcepacks/", "shaderpacks/"];
+
+/// A file's name for players: the recorded content name, else the file name of content.
+fn label(path: &PackPath, name: Option<&String>) -> Option<String> {
+    if let Some(name) = name {
+        return Some(name.clone());
+    }
+    let path = path.as_str();
+    CONTENT_FOLDERS
+        .iter()
+        .any(|f| path.starts_with(f))
+        .then(|| path.rsplit('/').next().unwrap_or(path).to_owned())
+}
+
+/// Compares what `before` had with what `planned` installs and removes, by content name.
+fn diff(before: &State, release: &Release, planned: &Planned) -> Changes {
+    let removed_names: BTreeSet<String> = planned
+        .remove
+        .iter()
+        .filter_map(|p| label(p, before.files.get(p).and_then(|f| f.name.as_ref())))
+        .collect();
+    let mut changes = Changes {
+        from: before.version.clone(),
+        notes: release
+            .notes
+            .iter()
+            .take_while(|n| n.version != before.version)
+            .cloned()
+            .collect(),
+        ..Changes::default()
+    };
+    let (mut added, mut updated, mut removed) = (BTreeSet::new(), BTreeSet::new(), BTreeSet::new());
+    for file in &planned.install {
+        match label(&file.path, file.name.as_ref()) {
+            None => changes.other += 1,
+            Some(name)
+                if before.files.contains_key(&file.path) || removed_names.contains(&name) =>
+            {
+                updated.insert(name);
+            }
+            Some(name) => {
+                added.insert(name);
+            }
+        }
+    }
+    for path in &planned.remove {
+        match label(path, before.files.get(path).and_then(|f| f.name.as_ref())) {
+            None => changes.other += 1,
+            Some(name) if !updated.contains(&name) => {
+                removed.insert(name);
+            }
+            Some(_) => {}
+        }
+    }
+    changes.added = added.into_iter().collect();
+    changes.updated = updated.into_iter().collect();
+    changes.removed = removed.into_iter().collect();
+    changes
+}
+
+#[cfg(test)]
+mod tests {
+    use riven_format::{Hashes, ReleaseNote, StateFile};
+
+    use super::*;
+    use crate::install::Wanted;
+
+    fn path(p: &str) -> PackPath {
+        PackPath::new(p).unwrap()
+    }
+
+    fn wanted(p: &str, name: Option<&str>) -> Wanted {
+        Wanted {
+            path: path(p),
+            name: name.map(str::to_owned),
+            hashes: Hashes::default(),
+            size: 1,
+            urls: Vec::new(),
+            preserve: false,
+            disabled: false,
+        }
+    }
+
+    fn before(files: &[(&str, Option<&str>)]) -> State {
+        State {
+            source: "https://x.test/channels/stable.json".into(),
+            key: None,
+            side: InstallSide::Client,
+            version: "1.0.0".into(),
+            etag: None,
+            groups: BTreeMap::new(),
+            files: files
+                .iter()
+                .map(|(p, name)| {
+                    let record = StateFile {
+                        sha512: String::new(),
+                        name: name.map(str::to_owned),
+                        preserve: false,
+                    };
+                    (path(p), record)
+                })
+                .collect(),
+            changes: None,
+        }
+    }
+
+    #[test]
+    fn a_renamed_jar_is_an_update_and_configs_are_only_counted() {
+        let before = before(&[
+            ("mods/sodium-0.5.jar", Some("Sodium")),
+            ("mods/jei.jar", Some("JEI")),
+            ("mods/old-1.0.jar", None),
+            ("config/a.toml", None),
+        ]);
+        let planned = Planned {
+            install: vec![
+                wanted("mods/sodium-0.6.jar", Some("Sodium")),
+                wanted("mods/iris.jar", Some("Iris")),
+                wanted("config/a.toml", None),
+            ],
+            remove: vec![path("mods/sodium-0.5.jar"), path("mods/old-1.0.jar")],
+            ..Planned::default()
+        };
+        let mut release: Release = riven_format::from_str(
+            r#"{ "format": 1, "id": "pack", "name": "Pack", "version": "1.2.0", "minecraft": "1.21.1",
+                 "loader": { "type": "neoforge", "version": "21.1.77" }, "java": { "major": 21 } }"#,
+        )
+        .unwrap();
+        release.notes = vec![
+            ReleaseNote {
+                version: "1.2.0".into(),
+                text: "Iris".into(),
+            },
+            ReleaseNote {
+                version: "1.1.0".into(),
+                text: "Faster".into(),
+            },
+            ReleaseNote {
+                version: "1.0.0".into(),
+                text: "First".into(),
+            },
+        ];
+
+        let changes = diff(&before, &release, &planned);
+        assert_eq!(changes.from, "1.0.0");
+        assert_eq!(
+            changes
+                .notes
+                .iter()
+                .map(|n| n.version.as_str())
+                .collect::<Vec<_>>(),
+            ["1.2.0", "1.1.0"]
+        );
+        assert_eq!(changes.added, ["Iris"]);
+        assert_eq!(changes.updated, ["Sodium"]);
+        assert_eq!(changes.removed, ["old-1.0.jar"]);
+        assert_eq!(changes.other, 1);
     }
 }

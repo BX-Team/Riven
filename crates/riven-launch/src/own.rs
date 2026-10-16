@@ -697,6 +697,7 @@ mod tests {
     fn release_file(path: &str, url: &str) -> ReleaseFile {
         ReleaseFile {
             path: PackPath::new(path).unwrap(),
+            name: None,
             size: 1,
             hashes: Hashes {
                 sha512: Some("f".repeat(128)),
@@ -755,6 +756,7 @@ mod tests {
             .map(|f| {
                 let record = StateFile {
                     sha512: "f".repeat(128),
+                    name: None,
                     preserve: false,
                 };
                 (f.path.clone(), record)
@@ -777,6 +779,7 @@ mod tests {
             groups: Vec::<Group>::new(),
             files,
             icon: None,
+            notes: Vec::new(),
         };
 
         let mut dropped = yield_to_pack(&dir, &release, &installed).unwrap();

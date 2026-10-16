@@ -21,9 +21,9 @@ pub use path::{PackPath, PathError};
 pub use project::{
     Entry, EntryFile, FileRules, Issue, Kind, Project, Reason, Source, SourceKind, UpdatePolicy,
 };
-pub use release::{Asset, Channel, Release, ReleaseFile};
+pub use release::{Asset, Channel, Release, ReleaseFile, ReleaseNote};
 pub use sign::{KeyPair, PublicKey, SignError};
-pub use state::{OwnContent, PackChoice, State, StateFile, Trusted};
+pub use state::{Changes, OwnContent, PackChoice, State, StateFile, Trusted};
 
 pub const SCHEMA_BASE: &str = "https://raw.githubusercontent.com/BX-Team/Riven/master/schema/v1/";
 

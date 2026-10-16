@@ -57,12 +57,18 @@ pub fn trust(out: &Output, command: TrustCommand) -> anyhow::Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-pub fn build(out: &Output, channel: &str, dist: &Path, unsigned: bool) -> anyhow::Result<ExitCode> {
+pub fn build(
+    out: &Output,
+    channel: &str,
+    dist: &Path,
+    unsigned: bool,
+    notes: Option<&str>,
+) -> anyhow::Result<ExitCode> {
     let ws = Workspace::find()?;
     let dist = ws.dir.join(dist);
     let key = ship::signing_key(&ws.project.id, unsigned)?;
     let spinner = out.spinner("Building the release");
-    let built = ship::build(&ws, &dist, channel, key.as_ref());
+    let built = ship::build(&ws, &dist, channel, key.as_ref(), notes);
     spinner.finish_and_clear();
     let (built, pointer) = built?;
 

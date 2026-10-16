@@ -81,6 +81,7 @@ pub const DISABLED: &str = ".disabled";
 #[derive(Debug, Clone)]
 pub struct Wanted {
     pub path: PackPath,
+    pub name: Option<String>,
     pub hashes: Hashes,
     pub size: u64,
     /// Absolute mirrors.
@@ -236,6 +237,7 @@ pub fn plan(
         }
         wanted.push(Wanted {
             path: file.path.clone(),
+            name: file.name.clone(),
             hashes: file.hashes.clone(),
             size: file.size,
             urls,
@@ -265,6 +267,7 @@ pub fn plan(
                 file.path,
                 StateFile {
                     preserve: file.preserve,
+                    name: file.name.clone(),
                     ..record
                 },
             ));
@@ -274,6 +277,7 @@ pub fn plan(
         if matches(&file.hashes, &disk) {
             let record = StateFile {
                 sha512: disk.sha512,
+                name: file.name.clone(),
                 preserve: file.preserve,
             };
             planned.unchanged.push((file.path, record));
@@ -401,6 +405,7 @@ pub async fn apply(
             file.path.clone(),
             StateFile {
                 sha512: blob.sha512,
+                name: file.name.clone(),
                 preserve: file.preserve,
             },
         );
@@ -463,6 +468,7 @@ mod tests {
                 .unwrap();
             ReleaseFile {
                 path: PackPath::new(path).unwrap(),
+                name: None,
                 size: body.len() as u64,
                 hashes: Hashes {
                     sha512: Some(stored.sha512),
@@ -497,6 +503,7 @@ mod tests {
                     etag: None,
                     groups,
                     files,
+                    changes: None,
                 },
             )
             .unwrap();
@@ -537,6 +544,7 @@ mod tests {
             }],
             files,
             icon: None,
+            notes: Vec::new(),
         }
     }
 

@@ -1,6 +1,7 @@
 mod add_mods;
 mod app;
 mod assets;
+mod changes;
 mod chrome;
 mod configs;
 mod dev;

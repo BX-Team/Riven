@@ -48,6 +48,13 @@
         }
       ]
     },
+    "notes": {
+      "description": "The author's notes for players, newest first, this and recent earlier releases.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ReleaseNote"
+      }
+    },
     "$schema": {
       "type": "string"
     },
@@ -164,6 +171,13 @@
         "path": {
           "$ref": "#/$defs/PackPath"
         },
+        "name": {
+          "description": "The content entry's name, for players; overrides have none.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "size": {
           "type": "integer",
           "format": "uint64",
@@ -255,6 +269,22 @@
         "size",
         "hashes",
         "urls"
+      ]
+    },
+    "ReleaseNote": {
+      "description": "What an author wrote about one release.",
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "text"
       ]
     }
   }

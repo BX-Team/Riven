@@ -41,6 +41,17 @@
       },
       "default": {}
     },
+    "changes": {
+      "description": "What the last update to another version changed, for the player.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Changes"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "$schema": {
       "type": "string"
     },
@@ -69,12 +80,79 @@
         "sha512": {
           "type": "string"
         },
+        "name": {
+          "description": "The content entry's name from the release; overrides have none.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "preserve": {
           "type": "boolean"
         }
       },
       "required": [
         "sha512"
+      ]
+    },
+    "Changes": {
+      "description": "The difference between two installed versions of a pack, by content name.",
+      "type": "object",
+      "properties": {
+        "from": {
+          "description": "The version updated from.",
+          "type": "string"
+        },
+        "notes": {
+          "description": "The author's notes of the versions since `from`, newest first.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReleaseNote"
+          }
+        },
+        "added": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "updated": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "removed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "other": {
+          "description": "Changed files that are not content: configs and other overrides.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "from"
+      ]
+    },
+    "ReleaseNote": {
+      "description": "What an author wrote about one release.",
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "text"
       ]
     }
   }

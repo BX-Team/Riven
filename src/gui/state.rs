@@ -23,6 +23,8 @@ pub struct AppState {
     pub instances: Vec<(String, Instance)>,
     /// Installed pack version per instance id, for instances that came from a pack.
     pub packs: HashMap<String, String>,
+    /// What the last pack update changed, per instance that has had one.
+    pub pack_changes: HashMap<String, riven_format::Changes>,
     /// Icon file per instance id, for instances that have one.
     pub icons: HashMap<String, std::path::PathBuf>,
     /// The head of each Microsoft account's skin, by account id, once fetched.
@@ -81,20 +83,27 @@ fn read_icons(
         .collect()
 }
 
-fn read_packs(
-    store: Option<&Instances>,
-    instances: &[(String, Instance)],
-) -> HashMap<String, String> {
+type Packs = (
+    HashMap<String, String>,
+    HashMap<String, riven_format::Changes>,
+);
+
+/// The installed pack version per instance, and what its last update changed.
+fn read_packs(store: Option<&Instances>, instances: &[(String, Instance)]) -> Packs {
+    let mut packs = Packs::default();
     let Some(store) = store else {
-        return HashMap::new();
+        return packs;
     };
-    instances
-        .iter()
-        .filter_map(|(id, _)| {
-            let state = riven_sync::install::load_state(&store.game_dir(id)).ok()??;
-            Some((id.clone(), state.version))
-        })
-        .collect()
+    for (id, _) in instances {
+        let Ok(Some(state)) = riven_sync::install::load_state(&store.game_dir(id)) else {
+            continue;
+        };
+        packs.0.insert(id.clone(), state.version);
+        if let Some(changes) = state.changes {
+            packs.1.insert(id.clone(), changes);
+        }
+    }
+    packs
 }
 
 struct GlobalState(Entity<AppState>);
@@ -138,13 +147,14 @@ impl AppState {
             .or_else(|| instances.first().map(|(id, _)| id.clone()))
             .map(Route::Instance)
             .unwrap_or(Route::Empty);
-        let packs = read_packs(store.as_ref(), &instances);
+        let (packs, pack_changes) = read_packs(store.as_ref(), &instances);
         let icons = read_icons(store.as_ref(), &instances);
         Self {
             settings,
             store,
             instances,
             packs,
+            pack_changes,
             icons,
             skins: HashMap::new(),
             accounts,
@@ -187,7 +197,7 @@ impl AppState {
                 Err(e) => self.error = Some(e.to_string()),
             }
         }
-        self.packs = read_packs(self.store.as_ref(), &self.instances);
+        (self.packs, self.pack_changes) = read_packs(self.store.as_ref(), &self.instances);
         self.icons = read_icons(self.store.as_ref(), &self.instances);
         cx.notify();
     }

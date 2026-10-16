@@ -963,6 +963,7 @@ impl Render for DevView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.ensure_editor(window, cx);
         self.settle_git(window, cx);
+        self.settle_releases(window, cx);
         self.flush_messages(cx);
         self.reload_open_files(window, cx);
         self.follow_stream(cx);

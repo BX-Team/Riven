@@ -521,6 +521,7 @@ dev:
   build: Build
   sign: Sign
   copy_key: Copy the public key
+  release_notes: "Release notes for players: what changed (optional)"
   backup_key: "Show the key file: back it up, players refuse updates signed by another key"
   no_key: "No signing key: installers cannot tell this pack's releases from forgeries."
   keygen: Create key
@@ -719,3 +720,12 @@ trust:
   changed_body: "The update of %{name} is signed with a different key than before. Trust it only if the pack's author said the key changed; otherwise the update may come from someone else, and the installed version keeps working."
   accept: "Trust the new key"
   next_launch: "The new key is trusted; the pack updates on the next launch"
+changes:
+  open: "What's new"
+  title: "What's new in %{version}"
+  from: "Updated from %{version}"
+  added: "Added"
+  updated: "Updated"
+  removed: "Removed"
+  other: "%{n} other files changed: configs and the like"
+  nothing: "The author did not change any content"

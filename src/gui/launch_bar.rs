@@ -301,12 +301,12 @@ fn amount(stage: Stage, done: u64, total: u64) -> String {
     }
 }
 
-/// `pack` is the installed version and a newer one, when there is one.
+/// `pack` is the installed version, a newer one and what the last update changed.
 fn status(
     id: &str,
     phase: Option<Phase>,
     notice: Option<SharedString>,
-    pack: Option<(String, Option<String>)>,
+    pack: Option<(String, Option<String>, Option<riven_format::Changes>)>,
     played: Option<String>,
     window: &mut Window,
     cx: &mut App,
@@ -320,18 +320,35 @@ fn status(
             .child(text)
     };
     let idle = match (pack, played) {
-        (Some((version, newer)), _) => match newer {
-            Some(newer) => line(
-                format!("{version} — {}", t!("launch.pack_newer", version = newer)),
-                c.accent,
-            ),
-            None => line(format!("{version} — {}", t!("launch.pack_current")), c.ok),
-        },
-        (None, Some(played)) => line(played, c.muted),
-        (None, None) => div(),
+        (Some((version, Some(newer), _)), _) => line(
+            format!("{version} — {}", t!("launch.pack_newer", version = newer)),
+            c.accent,
+        )
+        .into_any_element(),
+        (Some((version, None, changes)), _) => h_flex()
+            .min_w_0()
+            .gap(px(8.))
+            .child(line(
+                format!("{version} — {}", t!("launch.pack_current")),
+                c.ok,
+            ))
+            .when_some(changes, |row, changes| {
+                row.child(
+                    Button::new(SharedString::from(format!("pack-changes-{id}")))
+                        .ghost()
+                        .size(ButtonSize::Xs)
+                        .label(t!("changes.open"))
+                        .on_click(move |_, _, cx| {
+                            super::changes::open(version.clone(), changes.clone(), cx)
+                        }),
+                )
+            })
+            .into_any_element(),
+        (None, Some(played)) => line(played, c.muted).into_any_element(),
+        (None, None) => div().into_any_element(),
     };
     let Some(phase) = phase else {
-        return idle.into_any_element();
+        return idle;
     };
     let busy = matches!(phase, Phase::Working { .. } | Phase::Running { .. });
     let body = match &phase {
@@ -365,7 +382,7 @@ fn status(
         Phase::Finished { code: Some(code) } if !matches!(code, 0 | 130 | 137 | 143) => {
             line(t!("launch.crashed", code = code).into(), c.warn).into_any_element()
         }
-        Phase::Finished { .. } => idle.into_any_element(),
+        Phase::Finished { .. } => idle,
     };
     v_flex()
         .min_w_0()
@@ -467,6 +484,7 @@ pub fn render(
         return div().into_any_element();
     };
     let pack = st.packs.get(id).cloned();
+    let changes = st.pack_changes.get(id).cloned();
     let newer = st.modpack_updates.get(id).map(|v| v.number.clone());
     let account = selected_account(st);
     let session = st.sessions.get(id);
@@ -484,7 +502,7 @@ pub fn render(
             id,
             phase,
             notice,
-            pack.map(|p| (p, newer.clone())),
+            pack.map(|p| (p, newer.clone(), changes)),
             played(&instance),
             window,
             cx,

@@ -4,7 +4,7 @@ use std::process::ExitCode;
 
 use anyhow::{Context, bail};
 use console::style;
-use riven_format::Release;
+use riven_format::{Changes, Release};
 use riven_sync::install::{self, Event, Planned};
 use riven_sync::remote::{self, Fetched};
 use riven_sync::update::{self, Check, DEFAULT_CHANNEL, Request};
@@ -70,9 +70,13 @@ pub async fn install(out: &Output, args: InstallArgs) -> anyhow::Result<ExitCode
     };
     spinner.finish_and_clear();
 
+    let changes = pending.changes().filter(|_| pending.is_update());
     let planned = &pending.planned;
     if !planned.is_noop() {
         if !args.headless {
+            if let Some(changes) = &changes {
+                print_changes(&pending.release.version, changes);
+            }
             print_plan(planned, &pending.release);
         }
         if !(args.yes || args.headless) && !out.confirm("Apply?", true) {
@@ -107,6 +111,7 @@ pub async fn install(out: &Output, args: InstallArgs) -> anyhow::Result<ExitCode
             "removed": removed,
             "kept": kept,
             "groups": state.groups,
+            "changes": changes,
         }),
         || {
             out.success(&format!(
@@ -129,6 +134,32 @@ pub async fn install(out: &Output, args: InstallArgs) -> anyhow::Result<ExitCode
         },
     );
     Ok(ExitCode::SUCCESS)
+}
+
+/// The author's notes and the content an update changes, by name.
+fn print_changes(version: &str, changes: &Changes) {
+    eprintln!("{}", style(format!("{} → {version}", changes.from)).bold());
+    for note in &changes.notes {
+        eprintln!("  {}", style(&note.version).bold());
+        for line in note.text.lines() {
+            eprintln!("    {line}");
+        }
+    }
+    for (mark, names) in [
+        ("+", &changes.added),
+        ("~", &changes.updated),
+        ("-", &changes.removed),
+    ] {
+        if !names.is_empty() {
+            eprintln!("  {mark} {}", names.join(", "));
+        }
+    }
+    if changes.other > 0 {
+        eprintln!(
+            "  {}",
+            style(format!("{} other files", changes.other)).dim()
+        );
+    }
 }
 
 pub async fn status(out: &Output, dir: Option<PathBuf>) -> anyhow::Result<ExitCode> {
