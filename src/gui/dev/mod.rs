@@ -152,6 +152,7 @@ enum Edge {
 struct EdgeDrag;
 
 const COLUMN_DEFAULTS: [f32; 5] = [220., 200., 90., 70., 110.];
+const COLUMN_MIN: f32 = 50.;
 const COLUMN_MAX: f32 = 640.;
 /// The middle keeps at least this much while the side panels are dragged wider.
 const CENTER_MIN: f32 = 480.;
@@ -239,6 +240,31 @@ pub struct DevView {
     columns_width: std::rc::Rc<std::cell::Cell<f32>>,
     focus: FocusHandle,
     _subs: Vec<Subscription>,
+}
+
+/// Shrinks column widths to `room`: first what they were widened past their defaults, then evenly.
+fn fit_columns(mut widths: [f32; 5], room: f32) -> [f32; 5] {
+    let mut excess = widths.iter().sum::<f32>() - room;
+    // Before the list is first drawn its width is unknown.
+    if excess <= 0. || room <= 0. {
+        return widths;
+    }
+    for floor in [COLUMN_DEFAULTS, [COLUMN_MIN; 5]] {
+        let slack: [f32; 5] = std::array::from_fn(|i| (widths[i] - floor[i]).max(0.));
+        let total: f32 = slack.iter().sum();
+        if total <= 0. {
+            continue;
+        }
+        let take = excess.min(total);
+        for (w, s) in widths.iter_mut().zip(slack) {
+            *w -= s * take / total;
+        }
+        excess -= take;
+        if excess <= 0. {
+            break;
+        }
+    }
+    widths
 }
 
 fn display_path(path: &Path) -> String {
@@ -786,6 +812,20 @@ impl DevView {
     }
 
     fn width(&self, edge: Edge, cx: &App) -> f32 {
+        match edge {
+            Edge::Column(i) => self.column_widths(cx)[i],
+            edge => self.set_width(edge, cx),
+        }
+    }
+
+    /// The content list's columns as set, shrunk to the list's last drawn width; set widths return with the room.
+    pub(super) fn column_widths(&self, cx: &App) -> [f32; 5] {
+        let set = std::array::from_fn(|i| self.set_width(Edge::Column(i), cx));
+        fit_columns(set, self.columns_width.get() - content::COLUMN_GAPS)
+    }
+
+    /// The width being dragged or saved, before the columns are fitted to the list.
+    fn set_width(&self, edge: Edge, cx: &App) -> f32 {
         if let Some(w) = self.live_widths.get(&edge) {
             return *w;
         }
@@ -844,7 +884,7 @@ impl DevView {
                 } else {
                     COLUMN_MAX
                 };
-                (from + delta, 50., max.max(50.))
+                (from + delta, COLUMN_MIN, max.max(COLUMN_MIN))
             }
         };
         self.live_widths.insert(edge, width.min(max).max(min));
@@ -855,6 +895,8 @@ impl DevView {
         let Some((edge, ..)) = self.resizing.take() else {
             return;
         };
+        // A column set in a narrow window keeps the others as they were shown, not as once saved.
+        let shown = self.column_widths(cx).map(|w| w.round() as u32);
         let Some(width) = self.live_widths.remove(&edge) else {
             return;
         };
@@ -863,7 +905,10 @@ impl DevView {
             |p| match edge {
                 Edge::Sidebar => p.sidebar_width = width,
                 Edge::Inspector => p.inspector_width = width,
-                Edge::Column(i) => p.columns[i] = width,
+                Edge::Column(i) => {
+                    p.columns = shown;
+                    p.columns[i] = width;
+                }
             },
             cx,
         );
@@ -983,5 +1028,30 @@ impl Render for DevView {
                     }),
             )
             .child(self.render_status(cx))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn columns_widened_in_a_big_window_fit_a_small_one() {
+        let wide = [291., 640., 244., 211., 110.];
+        assert_eq!(fit_columns(wide, 2000.), wide);
+        assert_eq!(fit_columns(wide, 0.), wide);
+
+        let fitted = fit_columns(wide, 800.);
+        assert!((fitted.iter().sum::<f32>() - 800.).abs() < 0.01);
+        assert!(
+            fitted
+                .iter()
+                .zip(COLUMN_DEFAULTS)
+                .all(|(w, d)| *w >= d - 0.01)
+        );
+
+        let tight = fit_columns(wide, 300.);
+        assert!((tight.iter().sum::<f32>() - 300.).abs() < 0.01);
+        assert!(tight.iter().all(|w| *w >= COLUMN_MIN - 0.01));
     }
 }

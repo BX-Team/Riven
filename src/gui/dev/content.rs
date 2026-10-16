@@ -27,7 +27,7 @@ const COLUMN_GAP: f32 = 12.;
 /// The gaps between the five columns.
 pub(super) const COLUMN_GAPS: f32 = COLUMN_GAP * 4.;
 
-/// The list's columns side by side, each as wide as set; what does not fit is cut off on the right.
+/// The list's columns side by side, each as wide as [`DevView::column_widths`] gives.
 fn columns(cells: [AnyElement; 5]) -> gpui_kit::Div {
     h_flex()
         .relative()
@@ -52,7 +52,7 @@ impl DevView {
         let c = cx.theme().colors;
         let theme = cx.theme();
         let project = self.project.as_ref().map(|ws| &ws.project);
-        let widths: [f32; 5] = std::array::from_fn(|i| self.width(Edge::Column(i), cx));
+        let widths = self.column_widths(cx);
         let head = |label: String, column: usize, cx: &mut Context<Self>| {
             div()
                 .relative()
@@ -144,7 +144,13 @@ impl DevView {
                         .child({
                             let width = self.columns_width.clone();
                             canvas(
-                                move |bounds, _, _| width.set(f32::from(bounds.size.width)),
+                                move |bounds, window, _| {
+                                    let now = f32::from(bounds.size.width);
+                                    if (now - width.get()).abs() >= 1. {
+                                        width.set(now);
+                                        window.refresh();
+                                    }
+                                },
                                 |_, _, _, _| {},
                             )
                             .absolute()
@@ -218,7 +224,7 @@ impl DevView {
         let selected = self.selected.as_deref() == Some(entry.id.as_str());
         let id = entry.id.clone();
         let menu_id = entry.id.clone();
-        let widths: [f32; 5] = std::array::from_fn(|i| self.width(Edge::Column(i), cx));
+        let widths = self.column_widths(cx);
         Some(
             h_flex()
                 .id(ix)
