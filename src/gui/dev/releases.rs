@@ -310,8 +310,7 @@ impl DevView {
         self.job(
             t!("dev.deploying").into(),
             async move { ship::deploy(&ws, &dist, &b, &r, push) },
-            move |this, shipped, cx| {
-                let d = &shipped.deployed;
+            move |this, d, cx| {
                 let mut notice = match (&d.commit, d.pushed) {
                     (Some(_), true) => t!("dev.deployed_pushed", branch = branch, remote = remote),
                     (Some(_), false) => t!("dev.deployed", branch = branch),
@@ -324,7 +323,7 @@ impl DevView {
                     notice.push_str(&t!("dev.enable_pages", branch = branch));
                 }
                 this.notice = Some(notice.into());
-                this.releases.link = shipped.link;
+                this.releases.link = d.short_link;
                 this.refresh_dist();
                 cx.notify();
             },
@@ -497,6 +496,10 @@ impl DevView {
             .map(|n| MenuItem::new(n.clone(), n.clone()))
             .collect();
         let pick = view.clone();
+        let key_file = self
+            .project
+            .as_ref()
+            .and_then(|ws| ship::key_path(&ws.project.id).ok());
         let key_row = match &r.key {
             Some(key) => {
                 let copy = key.clone();
@@ -527,6 +530,16 @@ impl DevView {
                             .size(ButtonSize::Xs)
                             .tooltip(t!("dev.copy_key")),
                     )
+                    .when_some(key_file, |row, file| {
+                        row.child(
+                            Button::new("show-key")
+                                .icon(IconName::Folder)
+                                .ghost()
+                                .size(ButtonSize::Xs)
+                                .tooltip(t!("dev.backup_key"))
+                                .on_click(move |_, _, cx| cx.reveal_path(&file)),
+                        )
+                    })
             }
             None => h_flex()
                 .gap(px(10.))

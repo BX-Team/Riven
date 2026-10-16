@@ -28,9 +28,9 @@ pub enum SyncError {
     #[error(transparent)]
     Key(#[from] riven_format::SignError),
     #[error(
-        "the pack is signed with a different key than before; if the author rotated it, run `riven trust reset <url>`"
+        "the pack is signed with a different key than before; if the author rotated it, run `riven trust reset {0}`"
     )]
-    KeyChanged,
+    KeyChanged(String),
     #[error("the {0} is not signed, but this pack was; refusing a possible forgery")]
     Unsigned(String),
     #[error("the {0} signature does not match the pack's key")]

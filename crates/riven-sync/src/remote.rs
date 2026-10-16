@@ -113,6 +113,7 @@ pub enum Fetched {
 
 /// Which key a pointer must be signed with, following §3.4: link, then pinned, then first use.
 pub fn expected_key(
+    url: &str,
     link: Option<&PublicKey>,
     pinned: Option<&PublicKey>,
     declared: Option<&str>,
@@ -121,13 +122,13 @@ pub fn expected_key(
     if let (Some(link), Some(pinned)) = (link, pinned)
         && link != pinned
     {
-        return Err(SyncError::KeyChanged);
+        return Err(SyncError::KeyChanged(url.to_owned()));
     }
     let expected = link.or(pinned).cloned();
     if let (Some(expected), Some(declared)) = (&expected, &declared)
         && expected != declared
     {
-        return Err(SyncError::KeyChanged);
+        return Err(SyncError::KeyChanged(url.to_owned()));
     }
     Ok(expected.or(declared))
 }
@@ -205,7 +206,12 @@ pub async fn fetch(
     let pointer: Channel = riven_format::from_str(&text)?;
     let source = link.pointer.to_string();
     let pinned = crate::trust::pinned(trusted, &source);
-    let key = expected_key(link.key.as_ref(), pinned.as_ref(), pointer.key.as_deref())?;
+    let key = expected_key(
+        &source,
+        link.key.as_ref(),
+        pinned.as_ref(),
+        pointer.key.as_deref(),
+    )?;
     let sig = get_sig(http, &link.pointer).await?;
     check_signature(
         key.as_ref(),
@@ -339,26 +345,26 @@ mod tests {
         let declared_b = pb.to_string();
 
         assert_eq!(
-            expected_key(None, None, Some(&declared_b)).unwrap(),
+            expected_key("x", None, None, Some(&declared_b)).unwrap(),
             Some(pb.clone())
         );
         assert!(matches!(
-            expected_key(None, Some(&pa), Some(&declared_b)),
-            Err(SyncError::KeyChanged)
+            expected_key("x", None, Some(&pa), Some(&declared_b)),
+            Err(SyncError::KeyChanged(_))
         ));
         assert!(matches!(
-            expected_key(Some(&pb), Some(&pa), None),
-            Err(SyncError::KeyChanged)
+            expected_key("x", Some(&pb), Some(&pa), None),
+            Err(SyncError::KeyChanged(_))
         ));
         assert!(matches!(
-            expected_key(Some(&pa), None, Some(&declared_b)),
-            Err(SyncError::KeyChanged)
+            expected_key("x", Some(&pa), None, Some(&declared_b)),
+            Err(SyncError::KeyChanged(_))
         ));
         assert_eq!(
-            expected_key(Some(&pa), None, None).unwrap(),
+            expected_key("x", Some(&pa), None, None).unwrap(),
             Some(pa.clone())
         );
-        assert_eq!(expected_key(None, None, None).unwrap(), None);
+        assert_eq!(expected_key("x", None, None, None).unwrap(), None);
 
         let bytes = b"pointer";
         let sig = a.sign(bytes);

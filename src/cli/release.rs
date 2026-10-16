@@ -31,22 +31,22 @@ pub fn keygen(out: &Output) -> anyhow::Result<ExitCode> {
 }
 
 pub fn trust(out: &Output, command: TrustCommand) -> anyhow::Result<ExitCode> {
-    let path = riven_sync::trust::default_path()?;
-    let mut trusted = riven_sync::trust::load(&path)?;
     match command {
-        TrustCommand::List => out.emit(json!(trusted.keys), || {
-            if trusted.keys.is_empty() {
-                out.note("no pinned keys yet");
-            }
-            for (url, key) in &trusted.keys {
-                println!("{url}  {}", style(key).dim());
-            }
-        }),
+        TrustCommand::List => {
+            let trusted = riven_sync::trust::load(&riven_sync::trust::default_path()?)?;
+            out.emit(json!(trusted.keys), || {
+                if trusted.keys.is_empty() {
+                    out.note("no pinned keys yet");
+                }
+                for (url, key) in &trusted.keys {
+                    println!("{url}  {}", style(key).dim());
+                }
+            })
+        }
         TrustCommand::Reset { url } => {
-            if trusted.keys.remove(&url).is_none() {
+            if !riven_sync::trust::forget(&url)? {
                 bail!("no key is pinned for {url}");
             }
-            riven_sync::trust::save(&path, &trusted)?;
             out.emit(json!({ "reset": url }), || {
                 out.success(&format!(
                     "Forgot the key of {url}; the next install pins the one it serves"
@@ -92,12 +92,8 @@ pub fn build(out: &Output, channel: &str, dist: &Path, unsigned: bool) -> anyhow
             eprintln!(
                 "{}",
                 style(format!(
-                    "push it to GitHub Pages with `riven deploy`, or upload {} and install with: riven install <url>/channels/{channel}.json{}",
-                    dist.display(),
-                    public
-                        .as_ref()
-                        .map(|k| format!("#key={k}"))
-                        .unwrap_or_default()
+                    "push it to GitHub Pages with `riven deploy`, or upload {} and install with: riven install <url>/channels/{channel}.json",
+                    dist.display()
                 ))
                 .dim()
             );
@@ -135,9 +131,10 @@ pub fn deploy(
     let ws = Workspace::find()?;
     let dist = ws.dir.join(dist);
     let spinner = out.spinner(format!("Deploying {} to `{branch}`", dist.display()));
-    let shipped = ship::deploy(&ws, &dist, branch, remote, push);
+    let deployed = ship::deploy(&ws, &dist, branch, remote, push);
     spinner.finish_and_clear();
-    let ship::Shipped { deployed, link } = shipped?;
+    let deployed = deployed?;
+    let link = &deployed.short_link;
     out.emit(
         json!({
             "commit": deployed.commit,
@@ -171,7 +168,7 @@ pub fn deploy(
                     "enable GitHub Pages once: Settings → Pages → Deploy from a branch → `{branch}` / (root)"
                 ));
             }
-            if let Some(link) = &link {
+            if let Some(link) = link {
                 eprintln!("{}", style(format!("install with: riven install {link}")).dim());
             }
         },

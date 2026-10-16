@@ -5,11 +5,13 @@ use gpui_kit::{AppContext as _, Context, SharedString};
 use riven_format::Account;
 use riven_launch::LaunchError;
 use riven_launch::game::{self, Progress, Stage};
+use riven_sync::SyncError;
 use riven_sync::update::Request;
 use tokio::sync::mpsc;
 
 use super::runtime;
 use super::state::AppState;
+use super::toast::ToastKind;
 
 /// How many game log lines an instance keeps in memory.
 const LOG_LINES: usize = 20_000;
@@ -77,6 +79,9 @@ impl Session {
                 }
             }
             Progress::Offline { .. } => self.notice = Some(rust_i18n::t!("launch.offline").into()),
+            Progress::KeyChanged { .. } => {
+                self.notice = Some(rust_i18n::t!("launch.key_changed").into())
+            }
             Progress::Installed { .. } => self.fresh = false,
             Progress::Updated { .. } | Progress::Replaced { .. } => {}
             Progress::Started { pid, played } => {
@@ -120,6 +125,10 @@ impl AppState {
                 let alive = this.update(cx, |s, cx| {
                     if let Some(session) = s.sessions.get_mut(&id) {
                         let exited = batch.iter().any(|p| matches!(p, Progress::Exited { .. }));
+                        let key_changed = batch.iter().find_map(|p| match p {
+                            Progress::KeyChanged { url } => Some(url.clone()),
+                            _ => None,
+                        });
                         let mut news = Vec::new();
                         for p in batch {
                             news.extend(match &p {
@@ -138,13 +147,16 @@ impl AppState {
                         }
                         let changed = !news.is_empty();
                         for text in news {
-                            s.toast(super::toast::ToastKind::Info, text.to_string(), cx);
+                            s.toast(ToastKind::Info, text.to_string(), cx);
                         }
                         if exited {
                             s.reload_instances(cx);
                         }
                         if changed {
                             *s.revisions.entry(id.clone()).or_default() += 1;
+                        }
+                        if let Some(url) = key_changed {
+                            s.ask_new_key(&id, url, cx);
                         }
                     }
                     cx.notify();
@@ -158,6 +170,9 @@ impl AppState {
                 return;
             };
             let _ = this.update(cx, |s, cx| {
+                if let Err(LaunchError::Sync(SyncError::KeyChanged(url))) = &result {
+                    s.ask_new_key(&id, url.clone(), cx);
+                }
                 if let Some(session) = s.sessions.get_mut(&id) {
                     session.abort = None;
                     match result {
@@ -177,6 +192,30 @@ impl AppState {
         .detach();
         self.tick(cx);
         cx.notify();
+    }
+
+    /// Asks whether the pack's new signing key is the author's; on yes forgets the old one and updates.
+    fn ask_new_key(&mut self, id: &str, url: String, cx: &mut Context<Self>) {
+        let name = self
+            .instance(id)
+            .map_or_else(|| id.to_owned(), |i| i.name.clone());
+        let id = id.to_owned();
+        super::dialogs::confirm(
+            rust_i18n::t!("trust.changed_title"),
+            rust_i18n::t!("trust.changed_body", name = name),
+            rust_i18n::t!("trust.accept"),
+            move |_, cx| {
+                let forgotten = riven_sync::trust::forget(&url);
+                AppState::global(cx).update(cx, |s, cx| match forgotten {
+                    Err(e) => s.toast(ToastKind::Error, e.to_string(), cx),
+                    Ok(_) if s.sessions.get(&id).is_some_and(Session::busy) => {
+                        s.toast(ToastKind::Info, rust_i18n::t!("trust.next_launch"), cx)
+                    }
+                    Ok(_) => s.install_pack(&id, Request::default(), cx),
+                });
+            },
+            cx,
+        );
     }
 
     /// Stops an install or a launch that has not started the game yet.

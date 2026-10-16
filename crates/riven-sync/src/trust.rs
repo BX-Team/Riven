@@ -50,3 +50,14 @@ pub fn save(path: &Path, trusted: &Trusted) -> Result<(), TrustError> {
 pub fn pinned(trusted: &Trusted, url: &str) -> Option<PublicKey> {
     trusted.keys.get(url).and_then(|k| PublicKey::parse(k).ok())
 }
+
+/// Unpins the key of the pack at `url`, so its next install pins the one it serves; `false` if none was pinned.
+pub fn forget(url: &str) -> Result<bool, TrustError> {
+    let path = default_path()?;
+    let mut trusted = load(&path)?;
+    if trusted.keys.remove(url).is_none() {
+        return Ok(false);
+    }
+    save(&path, &trusted)?;
+    Ok(true)
+}

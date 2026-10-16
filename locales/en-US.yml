@@ -122,6 +122,7 @@ launch:
   installed: "Pack %{version} installed"
   updated: "Pack updated to %{version}"
   offline: Cannot reach the pack; started with what is installed
+  key_changed: The pack changed its signing key; started with what is installed
   scanning: Reading the instance files
   stage:
     sign_in: Signing in to Microsoft
@@ -520,6 +521,7 @@ dev:
   build: Build
   sign: Sign
   copy_key: Copy the public key
+  backup_key: "Show the key file: back it up, players refuse updates signed by another key"
   no_key: "No signing key: installers cannot tell this pack's releases from forgeries."
   keygen: Create key
   key_created: "Created %{path}; back it up"
@@ -712,3 +714,8 @@ update:
   game_running: Close the game first; restarting Riven would cut it off.
   auto: Check for updates at startup
   auto_hint: Asks GitHub for a new version each time Riven starts
+trust:
+  changed_title: "The pack's signing key changed"
+  changed_body: "The update of %{name} is signed with a different key than before. Trust it only if the pack's author said the key changed; otherwise the update may come from someone else, and the installed version keeps working."
+  accept: "Trust the new key"
+  next_launch: "The new key is trusted; the pack updates on the next launch"

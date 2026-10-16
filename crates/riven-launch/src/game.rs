@@ -60,6 +60,10 @@ pub enum Progress {
     Offline {
         reason: String,
     },
+    /// The pack at `url` is signed with another key than the pinned one; the game starts with what is installed.
+    KeyChanged {
+        url: String,
+    },
     Started {
         pid: u32,
         /// Seconds it had already run: non-zero for a game an earlier launcher started.
@@ -168,6 +172,11 @@ async fn update_pack(
     let pending = match update::check(&files, &http, &game_dir, &request).await {
         Ok(Check::Ready(pending)) => pending,
         Ok(Check::UpToDate { .. }) => return Ok(()),
+        Err(riven_sync::SyncError::KeyChanged(url)) => {
+            tracing::warn!("the pack {url} changed its signing key");
+            report(Progress::KeyChanged { url });
+            return Ok(());
+        }
         Err(e) => {
             tracing::warn!("cannot check the pack: {e}");
             report(Progress::Offline {

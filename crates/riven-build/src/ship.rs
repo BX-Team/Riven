@@ -244,12 +244,6 @@ fn change_path(change: &FileChange) -> &str {
     }
 }
 
-/// A deploy, plus the install link it gives players.
-pub struct Shipped {
-    pub deployed: Deployed,
-    pub link: Option<String>,
-}
-
 /// Commits `dist` to `branch` and pushes it when asked.
 pub fn deploy(
     ws: &Workspace,
@@ -257,7 +251,7 @@ pub fn deploy(
     branch: &str,
     remote: &str,
     push: bool,
-) -> Result<Shipped, ShipError> {
+) -> Result<Deployed, ShipError> {
     let message = format!("deploy {} {}", ws.project.id, ws.project.version);
     let options = deploy::Deploy {
         dist,
@@ -266,13 +260,7 @@ pub fn deploy(
         message: &message,
         push,
     };
-    let deployed = deploy::deploy(&ws.dir, &options)?;
-    let key = load_key(&ws.project.id)?.map(|k| k.public().to_string());
-    let link = deployed.short_link.as_ref().map(|base| match &key {
-        Some(key) => format!("{base}#key={key}"),
-        None => base.clone(),
-    });
-    Ok(Shipped { deployed, link })
+    Ok(deploy::deploy(&ws.dir, &options)?)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
