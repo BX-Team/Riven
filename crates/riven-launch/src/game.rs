@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant, SystemTime};
 
 use riven_format::{
     Account, AccountKind, Instance, JavaChoice, LaunchCommands, LaunchSettings, LoaderKind,
@@ -76,6 +76,8 @@ pub enum Progress {
     Exited {
         code: Option<i32>,
         played: u64,
+        /// Why it most likely crashed or refused to load, when the logs tell.
+        crash: Option<crate::crash::Diagnosis>,
     },
 }
 
@@ -364,6 +366,7 @@ pub async fn play(
     riven_game::install(&http, &dirs, &prepared, &launch, &progress).await?;
 
     report(Progress::Stage(Stage::Starting));
+    let launched = SystemTime::now();
     let game = riven_game::launch(&dirs, &prepared, &launch)?;
     let pid = game.pid();
     report(Progress::Started { pid, played: 0 });
@@ -387,7 +390,12 @@ pub async fn play(
         .await;
     let played = since.elapsed().as_secs();
     finish(store, id, played, unix_now(), &settings).await;
-    report(Progress::Exited { code, played });
+    let crash = diagnose(game_dir, launched, code).await;
+    report(Progress::Exited {
+        code,
+        played,
+        crash,
+    });
     Ok(())
 }
 
@@ -476,15 +484,37 @@ pub async fn watch(
     };
     while riven_game::alive(game.pid, game.process) {
         lines(&mut log);
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
     lines(&mut log);
     let ended = unix_now();
     let played = ended.saturating_sub(started);
     let settings = store.load(id)?.overrides.resolve(defaults);
     finish(store, id, played, ended, &settings).await;
-    report(Progress::Exited { code: None, played });
+    let launched = SystemTime::UNIX_EPOCH + Duration::from_secs(started);
+    let crash = diagnose(store.game_dir(id), launched, None).await;
+    report(Progress::Exited {
+        code: None,
+        played,
+        crash,
+    });
     Ok(())
+}
+
+/// Whether an exit code means a crash rather than a game closed normally, by Ctrl+C or killed.
+pub fn crashed(code: Option<i32>) -> bool {
+    code.is_some_and(|c| !matches!(c, 0 | 130 | 137 | 143))
+}
+
+async fn diagnose(
+    game_dir: PathBuf,
+    launched: SystemTime,
+    code: Option<i32>,
+) -> Option<crate::crash::Diagnosis> {
+    tokio::task::spawn_blocking(move || crate::crash::diagnose(&game_dir, launched, crashed(code)))
+        .await
+        .ok()
+        .flatten()
 }
 
 /// Reads whole lines appended to a file since the last read.

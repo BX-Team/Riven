@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::io::{Cursor, Read};
+use std::io::{Cursor, Read, Seek};
 
 use riven_format::{LoaderKind, Side};
 use serde::Deserialize;
@@ -77,6 +77,11 @@ impl JarMeta {
         read_jar(bytes, 0)
     }
 
+    /// Reads an already opened jar, touching only its metadata files.
+    pub fn read_zip<R: Read + Seek>(zip: &mut zip::ZipArchive<R>) -> Result<Self, MetaError> {
+        read_archive(zip, 0)
+    }
+
     /// Mods loadable by `loader`, nested ones included.
     pub fn mods_for(&self, loader: LoaderKind) -> Vec<&ModMeta> {
         let mut out: Vec<&ModMeta> = self
@@ -92,7 +97,13 @@ impl JarMeta {
 }
 
 fn read_jar(bytes: &[u8], depth: usize) -> Result<JarMeta, MetaError> {
-    let mut zip = zip::ZipArchive::new(Cursor::new(bytes))?;
+    read_archive(&mut zip::ZipArchive::new(Cursor::new(bytes))?, depth)
+}
+
+fn read_archive<R: Read + Seek>(
+    zip: &mut zip::ZipArchive<R>,
+    depth: usize,
+) -> Result<JarMeta, MetaError> {
     let mut read = |name: &str| -> Option<Vec<u8>> {
         let mut file = zip.by_name(name).ok()?;
         let mut buf = Vec::with_capacity(file.size() as usize);

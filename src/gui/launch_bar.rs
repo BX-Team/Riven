@@ -301,11 +301,12 @@ fn amount(stage: Stage, done: u64, total: u64) -> String {
     }
 }
 
-/// `pack` is the installed version, a newer one and what the last update changed.
+/// `pack` is the installed version, a newer one and what the last update changed;
+/// `notice` and `crash` come from the last session.
 fn status(
     id: &str,
     phase: Option<Phase>,
-    notice: Option<SharedString>,
+    (notice, crash): (Option<SharedString>, Option<riven_launch::crash::Diagnosis>),
     pack: Option<(String, Option<String>, Option<riven_format::Changes>)>,
     played: Option<String>,
     window: &mut Window,
@@ -379,7 +380,10 @@ fn status(
         )
         .into_any_element(),
         Phase::Failed(e) => line(e.to_string(), c.warn).into_any_element(),
-        Phase::Finished { code: Some(code) } if !matches!(code, 0 | 130 | 137 | 143) => {
+        Phase::Finished { .. } if let Some(crash) = &crash => {
+            super::crash::status_line(id, crash, cx)
+        }
+        Phase::Finished { code: Some(code) } if riven_launch::game::crashed(Some(*code)) => {
             line(t!("launch.crashed", code = code).into(), c.warn).into_any_element()
         }
         Phase::Finished { .. } => idle,
@@ -492,6 +496,7 @@ pub fn render(
         .map(|s| s.phase.clone())
         .filter(|p| !(centered && matches!(p, Phase::Working { .. })));
     let notice = session.and_then(|s| s.notice.clone());
+    let crash = session.and_then(|s| s.crash.clone());
     let scan = st.scans.get(id).copied();
     let busy = phase
         .as_ref()
@@ -501,7 +506,7 @@ pub fn render(
         _ => status(
             id,
             phase,
-            notice,
+            (notice, crash),
             pack.map(|p| (p, newer.clone(), changes)),
             played(&instance),
             window,
