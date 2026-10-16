@@ -83,7 +83,6 @@ gpui-kit = { version = "=0.7.3", default-features = false, optional = true }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"], optional = true }
 indicatif = { version = "0.18", optional = true }
 notify = { version = "8", optional = true }
-percent-encoding.workspace = true
 reqwest.workspace = true
 rust-i18n = { version = "4", optional = true }
 riven-build.workspace = true
@@ -92,7 +91,6 @@ riven-launch.workspace = true
 riven-resolve.workspace = true
 riven-sources.workspace = true
 riven-sync.workspace = true
-serde.workspace = true
 serde_json.workspace = true
 sys-locale = { version = "0.3", optional = true }
 tokio.workspace = true
