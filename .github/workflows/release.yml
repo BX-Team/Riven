@@ -98,8 +98,15 @@ jobs:
           grep -q "^version = \"$VERSION\"$" Cargo.toml
           cargo metadata --locked --format-version 1 >/dev/null
           if [ "$PRERELEASE" != true ]; then
-            sed -i "s|nix run github:BX-Team/Riven/v[^ ]*|nix run github:BX-Team/Riven/$TAG|" README.md
-            grep -qF "nix run github:BX-Team/Riven/$TAG" README.md
+            sed -i "s|github:BX-Team/Riven/v[^ ]*|github:BX-Team/Riven/$TAG|g" README.md
+            grep -qF "nix run --accept-flake-config github:BX-Team/Riven/$TAG" README.md
+            sed -i -E "/<!-- downloads -->/,/<!-- \/downloads -->/{
+              s#releases/download/v[^/]+/#releases/download/$TAG/#g
+              s#riven_[^_]+_(amd64|arm64)\.deb#riven_${VERSION}_\1.deb#g
+              s#riven-[^-]+-1\.(x86_64|aarch64)\.rpm#riven-$VERSION-1.\1.rpm#g
+              s#riven-[^-]+-1-x86_64\.pkg#riven-$VERSION-1-x86_64.pkg#g
+            }" README.md
+            grep -qF "releases/download/$TAG/riven_${VERSION}_amd64.deb" README.md
           fi
 
       - name: Commit the bump and push the tag

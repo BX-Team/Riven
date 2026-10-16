@@ -38,27 +38,22 @@ A native Minecraft launcher and modpack toolkit in pure Rust — install, update
 
 ## 📦 Installation
 
-Grab the latest build from the [Releases page](https://github.com/BX-Team/Riven/releases/latest).
+<!-- downloads -->
+[![Download for Windows](https://raw.githubusercontent.com/NONPLAYT/badges/refs/heads/master/download-for-windows.svg)](https://github.com/BX-Team/Riven/releases/latest/download/Riven-Setup-x86_64.exe)
+[![Portable for Windows](https://raw.githubusercontent.com/NONPLAYT/badges/refs/heads/master/portable-for-windows.svg)](https://github.com/BX-Team/Riven/releases/latest/download/riven-x86_64-windows.zip)
+[![Download for macOS](https://raw.githubusercontent.com/NONPLAYT/badges/refs/heads/master/download-for-macos.svg)](https://github.com/BX-Team/Riven/releases/latest/download/Riven-macos.dmg)
+[![AppImage for Linux](https://raw.githubusercontent.com/NONPLAYT/badges/refs/heads/master/appimage-for-linux.svg)](https://github.com/BX-Team/Riven/releases/latest/download/Riven-x86_64.AppImage)
+[![Package for Debian and Ubuntu](https://raw.githubusercontent.com/NONPLAYT/badges/refs/heads/master/package-for-debian.svg)](https://github.com/BX-Team/Riven/releases/download/v1.1.1/riven_1.1.1_amd64.deb)
+[![Package for Fedora](https://raw.githubusercontent.com/NONPLAYT/badges/refs/heads/master/package-for-fedora.svg)](https://github.com/BX-Team/Riven/releases/download/v1.1.1/riven-1.1.1-1.x86_64.rpm)
+[![Package for Arch Linux](https://raw.githubusercontent.com/NONPLAYT/badges/refs/heads/master/package-for-arch.svg)](https://github.com/BX-Team/Riven/releases/download/v1.1.1/riven-1.1.1-1-x86_64.pkg.tar.zst)
+[![Run with Nix](https://raw.githubusercontent.com/NONPLAYT/badges/refs/heads/master/run-with-nix.svg)](#nix)
 
-### Windows (x86_64)
+**ARM64 Linux:** [AppImage](https://github.com/BX-Team/Riven/releases/latest/download/Riven-aarch64.AppImage) · [.deb](https://github.com/BX-Team/Riven/releases/download/v1.1.1/riven_1.1.1_arm64.deb) · [.rpm](https://github.com/BX-Team/Riven/releases/download/v1.1.1/riven-1.1.1-1.aarch64.rpm). Every file of every version is on the [Releases page](https://github.com/BX-Team/Riven/releases).
+<!-- /downloads -->
 
-- **Installer:** `Riven-Setup-x86_64.exe` — installs for the current user, no admin rights needed.
-- **Portable:** `riven-x86_64-windows.zip` — unzip anywhere and run `riven.exe`.
+The macOS app is not notarized: right-click → Open the first time.
 
-### macOS 11+ (Apple silicon and Intel)
-
-- **Disk image:** `Riven-macos.dmg` — drag Riven Launcher to Applications. The app is not notarized: right-click → Open the first time.
-
-### Linux (x86_64, aarch64)
-
-- **AppImage:** `Riven-x86_64.AppImage` / `Riven-aarch64.AppImage` — works on any distribution and registers `riven://` links on first run.
-- **Debian/Ubuntu:** `riven_<version>_amd64.deb` — `sudo apt install ./riven_<version>_amd64.deb`
-- **Fedora/RHEL:** `riven-<version>-1.x86_64.rpm` — `sudo dnf install ./riven-<version>-1.x86_64.rpm`
-- **Arch:** `riven-<version>-1-x86_64.pkg.tar.zst` — `sudo pacman -U ./riven-<version>-1-x86_64.pkg.tar.zst`
-
-### Servers
-
-`riven-cli-<arch>-<os>` archives hold the CLI without the GUI and its libraries:
+For servers, `riven-cli-<arch>-<os>` archives hold the CLI without the GUI and its libraries:
 
 ```bash
 riven install --side server --dir /srv/mc --headless gh:owner/pack
@@ -80,23 +75,19 @@ riven deploy                               # dist/ → GitHub Pages
 
 Every command is described in the [documentation](https://bxteam.org/docs/riven).
 
+<a id="nix"></a>
+
 ## ❄️ Nix
 
 Run the launcher without installing:
 
 ```bash
-nix run github:BX-Team/Riven/v1.1.1
+nix run --accept-flake-config github:BX-Team/Riven/v1.1.1
 ```
 
-Without a tag Nix takes `master`, which may not be in Cachix yet and then compiles from source.
+Releases are built for `x86_64-linux` and `aarch64-linux` and pushed to Cachix, so a tagged version downloads instead of compiling. `--accept-flake-config` lets Nix use the cache the flake names — if you are a trusted Nix user (`trusted-users`); otherwise Nix ignores it and compiles. Without a tag Nix takes `master`, which may not be in Cachix yet and then compiles from source.
 
-Releases are built for `x86_64-linux` and `aarch64-linux` and pushed to Cachix, so a tagged version downloads instead of compiling. The flake names the cache itself; accept it once:
-
-```bash
-nix run --accept-flake-config github:BX-Team/Riven/v1.0.0
-```
-
-Or trust it system-wide:
+To use the cache in any case, add it to your system:
 
 ```nix
 nix = {
