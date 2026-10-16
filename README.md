@@ -13,11 +13,18 @@ A native Minecraft launcher and modpack toolkit in pure Rust — install, update
 
 ## 🖼️ Showcase
 
+<details>
+<summary>Screenshots</summary>
+
 ![Instances and mods](.github/showcase/showcase-instance.png)
 
 ![Developer mode](.github/showcase/showcase-developer.png)
 
 ![Config editor](.github/showcase/showcase-editor.png)
+
+![Releases](.github/showcase/showcase-releases.png)
+
+</details>
 
 ## ✨ Features
 
