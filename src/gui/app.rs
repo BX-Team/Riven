@@ -116,18 +116,25 @@ impl RivenApp {
     }
 
     /// Escape or the mouse's back button: closes the topmost popup, else leaves settings.
-    /// Escape stays in the developer section, where it belongs to the editor.
-    fn back(state: &Entity<AppState>, leave_dev: bool, cx: &mut App) {
-        state.update(cx, |s, cx| {
+    /// In the developer section only the mouse button acts, going back to the previous tab;
+    /// Escape belongs to the editor there.
+    fn back(state: &Entity<AppState>, dev: Option<&Entity<DevView>>, cx: &mut App) {
+        let tab_back = state.update(cx, |s, cx| {
             if s.context_menu.is_some() {
                 s.close_context_menu(cx);
             } else if s.modal.is_some() {
                 s.close_modal(cx);
-            } else if s.route == Route::Settings || (leave_dev && s.route == Route::Developer) {
+            } else if s.route == Route::Settings {
                 let home = s.home();
                 s.navigate(home, cx);
+            } else {
+                return s.route == Route::Developer;
             }
+            false
         });
+        if tab_back && let Some(dev) = dev {
+            dev.update(cx, |dev, cx| dev.go_back(cx));
+        }
     }
 
     fn open_settings(&mut self, _: &OpenSettings, _: &mut Window, cx: &mut Context<Self>) {
@@ -378,7 +385,7 @@ fn drop_zone(cx: &App) -> impl IntoElement {
 }
 
 /// The mouse's back button, heard over the whole window, the modal backdrop included.
-fn back_button(state: Entity<AppState>) -> impl IntoElement {
+fn back_button(state: Entity<AppState>, dev: Option<Entity<DevView>>) -> impl IntoElement {
     canvas(
         |_, _, _| (),
         move |_, _, window, _| {
@@ -386,7 +393,7 @@ fn back_button(state: Entity<AppState>) -> impl IntoElement {
                 if phase == DispatchPhase::Bubble
                     && e.button == MouseButton::Navigate(NavigationDirection::Back)
                 {
-                    RivenApp::back(&state, true, cx);
+                    RivenApp::back(&state, dev.as_ref(), cx);
                 }
             });
         },
@@ -552,7 +559,7 @@ impl Render for RivenApp {
             .track_focus(&self.focus)
             .on_action({
                 let state = self.state.clone();
-                move |_: &Back, _, cx| Self::back(&state, false, cx)
+                move |_: &Back, _, cx| Self::back(&state, None, cx)
             })
             .on_action(cx.listener(Self::open_settings))
             .on_action(cx.listener(Self::new_instance))
@@ -574,7 +581,7 @@ impl Render for RivenApp {
             })
             .child(toasts)
             .child(drop_zone(cx))
-            .child(back_button(back))
+            .child(back_button(back, self.dev.clone()))
             .when_some(context, |root, menu| {
                 let state = self.state.clone();
                 root.child(ui::context_menu(

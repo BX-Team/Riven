@@ -40,6 +40,7 @@ use super::ui::{Button, ButtonSize, IconName, h_flex, motion, v_flex};
 actions!(dev, [FocusSearch]);
 
 const RECENT: usize = 8;
+const HISTORY: usize = 50;
 const KEY_CONTEXT: &str = "DevView";
 
 /// Binds the developer section's shortcuts.
@@ -198,6 +199,8 @@ pub struct DevView {
     activity: Activity,
     tabs: Vec<Tab>,
     active: Tab,
+    /// Tabs shown before the active one, newest last, for the mouse's back button.
+    history: Vec<Tab>,
     /// The entry the inspector on the right describes.
     selected: Option<String>,
     /// Sidebar groups folded by the user, by key.
@@ -316,6 +319,7 @@ impl DevView {
             activity: Activity::Content,
             tabs: vec![Tab::Pack, pack_view.clone()],
             active: pack_view,
+            history: Vec::new(),
             selected: None,
             folded: HashSet::new(),
             tree,
@@ -393,6 +397,7 @@ impl DevView {
             self.files.clear();
             self.tabs = vec![Tab::Pack, mods.clone()];
             self.active = mods;
+            self.history.clear();
             self.selected = None;
             self.pages.clear();
         }
@@ -713,12 +718,35 @@ impl DevView {
         if !self.tabs.contains(&tab) {
             self.tabs.push(tab.clone());
         }
+        if tab != self.active {
+            let previous = std::mem::replace(&mut self.active, tab.clone());
+            self.history.retain(|t| *t != previous);
+            self.history.push(previous);
+            if self.history.len() > HISTORY {
+                self.history.remove(0);
+            }
+        }
         if let Tab::Entry(id) = &tab {
             self.select_entry(id.clone(), cx);
         }
-        self.active = tab;
         self.refresh_rows(cx);
         cx.notify();
+    }
+
+    /// Shows the tab that was active before the current one, skipping closed tabs.
+    pub fn go_back(&mut self, cx: &mut Context<Self>) {
+        while let Some(tab) = self.history.pop() {
+            if tab == self.active || !self.tabs.contains(&tab) {
+                continue;
+            }
+            if let Tab::Entry(id) = &tab {
+                self.select_entry(id.clone(), cx);
+            }
+            self.active = tab;
+            self.refresh_rows(cx);
+            cx.notify();
+            return;
+        }
     }
 
     /// Shows an entry in the inspector, loading what Modrinth knows about it.
