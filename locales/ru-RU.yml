@@ -1,4 +1,5 @@
 common:
+  clear: Очистить
   cancel: Отмена
   close: Закрыть
   stop: Остановить

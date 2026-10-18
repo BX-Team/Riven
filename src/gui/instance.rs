@@ -809,6 +809,7 @@ impl InstanceView {
                     .child(
                         TextField::new(&self.search)
                             .leading(IconName::Search)
+                            .clearable()
                             .w(px(280.)),
                     )
                     .when(busy, |row| {

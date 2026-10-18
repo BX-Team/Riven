@@ -390,7 +390,11 @@ impl Render for AddContent {
             .child(
                 h_flex()
                     .gap(px(8.))
-                    .child(div().flex_1().child(TextField::new(&self.query)))
+                    .child(
+                        div()
+                            .flex_1()
+                            .child(TextField::new(&self.query).clearable()),
+                    )
                     .child(
                         Button::new("add-file")
                             .icon(IconName::Folder)

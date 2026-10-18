@@ -165,7 +165,12 @@ impl RenderOnce for Dropdown {
                     .text_color(c.text)
                     .shadow(vec![box_shadow(0., 12., 32., 0., hsla(0., 0., 0., 0.35))])
                     .when_some(search.clone(), |col, s| {
-                        col.child(TextField::new(&s).leading(IconName::Search).mb(px(2.)))
+                        col.child(
+                            TextField::new(&s)
+                                .leading(IconName::Search)
+                                .clearable()
+                                .mb(px(2.)),
+                        )
                     })
                     .child(
                         v_flex()

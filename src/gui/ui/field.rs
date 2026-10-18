@@ -6,7 +6,7 @@ use gpui_kit::{
     ParentElement as _, RenderOnce, StyleRefinement, Styled, Window, div, px,
 };
 
-use super::{IconName, h_flex, icon, motion};
+use super::{Button, ButtonSize, IconName, h_flex, icon, motion};
 use crate::gui::theme::ActiveTheme as _;
 
 /// A 30 px bordered text field around a gpui-base input.
@@ -14,6 +14,7 @@ use crate::gui::theme::ActiveTheme as _;
 pub struct TextField {
     state: Entity<InputState>,
     leading: Option<IconName>,
+    clearable: bool,
     style: StyleRefinement,
 }
 
@@ -22,12 +23,19 @@ impl TextField {
         Self {
             state: state.clone(),
             leading: None,
+            clearable: false,
             style: StyleRefinement::default(),
         }
     }
 
     pub fn leading(mut self, icon: IconName) -> Self {
         self.leading = Some(icon);
+        self
+    }
+
+    /// Shows a button that empties the field while it has text.
+    pub fn clearable(mut self) -> Self {
+        self.clearable = true;
         self
     }
 }
@@ -43,8 +51,11 @@ impl RenderOnce for TextField {
         let c = cx.theme().colors;
         let focus = self.state.read(cx).focus_handle(cx);
         let focused = focus.is_focused(window);
+        let id = self.state.entity_id().as_u64() as usize;
+        let clear =
+            (self.clearable && !self.state.read(cx).value().is_empty()).then(|| self.state.clone());
         let border = motion::animate(
-            ("field-border", self.state.entity_id().as_u64() as usize),
+            ("field-border", id),
             if focused { c.accent } else { c.border },
             window,
             cx,
@@ -73,6 +84,21 @@ impl RenderOnce for TextField {
                     .line_height(px(18.))
                     .child(Input::new(&self.state)),
             )
+            .when_some(clear, |row, state| {
+                row.child(
+                    Button::new(("field-clear", id))
+                        .ghost()
+                        .size(ButtonSize::Xs)
+                        .icon(IconName::Close)
+                        .tooltip(rust_i18n::t!("common.clear"))
+                        .on_click(move |_, window, cx| {
+                            state.update(cx, |s, cx| {
+                                s.replace_all("", window, cx);
+                                s.focus(window, cx);
+                            });
+                        }),
+                )
+            })
             .refine_style(&self.style)
     }
 }
