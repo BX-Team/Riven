@@ -258,14 +258,20 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
             .expect("some suffix is free")
     }
 
+    fn runs_on_pack_loader(&self, loader: &str) -> bool {
+        let pack = self.pack.loader.kind;
+        loader == loader_name(pack) || (pack == LoaderKind::Quilt && loader == "fabric")
+    }
+
     fn compatible(&self, version: &Version, kind: Kind) -> bool {
         let on_mc = version.game_versions.contains(&self.pack.minecraft);
-        let loader = self.pack.loader.kind;
-        let on_loader = kind != Kind::Mod
-            || version.loaders.iter().any(|l| {
-                l == loader_name(loader) || (loader == LoaderKind::Quilt && l == "fabric")
-            });
+        let on_loader =
+            kind != Kind::Mod || version.loaders.iter().any(|l| self.runs_on_pack_loader(l));
         on_mc && on_loader
+    }
+
+    fn also_for_other_loaders(&self, version: &Version) -> bool {
+        version.loaders.iter().any(|l| !self.runs_on_pack_loader(l))
     }
 
     /// The newest version of any channel; the author decides what is stable enough.
@@ -559,6 +565,7 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
             side,
         }) = queue.pop()
         {
+            let multi_loader = self.also_for_other_loaders(&version);
             let deps = self.source.dependencies(&version).await?;
             for dep in deps {
                 let project = match (&dep.project, &dep.version) {
@@ -594,11 +601,20 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
                     Some(v) => v,
                     None => {
                         let versions = self.compatible_versions(&info, kind).await?;
-                        match self.pick_for(&parent, &info, &versions, kind).await? {
+                        let picked = self.pick_for(&parent, &info, &versions, kind).await?;
+                        match picked.or_else(|| self.choose(&versions)) {
                             Some(v) => v,
-                            None => self
-                                .choose(&versions)
-                                .ok_or_else(|| self.no_version(&info))?,
+                            None if multi_loader => {
+                                self.plan.notes.push(format!(
+                                    "`{parent}`: skipped `{}`, it has no version for Minecraft {} on {} \
+                                     (likely needed only on another loader)",
+                                    info.slug,
+                                    self.pack.minecraft,
+                                    loader_name(self.pack.loader.kind)
+                                ));
+                                continue;
+                            }
+                            None => return Err(self.no_version(&info)),
                         }
                     }
                 };
@@ -1151,6 +1167,38 @@ mod tests {
             .add("create", &AddOptions::default())
             .await;
         assert!(matches!(again, Err(ResolveError::AlreadyPresent { .. })));
+    }
+
+    #[tokio::test]
+    async fn multi_loader_version_skips_dependencies_of_its_other_loader() {
+        let both = (Support::Required, Support::Required);
+        let mut fake = Fake::default();
+        fake.add_project("Z", "zoom", both.0, both.1);
+        fake.add_project("K", "kotlin-fabric", both.0, both.1);
+        let deps = vec![required("K", None)];
+        fake.add_version("z1", "Z", DAY1, Channel::Release, deps.clone(), "zoom", "");
+        fake.versions[0].loaders.push("fabric".into());
+        let pack = pack();
+
+        let plan = Planner::new(&fake, &fake, &pack)
+            .add("zoom", &AddOptions::default())
+            .await
+            .unwrap();
+        assert_eq!(ids(&plan.add), ["zoom"]);
+        assert!(
+            plan.notes.iter().any(|n| n.contains("kotlin-fabric")),
+            "{:?}",
+            plan.notes
+        );
+
+        fake.versions[0].loaders.pop();
+        let single = Planner::new(&fake, &fake, &pack)
+            .add("zoom", &AddOptions::default())
+            .await;
+        assert!(matches!(
+            single,
+            Err(ResolveError::NoCompatibleVersion { .. })
+        ));
     }
 
     #[tokio::test]

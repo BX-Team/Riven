@@ -839,7 +839,11 @@ impl AddMods {
                     .min_w_0()
                     .h(px(height))
                     .gap(px(10.))
-                    .child(TextField::new(&self.query).leading(IconName::Search))
+                    .child(
+                        TextField::new(&self.query)
+                            .leading(IconName::Search)
+                            .clearable(),
+                    )
                     .child(div().flex_1().min_h_0().child(list)),
             )
             .child(

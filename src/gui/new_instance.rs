@@ -1001,7 +1001,11 @@ impl NewInstance {
                     .min_w_0()
                     .h(px(height))
                     .gap(px(10.))
-                    .child(TextField::new(&self.query).leading(IconName::Search))
+                    .child(
+                        TextField::new(&self.query)
+                            .leading(IconName::Search)
+                            .clearable(),
+                    )
                     .child(div().flex_1().min_h_0().child(list)),
             )
             .child(side_panel(height, cx).child(self.render_pack_details(cx)))
@@ -1324,6 +1328,7 @@ impl NewInstance {
                     .child(
                         TextField::new(&self.mc_search)
                             .leading(IconName::Search)
+                            .clearable()
                             .w(px(200.)),
                     ),
             )

@@ -1,4 +1,5 @@
 common:
+  clear: Clear
   cancel: Cancel
   close: Close
   stop: Stop

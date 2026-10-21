@@ -397,11 +397,11 @@ impl DevView {
             .size_full()
             .child(self.side_head(t!("dev.search").into(), cx))
             .child(
-                div()
-                    .flex_none()
-                    .px(px(10.))
-                    .pb(px(8.))
-                    .child(TextField::new(&self.search).leading(IconName::Search)),
+                div().flex_none().px(px(10.)).pb(px(8.)).child(
+                    TextField::new(&self.search)
+                        .leading(IconName::Search)
+                        .clearable(),
+                ),
             )
             .child(
                 v_flex()

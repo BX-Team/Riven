@@ -96,6 +96,7 @@ impl DevView {
                     .child(
                         TextField::new(&self.filter)
                             .leading(IconName::Search)
+                            .clearable()
                             .w(px(240.)),
                     )
                     .child({
