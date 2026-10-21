@@ -7,7 +7,7 @@
   "authors": [
     "BX Team"
   ],
-  "description": "Модовый сервер VideCraft",
+  "description": "VideCraft modded server",
   "icon": "icon.png",
   "minecraft": "1.21.1",
   "loader": {
@@ -24,7 +24,7 @@
   "groups": [
     {
       "id": "shaders",
-      "name": "Шейдеры",
+      "name": "Shaders",
       "description": "Iris + Complementary",
       "default": false
     },

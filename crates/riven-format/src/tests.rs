@@ -56,7 +56,7 @@ fn project() -> Project {
         id: "videcraft-create".into(),
         version: "1.4.0".into(),
         authors: vec!["BX Team".into()],
-        description: Some("Модовый сервер VideCraft".into()),
+        description: Some("VideCraft modded server".into()),
         icon: Some(PackPath::new("icon.png").unwrap()),
         minecraft: "1.21.1".into(),
         loader: Loader {
@@ -80,7 +80,7 @@ fn project() -> Project {
             },
             Group {
                 id: "shaders".into(),
-                name: "Шейдеры".into(),
+                name: "Shaders".into(),
                 description: Some("Iris + Complementary".into()),
                 default: false,
             },

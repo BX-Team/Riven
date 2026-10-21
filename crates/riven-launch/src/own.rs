@@ -540,6 +540,35 @@ pub fn change_pack_file(
     save(game_dir, &own)
 }
 
+/// Switches off a mod a crash pointed at, as the mods page would: pack files stay off through pack updates.
+pub fn disable_mod(instance: &Instance, game_dir: &Path, file: &Path) -> Result<(), LaunchError> {
+    if !editable(instance, game_dir) {
+        return Err(LaunchError::Locked);
+    }
+    let meta = std::fs::metadata(file).map_err(io(file))?;
+    let name = file
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let content = mods::ContentFile {
+        path: file.to_owned(),
+        name: name.clone(),
+        size: meta.len(),
+        modified: meta.modified().unwrap_or(std::time::UNIX_EPOCH),
+        enabled: true,
+    };
+    let from_pack = PackPath::new(format!("mods/{name}")).ok().filter(|path| {
+        install::load_state(game_dir)
+            .ok()
+            .flatten()
+            .is_some_and(|s| s.files.contains_key(path))
+    });
+    match from_pack {
+        Some(path) => change_pack_file(game_dir, &content, &path, None, PackChange::Disable),
+        None => mods::set_enabled(&content, false).map(drop),
+    }
+}
+
 /// The pack files the player switched off or removed, for planning a pack update.
 pub fn pack_skips(game_dir: &Path) -> Result<Vec<install::Skip>, LaunchError> {
     Ok(load(game_dir)?

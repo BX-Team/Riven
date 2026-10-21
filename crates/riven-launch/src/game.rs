@@ -1,5 +1,6 @@
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
 use riven_format::{
@@ -12,6 +13,9 @@ use riven_sync::update::{self, Check, Pending, Request};
 
 use crate::instances::Instances;
 use crate::{LaunchError, io};
+
+/// Lines of the game's output kept for explaining a crash: the JVM prints its last words there.
+const OUTPUT_TAIL: usize = 500;
 
 /// What a launch is busy with, in order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -77,7 +81,7 @@ pub enum Progress {
         code: Option<i32>,
         played: u64,
         /// Why it most likely crashed or refused to load, when the logs tell.
-        crash: Option<crate::crash::Diagnosis>,
+        crash: Option<Box<crate::crash::Diagnosis>>,
     },
 }
 
@@ -380,17 +384,27 @@ pub async fn play(
         tracing::warn!("{e}");
     }
     let lines = report.clone();
+    let output = Arc::new(Mutex::new(VecDeque::with_capacity(OUTPUT_TAIL)));
+    let tail = output.clone();
     let code = game
         .wait(move |stderr, text| {
-            lines(Progress::Line {
-                stderr,
-                text: crate::strip_ansi(&text),
-            })
+            let text = crate::strip_ansi(&text);
+            if let Ok(mut tail) = tail.lock() {
+                if tail.len() == OUTPUT_TAIL {
+                    tail.pop_front();
+                }
+                tail.push_back(text.clone());
+            }
+            lines(Progress::Line { stderr, text })
         })
         .await;
     let played = since.elapsed().as_secs();
     finish(store, id, played, unix_now(), &settings).await;
-    let crash = diagnose(game_dir, launched, code).await;
+    let output = output
+        .lock()
+        .map(|t| t.iter().cloned().collect())
+        .unwrap_or_default();
+    let crash = diagnose(game_dir, launched, code, output).await;
     report(Progress::Exited {
         code,
         played,
@@ -492,7 +506,7 @@ pub async fn watch(
     let settings = store.load(id)?.overrides.resolve(defaults);
     finish(store, id, played, ended, &settings).await;
     let launched = SystemTime::UNIX_EPOCH + Duration::from_secs(started);
-    let crash = diagnose(store.game_dir(id), launched, None).await;
+    let crash = diagnose(store.game_dir(id), launched, None, Vec::new()).await;
     report(Progress::Exited {
         code: None,
         played,
@@ -510,11 +524,15 @@ async fn diagnose(
     game_dir: PathBuf,
     launched: SystemTime,
     code: Option<i32>,
-) -> Option<crate::crash::Diagnosis> {
-    tokio::task::spawn_blocking(move || crate::crash::diagnose(&game_dir, launched, crashed(code)))
-        .await
-        .ok()
-        .flatten()
+    output: Vec<String>,
+) -> Option<Box<crate::crash::Diagnosis>> {
+    tokio::task::spawn_blocking(move || {
+        crate::crash::diagnose(&game_dir, launched, crashed(code), &output)
+    })
+    .await
+    .ok()
+    .flatten()
+    .map(Box::new)
 }
 
 /// Reads whole lines appended to a file since the last read.

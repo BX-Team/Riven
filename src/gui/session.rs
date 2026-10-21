@@ -102,7 +102,7 @@ impl Session {
             }
             Progress::Exited { code, crash, .. } => {
                 self.phase = Phase::Finished { code };
-                self.crash = crash;
+                self.crash = crash.map(|d| *d);
             }
         }
     }
