@@ -92,9 +92,9 @@ jobs:
           desktop-file-validate packaging/linux/riven.desktop
           tar -C target/release -czf "out/riven-$ARCH-linux.tar.gz" riven
           tar -C target/cli/release -czf "out/riven-cli-$ARCH-linux.tar.gz" riven
-          cargo deb --no-build --no-strip --output "out/riven_${VERSION}_${DEB}.deb"
+          cargo deb --no-build --no-strip --output "out/riven-${DEB}.deb"
           cargo generate-rpm -s "version = \"$RPM\""
-          cp target/generate-rpm/*.rpm "out/riven-${RPM}-1.${ARCH}.rpm"
+          cp target/generate-rpm/*.rpm "out/riven-${ARCH}.rpm"
 
       - name: AppImage
         env:
@@ -132,7 +132,7 @@ jobs:
             sudo -u builder makepkg -f --nodeps
             cp ./*.pkg.tar.zst /pkg/
           '
-          cp "$pkg"/*.pkg.tar.zst out/
+          cp "$pkg"/riven-[0-9]*-x86_64.pkg.tar.zst out/riven-x86_64.pkg.tar.zst
 
       - name: Upload the workflow artifact
         uses: actions/upload-artifact@v7

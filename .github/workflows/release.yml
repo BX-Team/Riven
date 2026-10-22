@@ -129,9 +129,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.prepare.outputs.tag }}
-          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          rpm="${VERSION//-/\~}"
           have="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
           printf 'attached:\n%s\n\n' "$have"
           missing=0
@@ -139,9 +137,9 @@ jobs:
             riven-x86_64-linux.tar.gz riven-aarch64-linux.tar.gz \
             riven-cli-x86_64-linux.tar.gz riven-cli-aarch64-linux.tar.gz \
             Riven-x86_64.AppImage Riven-aarch64.AppImage \
-            "riven_${VERSION}_amd64.deb" "riven_${VERSION}_arm64.deb" \
-            "riven-${rpm}-1.x86_64.rpm" "riven-${rpm}-1.aarch64.rpm" \
-            "riven-${VERSION//-/_}-1-x86_64.pkg.tar.zst" \
+            riven-amd64.deb riven-arm64.deb \
+            riven-x86_64.rpm riven-aarch64.rpm \
+            riven-x86_64.pkg.tar.zst \
             riven-x86_64-windows.zip riven-cli-x86_64-windows.zip Riven-Setup-x86_64.exe \
             Riven-macos.dmg Riven-macos.app.tar.gz riven-cli-macos.tar.gz; do
             if ! printf '%s\n' "$have" | grep -qxF "$asset"; then
@@ -155,16 +153,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.prepare.outputs.tag }}
-          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq '.body' > notes.md
           # Rebuilding a published release must not append the table a second time.
           if ! grep -q '^## 📦 Downloads' notes.md; then
-            export VERSION TAG
-            export RPM_VERSION="${VERSION//-/\~}" ARCH_VERSION="${VERSION//-/_}"
+            export TAG
             if [ -s notes.md ]; then printf '\n' >> notes.md; fi
             # shellcheck disable=SC2016 # the list names the variables envsubst may replace
-            envsubst '$VERSION $TAG $RPM_VERSION $ARCH_VERSION' < .github/release/notes.md >> notes.md
+            envsubst '$TAG' < .github/release/notes.md >> notes.md
           fi
 
       - name: Publish the GitHub release
@@ -173,9 +169,16 @@ jobs:
           TAG: ${{ needs.prepare.outputs.tag }}
           PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
         run: |
-          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" \
-            --notes-file notes.md \
-            --draft=false \
-            --prerelease="$PRERELEASE" \
-            --latest="$([ "$PRERELEASE" = true ] && echo false || echo true)"
+          if grep -qF '<!-- release:hold -->' notes.md; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --notes-file notes.md \
+              --prerelease="$PRERELEASE"
+            echo "::notice::$TAG is held as a draft by /release draft; publish it on GitHub once it is checked."
+          else
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --notes-file notes.md \
+              --draft=false \
+              --prerelease="$PRERELEASE" \
+              --latest="$([ "$PRERELEASE" = true ] && echo false || echo true)"
+          fi
           cat notes.md >> "$GITHUB_STEP_SUMMARY"

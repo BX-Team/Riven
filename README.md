@@ -38,18 +38,16 @@ A native Minecraft launcher and modpack toolkit in pure Rust — install, update
 
 ## 📦 Installation
 
-<!-- downloads -->
 [![Download for Windows](https://raw.githubusercontent.com/NONPLAYT/badges/refs/heads/master/download-for-windows.svg)](https://github.com/BX-Team/Riven/releases/latest/download/Riven-Setup-x86_64.exe)
 [![Portable for Windows](https://raw.githubusercontent.com/NONPLAYT/badges/refs/heads/master/portable-for-windows.svg)](https://github.com/BX-Team/Riven/releases/latest/download/riven-x86_64-windows.zip)
 [![Download for macOS](https://raw.githubusercontent.com/NONPLAYT/badges/refs/heads/master/download-for-macos.svg)](https://github.com/BX-Team/Riven/releases/latest/download/Riven-macos.dmg)
 [![AppImage for Linux](https://raw.githubusercontent.com/NONPLAYT/badges/refs/heads/master/appimage-for-linux.svg)](https://github.com/BX-Team/Riven/releases/latest/download/Riven-x86_64.AppImage)
-[![Package for Debian and Ubuntu](https://raw.githubusercontent.com/NONPLAYT/badges/refs/heads/master/package-for-debian.svg)](https://github.com/BX-Team/Riven/releases/download/v1.1.1/riven_1.1.1_amd64.deb)
-[![Package for Fedora](https://raw.githubusercontent.com/NONPLAYT/badges/refs/heads/master/package-for-fedora.svg)](https://github.com/BX-Team/Riven/releases/download/v1.1.1/riven-1.1.1-1.x86_64.rpm)
-[![Package for Arch Linux](https://raw.githubusercontent.com/NONPLAYT/badges/refs/heads/master/package-for-arch.svg)](https://github.com/BX-Team/Riven/releases/download/v1.1.1/riven-1.1.1-1-x86_64.pkg.tar.zst)
+[![Package for Debian and Ubuntu](https://raw.githubusercontent.com/NONPLAYT/badges/refs/heads/master/package-for-debian.svg)](https://github.com/BX-Team/Riven/releases/latest/download/riven-amd64.deb)
+[![Package for Fedora](https://raw.githubusercontent.com/NONPLAYT/badges/refs/heads/master/package-for-fedora.svg)](https://github.com/BX-Team/Riven/releases/latest/download/riven-x86_64.rpm)
+[![Package for Arch Linux](https://raw.githubusercontent.com/NONPLAYT/badges/refs/heads/master/package-for-arch.svg)](https://github.com/BX-Team/Riven/releases/latest/download/riven-x86_64.pkg.tar.zst)
 [![Run with Nix](https://raw.githubusercontent.com/NONPLAYT/badges/refs/heads/master/run-with-nix.svg)](#nix)
 
-**ARM64 Linux:** [AppImage](https://github.com/BX-Team/Riven/releases/latest/download/Riven-aarch64.AppImage) · [.deb](https://github.com/BX-Team/Riven/releases/download/v1.1.1/riven_1.1.1_arm64.deb) · [.rpm](https://github.com/BX-Team/Riven/releases/download/v1.1.1/riven-1.1.1-1.aarch64.rpm). Every file of every version is on the [Releases page](https://github.com/BX-Team/Riven/releases).
-<!-- /downloads -->
+**ARM64 Linux:** [AppImage](https://github.com/BX-Team/Riven/releases/latest/download/Riven-aarch64.AppImage) · [.deb](https://github.com/BX-Team/Riven/releases/latest/download/riven-arm64.deb) · [.rpm](https://github.com/BX-Team/Riven/releases/latest/download/riven-aarch64.rpm). Every file of every version is on the [Releases page](https://github.com/BX-Team/Riven/releases).
 
 The macOS app is not notarized: right-click → Open the first time.
 
