@@ -23,18 +23,23 @@ pub struct LogFile {
     pub modified: SystemTime,
 }
 
-/// `logs/*.log[.gz]` and `crash-reports/*.txt`, newest first.
+/// `logs/*.log[.gz]`, `crash-reports/*.txt` and the JVM's own `hs_err_pid*.log`, newest first.
 pub fn list(game_dir: &Path) -> Vec<LogFile> {
     let mut out = Vec::new();
-    for (folder, kind) in [("logs", LogKind::Log), ("crash-reports", LogKind::Crash)] {
+    for (folder, kind) in [
+        ("logs", LogKind::Log),
+        ("crash-reports", LogKind::Crash),
+        ("", LogKind::Crash),
+    ] {
         let Ok(entries) = std::fs::read_dir(game_dir.join(folder)) else {
             continue;
         };
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().into_owned();
-            let wanted = match kind {
-                LogKind::Log => name.ends_with(".log") || name.ends_with(".log.gz"),
-                LogKind::Crash => name.ends_with(".txt"),
+            let wanted = match (kind, folder) {
+                (LogKind::Log, _) => name.ends_with(".log") || name.ends_with(".log.gz"),
+                (LogKind::Crash, "") => name.starts_with("hs_err_pid") && name.ends_with(".log"),
+                (LogKind::Crash, _) => name.ends_with(".txt"),
             };
             let Ok(meta) = entry.metadata() else { continue };
             if !wanted || !meta.is_file() {

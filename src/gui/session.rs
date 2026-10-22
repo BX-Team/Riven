@@ -30,6 +30,8 @@ pub struct Session {
     pub log: VecDeque<(bool, SharedString)>,
     /// Why the pack could not be checked, shown under the status.
     pub notice: Option<SharedString>,
+    /// Why the game most likely crashed, once it exited.
+    pub crash: Option<riven_launch::crash::Diagnosis>,
     /// Stops the work while it has not started the game yet.
     abort: Option<runtime::Abort>,
     /// The instance's first pack install, which leaves nothing worth keeping when cancelled.
@@ -46,6 +48,7 @@ impl Session {
             },
             log: VecDeque::new(),
             notice: None,
+            crash: None,
             abort: None,
             fresh: false,
         }
@@ -97,7 +100,10 @@ impl Session {
                 }
                 self.log.push_back((stderr, text.into()));
             }
-            Progress::Exited { code, .. } => self.phase = Phase::Finished { code },
+            Progress::Exited { code, crash, .. } => {
+                self.phase = Phase::Finished { code };
+                self.crash = crash.map(|d| *d);
+            }
         }
     }
 }

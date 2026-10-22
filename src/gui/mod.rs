@@ -4,6 +4,7 @@ mod assets;
 mod changes;
 mod chrome;
 mod configs;
+mod crash;
 mod dev;
 mod dialogs;
 mod file_tree;

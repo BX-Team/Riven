@@ -42,6 +42,8 @@ pub struct LogsView {
     uploading: bool,
     /// The last paste of what is shown.
     pasted: Option<String>,
+    /// Why the game crashed, when a crash report is shown and tells.
+    diagnosis: Option<riven_launch::crash::Diagnosis>,
     _state: Subscription,
 }
 
@@ -82,6 +84,7 @@ impl LogsView {
             shown: 0,
             uploading: false,
             pasted: None,
+            diagnosis: None,
             _state,
         };
         view.read_file(true, cx);
@@ -139,7 +142,7 @@ impl LogsView {
         let path = self.path();
         let dir = self.game_dir.clone();
         cx.spawn(async move |this, cx| {
-            let (files, lines) = runtime::blocking(move || {
+            let (files, lines, diagnosis) = runtime::blocking(move || {
                 let lines = riven_launch::logs::read(&path)
                     .map(|text| {
                         text.lines()
@@ -147,13 +150,15 @@ impl LogsView {
                             .collect::<Vec<_>>()
                     })
                     .unwrap_or_default();
-                (riven_launch::logs::list(&dir), lines)
+                let files = riven_launch::logs::list(&dir);
+                (files, lines, super::crash::explain(dir, path))
             })
             .await
             .unwrap_or_default();
             let _ = this.update(cx, |this, cx| {
                 this.files = files;
                 this.file = Some(lines);
+                this.diagnosis = diagnosis;
                 if fresh {
                     this.shown = 0;
                 }
@@ -168,6 +173,7 @@ impl LogsView {
             self.source = source;
             self.file = None;
             self.pasted = None;
+            self.diagnosis = None;
             self.read_file(true, cx);
         }
     }
@@ -499,6 +505,12 @@ impl Render for LogsView {
                     .min_w_0()
                     .h_full()
                     .child(toolbar)
+                    .children(
+                        self.diagnosis
+                            .as_ref()
+                            .filter(|_| !live)
+                            .map(|d| super::crash::banner(&self.id, d, cx)),
+                    )
                     .child(body),
             )
     }
