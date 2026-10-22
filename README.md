@@ -80,7 +80,7 @@ Every command is described in the [documentation](https://bxteam.org/docs/riven)
 Run the launcher without installing:
 
 ```bash
-nix run --accept-flake-config github:BX-Team/Riven/v1.1.1
+nix run --accept-flake-config github:BX-Team/Riven/v1.2.0
 ```
 
 Releases are built for `x86_64-linux` and `aarch64-linux` and pushed to Cachix, so a tagged version downloads instead of compiling. `--accept-flake-config` lets Nix use the cache the flake names — if you are a trusted Nix user (`trusted-users`); otherwise Nix ignores it and compiles. Without a tag Nix takes `master`, which may not be in Cachix yet and then compiles from source.
