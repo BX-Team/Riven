@@ -1,8 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use gpui_kit::{
-    AnyElement, App, AppContext as _, Context, FontWeight, IntoElement, ParentElement as _, Render,
-    SharedString, Styled as _, Window, div, px, relative,
+    AnyElement, App, AppContext as _, Context, FontWeight, InteractiveElement as _, IntoElement,
+    ParentElement as _, Render, SharedString, StatefulInteractiveElement as _, Styled as _, Window,
+    div, px, relative,
 };
 use riven_launch::crash::{Cause, Dependency, Diagnosis, Native, Ticking, TickingKind, Vendor};
 use rust_i18n::t;
@@ -227,7 +228,12 @@ impl Render for CrashDialog {
         if let Some(t) = &self.diagnosis.ticking {
             parts.push(ticking(t, cx));
         }
-        let body = v_flex().gap(px(10.)).children(parts);
+        let body = v_flex()
+            .id("crash-details")
+            .max_h(px(380.))
+            .overflow_y_scroll()
+            .gap(px(10.))
+            .children(parts);
 
         let mut buttons = vec![
             Button::new("close")
