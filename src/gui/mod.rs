@@ -49,6 +49,9 @@ pub fn run(arg: Option<String>) -> ExitCode {
         links::Claim::Primary(listener) => links::serve(listener, tx.clone()),
         links::Claim::Alone => {}
     }
+    if let Some(open) = open {
+        let _ = tx.send(open);
+    }
     let app = gpui_kit::application().with_assets(assets::Assets);
     app.on_open_urls(move |urls| {
         for open in urls.iter().filter_map(|u| links::Open::parse(u)) {
@@ -71,9 +74,6 @@ pub fn run(arg: Option<String>) -> ExitCode {
         cx.activate(true);
         links::listen(rx, cx);
         links::register();
-        if let Some(open) = open {
-            cx.defer(move |cx| links::handle(open, cx));
-        }
     });
     ExitCode::SUCCESS
 }

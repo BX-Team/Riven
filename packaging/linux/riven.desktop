@@ -7,5 +7,5 @@ Icon=riven
 Terminal=false
 Categories=Game;
 Keywords=minecraft;modpack;launcher;mods;
-MimeType=x-scheme-handler/riven;application/x-riven-pack;
+MimeType=x-scheme-handler/riven;application/x-riven-pack;application/x-modrinth-modpack+zip;
 StartupWMClass=riven
