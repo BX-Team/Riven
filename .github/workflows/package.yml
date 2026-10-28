@@ -33,10 +33,10 @@ jobs:
         include:
           - arch: x86_64
             deb: amd64
-            os: ubuntu-22.04
+            os: blacksmith-4vcpu-ubuntu-2204
           - arch: aarch64
             deb: arm64
-            os: ubuntu-22.04-arm
+            os: blacksmith-4vcpu-ubuntu-2204-arm
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
@@ -151,7 +151,7 @@ jobs:
 
   windows:
     name: Windows
-    runs-on: windows-latest
+    runs-on: blacksmith-8vcpu-windows-2025
     permissions:
       contents: write
     steps:
