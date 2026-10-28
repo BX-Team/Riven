@@ -9,8 +9,8 @@ use gpui_kit::{
 use riven_format::MemoryMb;
 use rust_i18n::t;
 
-use super::theme::ActiveTheme as _;
-use super::ui::{W_SEMIBOLD, h_flex, v_flex};
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{W_SEMIBOLD, h_flex, v_flex};
 
 const FLOOR: u32 = 512;
 const STEP: u32 = 512;

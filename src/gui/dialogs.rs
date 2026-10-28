@@ -13,8 +13,8 @@ use rust_i18n::t;
 
 use super::runtime;
 use super::state::AppState;
-use super::theme::ActiveTheme as _;
-use super::ui::{Button, ButtonSize, TextField, h_flex, v_flex};
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{Button, ButtonSize, TextField, h_flex, v_flex};
 
 pub(super) fn loader_label(kind: Option<LoaderKind>) -> SharedString {
     match kind {
@@ -298,7 +298,7 @@ impl AddMicrosoft {
             if let Ok(code) = code_rx.await {
                 let _ = this.update(cx, |this, cx| {
                     let view = cx.entity_id();
-                    super::ui::copy::copy("ms-copy".into(), code.code.clone(), view, cx);
+                    moonglass::copy::copy("ms-copy".into(), code.code.clone(), view, cx);
                     cx.open_url(&code.url);
                     this.code = Some(code);
                     cx.notify();
@@ -334,9 +334,9 @@ impl Render for AddMicrosoft {
             (None, None) => h_flex()
                 .gap(px(10.))
                 .text_color(c.muted)
-                .child(super::ui::motion::spinner(
+                .child(moonglass::motion::spinner(
                     "ms-wait",
-                    super::ui::icon(super::ui::IconName::Loader, c.muted),
+                    moonglass::icon(moonglass::IconName::Loader, c.muted),
                     cx,
                 ))
                 .child(t!("accounts.ms_requesting").to_string())
@@ -363,11 +363,11 @@ impl Render for AddMicrosoft {
                         h_flex()
                             .gap(px(8.))
                             .child(
-                                super::ui::copy_button("ms-copy", move |_| text.clone(), cx)
+                                moonglass::copy_button("ms-copy", move |_| text.clone(), cx)
                                     .outline()
                                     .size(ButtonSize::Md)
                                     .flex_1()
-                                    .label(if super::ui::copy::copied("ms-copy", cx) {
+                                    .label(if moonglass::copy::copied("ms-copy", cx) {
                                         t!("accounts.ms_copied")
                                     } else {
                                         t!("accounts.ms_copy")
@@ -386,9 +386,9 @@ impl Render for AddMicrosoft {
                         h_flex()
                             .gap(px(10.))
                             .text_color(c.muted)
-                            .child(super::ui::motion::spinner(
+                            .child(moonglass::motion::spinner(
                                 "ms-wait",
-                                super::ui::icon(super::ui::IconName::Loader, c.muted),
+                                moonglass::icon(moonglass::IconName::Loader, c.muted),
                                 cx,
                             ))
                             .child(t!("accounts.ms_waiting").to_string()),

@@ -14,8 +14,8 @@ use riven_launch::java::{self, JavaInstall};
 use rust_i18n::t;
 
 use super::runtime;
-use super::theme::ActiveTheme as _;
-use super::ui::{
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{
     Button, ContainScroll as _, IconName, TextField, W_SEMIBOLD, h_flex, icon, motion, v_flex,
 };
 

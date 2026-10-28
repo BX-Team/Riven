@@ -5,8 +5,8 @@ use gpui_kit::{
     Styled as _, StyledText, UnderlineStyle, div, px, relative,
 };
 
-use super::theme::ActiveTheme as _;
-use super::ui::h_flex;
+use moonglass::h_flex;
+use moonglass::theme::ActiveTheme as _;
 
 /// A Modrinth project page with its description split into blocks once.
 pub struct Described {

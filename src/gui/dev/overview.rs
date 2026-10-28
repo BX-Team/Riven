@@ -8,8 +8,8 @@ use riven_format::{Entry, Group};
 use rust_i18n::t;
 
 use super::{DevView, dialogs};
-use crate::gui::theme::ActiveTheme as _;
-use crate::gui::ui::{Button, ButtonSize, IconName, Switch, h_flex, v_flex};
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{Button, ButtonSize, IconName, Switch, h_flex, v_flex};
 
 pub(super) fn section_head(
     title: SharedString,

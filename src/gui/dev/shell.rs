@@ -11,8 +11,8 @@ use super::git::{GitOp, Repo};
 use super::{Activity, Check, DevView, Panel, Tab, Updates, dialogs, display_path};
 use crate::gui::session::Phase;
 use crate::gui::state::{AppState, Route};
-use crate::gui::theme::ActiveTheme as _;
-use crate::gui::ui::{
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{
     ActionMenu, Button, ButtonSize, IconName, MenuEntry, h_flex, icon, motion, tooltip, v_flex,
 };
 
@@ -575,7 +575,7 @@ impl DevView {
                         icon(
                             IconName::Alert,
                             if problems > 0 {
-                                crate::gui::theme::danger()
+                                moonglass::theme::danger()
                             } else {
                                 c.muted
                             },
@@ -615,7 +615,7 @@ impl DevView {
                         (c.accent, crate::gui::launch_bar::stage_label(*stage))
                     }
                     Some(Phase::Failed(_)) => (
-                        crate::gui::theme::danger(),
+                        moonglass::theme::danger(),
                         t!("dev.test_failed").to_string(),
                     ),
                     _ => (c.muted, t!("dev.status_test_idle").to_string()),

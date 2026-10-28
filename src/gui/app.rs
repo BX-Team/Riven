@@ -8,14 +8,13 @@ use gpui_kit::{
 };
 use rust_i18n::t;
 
-use super::chrome;
 use super::dev::DevView;
 use super::instance::InstanceView;
 use super::launch_bar;
 use super::settings::SettingsView;
 use super::state::{AppState, Route};
-use super::theme::ActiveTheme as _;
-use super::ui::{self, Button, IconName, UiText as _, W_SEMIBOLD, caption, h_flex, icon, v_flex};
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{Button, IconName, UiText as _, W_SEMIBOLD, caption, h_flex, icon, v_flex};
 
 pub const SIDEBAR_WIDTH: f32 = 240.;
 
@@ -25,10 +24,19 @@ const KEY_CONTEXT: &str = "Riven";
 
 /// Binds the window-wide shortcuts.
 pub fn init(cx: &mut App) {
+    let mac = cfg!(target_os = "macos");
     cx.bind_keys([
         KeyBinding::new("escape", Back, Some(KEY_CONTEXT)),
-        KeyBinding::new("secondary-,", OpenSettings, Some(KEY_CONTEXT)),
-        KeyBinding::new("secondary-n", NewInstance, Some(KEY_CONTEXT)),
+        KeyBinding::new(
+            if mac { "cmd-," } else { "ctrl-," },
+            OpenSettings,
+            Some(KEY_CONTEXT),
+        ),
+        KeyBinding::new(
+            if mac { "cmd-n" } else { "ctrl-n" },
+            NewInstance,
+            Some(KEY_CONTEXT),
+        ),
     ]);
 }
 
@@ -155,7 +163,7 @@ impl RivenApp {
     }
 
     /// Gives a new modal focus unless its view already took it, so Escape closes it.
-    fn focus_modal(&mut self, modal: Option<&ui::Modal>, window: &mut Window, cx: &mut App) {
+    fn focus_modal(&mut self, modal: Option<&moonglass::Modal>, window: &mut Window, cx: &mut App) {
         if window.focused(cx).is_none() {
             self.focus.focus(window, cx);
         }
@@ -266,7 +274,7 @@ impl RivenApp {
                 .on_click(|_, window, cx| super::new_instance::open(window, cx))
                 .into_any_element(),
         );
-        let list = ui::motion::highlighted(
+        let list = moonglass::motion::highlighted(
             "sidebar",
             v_flex().gap(px(2.)),
             rows,
@@ -325,7 +333,7 @@ impl RivenApp {
             .child(
                 Button::new("empty-new")
                     .primary()
-                    .size(ui::ButtonSize::Md)
+                    .size(moonglass::ButtonSize::Md)
                     .icon(IconName::Plus)
                     .label(t!("sidebar.new_instance"))
                     .mt(px(8.))
@@ -362,13 +370,11 @@ fn drop_zone(cx: &App) -> impl IntoElement {
             if matches!(ext.as_str(), "riven" | "mrpack" | "zip") {
                 super::new_instance::open_file(path, window, cx);
             } else {
-                AppState::global(cx).update(cx, |s, cx| {
-                    s.toast(
-                        super::toast::ToastKind::Error,
-                        t!("new_instance.bad_file").to_string(),
-                        cx,
-                    )
-                });
+                moonglass::toast::show(
+                    moonglass::toast::ToastKind::Error,
+                    t!("new_instance.bad_file").to_string(),
+                    cx,
+                );
             }
         })
         .child(
@@ -407,7 +413,7 @@ fn full() -> gpui_kit::StyleRefinement {
     gpui_kit::StyleRefinement::default().size_full()
 }
 
-/// A 30 px list row of the left column; the selected one sits on a [`ui::motion::highlighted`] list.
+/// A 30 px list row of the left column; the selected one sits on a [`moonglass::motion::highlighted`] list.
 pub fn nav_row(
     id: impl Into<gpui_kit::ElementId>,
     active: bool,
@@ -417,8 +423,8 @@ pub fn nav_row(
     let c = cx.theme().colors;
     let id: gpui_kit::ElementId = id.into();
     let key = format!("nav:{id}");
-    let hover = ui::motion::hover(SharedString::from(format!("{key}:hover")), window, cx);
-    let bg = ui::motion::animate(
+    let hover = moonglass::motion::hover(SharedString::from(format!("{key}:hover")), window, cx);
+    let bg = moonglass::motion::animate(
         SharedString::from(format!("{key}:bg")),
         if hover.on && !active {
             c.row
@@ -491,7 +497,7 @@ pub fn placeholder(
 
 impl Render for RivenApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        super::theme::tick(window, cx);
+        moonglass::theme::tick(window, cx);
         let c = cx.theme().colors;
         let st = self.state.read(cx);
         let route = st.route.clone();
@@ -509,10 +515,12 @@ impl Render for RivenApp {
             _ => None,
         };
         let actions = self.render_actions(cx);
-        let title_bar = chrome::title_bar(actions, window, cx);
+        let title_bar = moonglass::TitleBar::new("Riven Launcher")
+            .logo(super::assets::LOGO)
+            .actions(actions);
         let route_key = SharedString::from(format!("route:{route:?}"));
         let body = if matches!(route, Route::Settings | Route::Developer) {
-            ui::motion::enter(
+            moonglass::motion::enter(
                 route_key,
                 div().size_full().child(self.render_content(cx)),
                 8.,
@@ -524,7 +532,7 @@ impl Render for RivenApp {
                 .size_full()
                 .items_start()
                 .child(self.render_sidebar(window, cx))
-                .child(ui::motion::enter(
+                .child(moonglass::motion::enter(
                     route_key,
                     div()
                         .flex_1()
@@ -542,16 +550,16 @@ impl Render for RivenApp {
             cx.defer(move |cx| {
                 state.update(cx, |s, cx| {
                     if let Some(e) = s.error.take() {
-                        s.toast(super::toast::ToastKind::Error, e, cx);
+                        moonglass::toast::show(moonglass::toast::ToastKind::Error, e, cx);
                     }
                 })
             });
         }
         let toast_bottom = if bar.is_some() { 88. } else { 16. };
-        let toasts = super::toast::render(&self.state, toast_bottom, window, cx);
+        let toasts = moonglass::toast::render(toast_bottom, window, cx);
         let state = self.state.clone();
         let back = self.state.clone();
-        let edges = chrome::resize_edges(window);
+        let edges = moonglass::chrome::resize_edges(window);
         v_flex()
             .relative()
             .size_full()
@@ -572,7 +580,7 @@ impl Render for RivenApp {
             .when_some(modal, |root, m| {
                 // The dialog is deferred above this layer; without it hover and scroll reach the screen.
                 root.child(div().absolute().inset_0().occlude())
-                    .child(ui::modal(
+                    .child(moonglass::modal(
                         &m,
                         move |_, cx| state.update(cx, |s, cx| s.close_modal(cx)),
                         window,
@@ -584,7 +592,7 @@ impl Render for RivenApp {
             .child(back_button(back, self.dev.clone()))
             .when_some(context, |root, menu| {
                 let state = self.state.clone();
-                root.child(ui::context_menu(
+                root.child(moonglass::context_menu(
                     &menu,
                     move |_, cx| state.update(cx, |s, cx| s.close_context_menu(cx)),
                     window,

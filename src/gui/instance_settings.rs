@@ -21,8 +21,8 @@ use super::memory_slider::MemorySlider;
 use super::runtime;
 use super::settings::Tweak;
 use super::state::AppState;
-use super::theme::ActiveTheme as _;
-use super::ui::{
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{
     self, Button, ButtonSize, Dropdown, IconName, MenuItem, Section, Switch, TextArea, TextField,
     W_SEMIBOLD, h_flex, icon, motion, setting_row, v_flex,
 };
@@ -207,7 +207,7 @@ impl InstanceSettings {
             (
                 Group::JvmArgs,
                 t!("settings.jvm_args").into(),
-                Input::Area(ui::textarea(
+                Input::Area(moonglass::textarea(
                     effective.jvm_args.join(" "),
                     (3, 12),
                     window,
@@ -227,7 +227,7 @@ impl InstanceSettings {
             (
                 Group::Commands,
                 t!("instance_settings.pre_launch").into(),
-                Input::Area(ui::textarea(
+                Input::Area(moonglass::textarea(
                     commands.pre_launch.clone().unwrap_or_default(),
                     (3, 12),
                     window,
@@ -237,7 +237,7 @@ impl InstanceSettings {
             (
                 Group::Commands,
                 t!("instance_settings.post_exit").into(),
-                Input::Area(ui::textarea(
+                Input::Area(moonglass::textarea(
                     commands.post_exit.clone().unwrap_or_default(),
                     (3, 12),
                     window,
@@ -1037,8 +1037,8 @@ impl InstanceSettings {
         };
         AppState::global(cx).update(cx, |s, cx| {
             s.install_pack(&id, request, cx);
-            s.toast(
-                super::toast::ToastKind::Info,
+            moonglass::toast::show(
+                moonglass::toast::ToastKind::Info,
                 t!("instance_settings.pack_applying"),
                 cx,
             );
@@ -1189,7 +1189,7 @@ impl InstanceSettings {
                                     .child(source),
                             )
                             .child(
-                                ui::copy_button("pack-copy", move |_| copy.clone(), cx)
+                                moonglass::copy_button("pack-copy", move |_| copy.clone(), cx)
                                     .ghost()
                                     .size(ButtonSize::Xs),
                             ),
@@ -1378,7 +1378,7 @@ impl InstanceSettings {
     /// Deleting sits apart at the bottom of the side bar, away from everyday settings.
     fn render_delete(&self, cx: &mut Context<Self>) -> AnyElement {
         let c = cx.theme().colors;
-        let danger = super::theme::danger();
+        let danger = moonglass::theme::danger();
         let busy = AppState::global(cx)
             .read(cx)
             .sessions
@@ -1396,7 +1396,7 @@ impl InstanceSettings {
             .child(t!("instance.delete").to_string())
             .map(|row| {
                 if busy {
-                    row.tooltip(ui::tooltip(t!("instance.delete_running").into()))
+                    row.tooltip(moonglass::tooltip(t!("instance.delete_running").into()))
                 } else {
                     row.cursor_pointer()
                         .hover(move |s| s.bg(danger.opacity(0.12)))

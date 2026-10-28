@@ -8,8 +8,8 @@ use riven_format::Changes;
 use rust_i18n::t;
 
 use super::state::AppState;
-use super::theme::ActiveTheme as _;
-use super::ui::{Button, ButtonSize, v_flex};
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{Button, ButtonSize, v_flex};
 
 /// "What's new": the author's notes and the content an update to `version` changed.
 pub fn open(version: String, changes: Changes, cx: &mut App) {

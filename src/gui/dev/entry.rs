@@ -13,8 +13,8 @@ use rust_i18n::t;
 
 use super::DevView;
 use super::content::side_label;
-use crate::gui::theme::ActiveTheme as _;
-use crate::gui::ui::{Button, IconName, Switch, h_flex, icon, motion, tile, v_flex};
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{Button, IconName, Switch, h_flex, icon, motion, tile, v_flex};
 
 /// Versions an entry page lists at most.
 const VERSIONS: usize = 200;
@@ -245,7 +245,7 @@ impl DevView {
                     .rounded(px(0.))
                     .border_l_1()
                     .border_color(c.border)
-                    .text_color(crate::gui::theme::danger())
+                    .text_color(moonglass::theme::danger())
                     .label(t!("dev.remove"))
                     .on_click(cx.listener(move |this, _, window, cx| {
                         this.remove_entry(&remove_id, window, cx)

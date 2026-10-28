@@ -14,8 +14,8 @@ use super::memory_slider::MemorySlider;
 use super::new_instance::Mode;
 use super::settings::{prefs, reapply_theme, theme_picker, write};
 use super::state::AppState;
-use super::theme::{self, ActiveTheme as _};
-use super::ui::{
+use moonglass::theme::{self, ActiveTheme as _};
+use moonglass::{
     Button, ButtonSize, Dropdown, IconName, MenuItem, W_SEMIBOLD, h_flex, icon, motion, v_flex,
 };
 
@@ -93,7 +93,7 @@ impl Welcome {
                     Some(s.language.clone().unwrap_or("system".into()).into()),
                     |v, _, cx| {
                         let lang = (v.as_ref() != "system").then(|| v.to_string());
-                        super::set_language(lang.as_deref());
+                        super::set_language(lang.as_deref(), cx);
                         write(cx, |s| s.language = lang);
                         cx.refresh_windows();
                     },

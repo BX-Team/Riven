@@ -13,9 +13,9 @@ use super::launch_bar::progress_bar;
 use super::markdown::{self, Block};
 use super::runtime;
 use super::state::AppState;
-use super::theme::ActiveTheme as _;
-use super::toast::ToastKind;
-use super::ui::{Button, ButtonSize, IconName, v_flex};
+use moonglass::theme::ActiveTheme as _;
+use moonglass::toast::ToastKind;
+use moonglass::{Button, ButtonSize, IconName, v_flex};
 
 /// Where the search for a new Riven stands.
 #[derive(Debug, Clone, Default)]
@@ -63,7 +63,7 @@ impl AppState {
                     Ok(Some(release)) => Update::Available(release),
                     Ok(None) => {
                         if manual {
-                            s.toast(
+                            moonglass::toast::show(
                                 ToastKind::Success,
                                 t!("update.latest", version = update::CURRENT),
                                 cx,
@@ -74,7 +74,11 @@ impl AppState {
                     Err(e) => {
                         tracing::warn!("update check failed: {e}");
                         if manual {
-                            s.toast(ToastKind::Error, t!("update.check_failed", error = e), cx);
+                            moonglass::toast::show(
+                                ToastKind::Error,
+                                t!("update.check_failed", error = e),
+                                cx,
+                            );
                         }
                         before
                     }
@@ -253,7 +257,7 @@ impl Render for UpdateDialog {
             ),
             Update::Failed { error, .. } => Some(
                 div()
-                    .text_color(super::theme::danger())
+                    .text_color(moonglass::theme::danger())
                     .line_height(relative(1.5))
                     .child(t!("update.failed", error = error).to_string())
                     .into_any_element(),

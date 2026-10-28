@@ -8,7 +8,7 @@ use rust_i18n::t;
 use super::{DevView, Panel, dialogs};
 use crate::gui::session::Phase;
 use crate::gui::state::{AppState, Route};
-use crate::gui::ui::{Button, IconName, h_flex};
+use moonglass::{Button, IconName, h_flex};
 
 /// The test instance id; ids made from names never contain `_`, so it cannot clash with one.
 pub(super) fn test_id(pack: &str) -> String {

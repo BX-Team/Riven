@@ -8,8 +8,8 @@ use gpui_kit::{
     Styled as _, UniformListScrollHandle, Window, div, px, uniform_list,
 };
 
-use super::theme::ActiveTheme as _;
-use super::ui::{IconName, h_flex, icon, scrollbar};
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{IconName, h_flex, icon, scrollbar};
 
 const ROW: f32 = 26.;
 
@@ -332,7 +332,7 @@ pub fn scan(root: &Path, tops: &[&str]) -> Vec<Node> {
     out
 }
 
-pub fn open_menu(position: Point<Pixels>, entries: Vec<super::ui::MenuEntry>, cx: &mut App) {
+pub fn open_menu(position: Point<Pixels>, entries: Vec<moonglass::MenuEntry>, cx: &mut App) {
     super::state::AppState::global(cx)
         .update(cx, |s, cx| s.open_context_menu(position, entries, cx));
 }

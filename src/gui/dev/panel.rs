@@ -11,8 +11,8 @@ use super::{Check, DevView, Panel, Tab};
 use crate::gui::logs::display_line;
 use crate::gui::session::Phase;
 use crate::gui::state::AppState;
-use crate::gui::theme::ActiveTheme as _;
-use crate::gui::ui::{Button, ButtonSize, IconName, h_flex, icon, motion, scrollbar, v_flex};
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{Button, ButtonSize, IconName, h_flex, icon, motion, scrollbar, v_flex};
 
 const ROW: f32 = 18.;
 const HEADER: f32 = 39.;
@@ -213,7 +213,7 @@ impl DevView {
                 vec![self.status_row(true, c.muted, t!("dev.checking").to_string(), cx)]
             }
             Check::Failed(e) => {
-                vec![line("✕", crate::gui::theme::danger(), e.to_string()).into_any_element()]
+                vec![line("✕", moonglass::theme::danger(), e.to_string()).into_any_element()]
             }
             Check::Done(report) => {
                 let n = self
@@ -224,12 +224,12 @@ impl DevView {
                     .issues
                     .iter()
                     .map(|text| {
-                        line("✕", crate::gui::theme::danger(), text.clone()).into_any_element()
+                        line("✕", moonglass::theme::danger(), text.clone()).into_any_element()
                     })
                     .collect();
                 out.extend(report.problems.iter().enumerate().map(|(i, problem)| {
                     let id = problem.entry().to_owned();
-                    line("✕", crate::gui::theme::danger(), problem.to_string())
+                    line("✕", moonglass::theme::danger(), problem.to_string())
                         .id(("dev-problem", i))
                         .px(px(4.))
                         .rounded(px(4.))
@@ -316,7 +316,7 @@ impl DevView {
             .when(!hidden, |row| row.border_b_1().border_color(c.border))
             .child(
                 tab(Panel::Problems, check_label, cx).when(problems > 0 && hidden, |t| {
-                    t.text_color(crate::gui::theme::danger())
+                    t.text_color(moonglass::theme::danger())
                 }),
             )
             .child(tab(Panel::Output, t!("dev.output").into(), cx))

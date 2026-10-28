@@ -8,13 +8,11 @@ use gpui_kit::{
 use riven_format::PackPath;
 use rust_i18n::t;
 
-use super::highlight::{self, Flavor, ThemeStyles};
 use super::{DevView, OVERRIDES, OpenFile, PROJECT_FILE, Tab, dialogs};
 use crate::gui::file_tree::{Node, TreeEvent, is_image};
-use crate::gui::theme::ActiveTheme as _;
-use crate::gui::ui::{
-    Button, ButtonSize, IconName, MenuEntry, caption, h_flex, icon, motion, v_flex,
-};
+use moonglass::code::{self as highlight, Flavor, ThemeStyles};
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{Button, ButtonSize, IconName, MenuEntry, caption, h_flex, icon, motion, v_flex};
 
 const TREE_ROW: f32 = 26.;
 
@@ -581,7 +579,7 @@ impl DevView {
                             .text_size(px(12.))
                             .text_color(c.muted)
                             .cursor_pointer()
-                            .tooltip(crate::gui::ui::tooltip(t!("dev.font_reset").into()))
+                            .tooltip(moonglass::tooltip(t!("dev.font_reset").into()))
                             .on_click(cx.listener(|this, _, _, cx| this.zoom_editor(0, cx)))
                             .child(format!("{font}")),
                     )
@@ -627,7 +625,7 @@ impl DevView {
                     .text_color(c.text)
                     .on_key_down(cx.listener(move |this, event: &KeyDownEvent, _, cx| {
                         let key = &event.keystroke;
-                        if !key.modifiers.secondary() {
+                        if !key.modifiers.secondary(cx) {
                             return;
                         }
                         let zoom = match key.key.as_str() {

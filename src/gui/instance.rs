@@ -22,9 +22,9 @@ use super::logs::LogsView;
 use super::mods::{self, Identified, ModRow, ModsTable, Origin, SortBy};
 use super::runtime;
 use super::state::AppState;
-use super::theme::ActiveTheme as _;
 use super::time;
-use super::ui::{
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{
     ActionMenu, Button, IconName, MenuEntry, Switch, Tabs, TextField, h_flex, icon, motion,
     scrollbar, tooltip, v_flex,
 };

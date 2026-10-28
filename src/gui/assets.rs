@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 
 use gpui_kit::{AssetSource, Result, SharedString};
+use moonglass::IconName;
+use riven_format::LoaderKind;
 
 macro_rules! icons {
     ($($name:literal),* $(,)?) => {
@@ -11,54 +13,11 @@ macro_rules! icons {
 }
 
 icons!(
-    "alert",
-    "arrow-down",
-    "arrow-left",
-    "arrow-up",
-    "check",
-    "chevron-down",
-    "chevron-right",
-    "chevron-up",
-    "close",
-    "code",
-    "compass",
-    "copy",
-    "external-link",
-    "file",
-    "file-plus",
-    "folder",
-    "folder-plus",
-    "git-branch",
-    "history",
-    "image",
-    "layout-grid",
-    "loader",
     "loader-fabric",
     "loader-forge",
     "loader-neoforge",
     "loader-quilt",
     "loader-vanilla",
-    "lock",
-    "more",
-    "package",
-    "panel-bottom",
-    "panel-left",
-    "panel-right",
-    "play",
-    "plus",
-    "power",
-    "refresh",
-    "search",
-    "settings",
-    "stop",
-    "tag",
-    "terminal",
-    "trash",
-    "upload",
-    "window-close",
-    "window-maximize",
-    "window-minimize",
-    "window-restore",
 );
 
 /// The launcher's own picture, drawn in lists and the About page.
@@ -74,36 +33,55 @@ pub const MIME_INFO: &str = include_str!("../../packaging/linux/riven-mime.xml")
 #[cfg(target_os = "linux")]
 pub const ICON_512: &[u8] = include_bytes!("../../assets/brand/riven-512.png");
 
-/// The icons drawn for the design, embedded in the binary.
+/// A loader's mark; `None` is vanilla.
+pub fn loader_icon(kind: Option<LoaderKind>) -> IconName {
+    IconName::Custom(match kind {
+        None => "icons/loader-vanilla.svg",
+        Some(LoaderKind::Fabric) => "icons/loader-fabric.svg",
+        Some(LoaderKind::Forge) => "icons/loader-forge.svg",
+        Some(LoaderKind::NeoForge) => "icons/loader-neoforge.svg",
+        Some(LoaderKind::Quilt) => "icons/loader-quilt.svg",
+    })
+}
+
+/// The launcher's own icons and pictures, then moonglass's.
 pub struct Assets;
 
 impl AssetSource for Assets {
     fn load(&self, path: &str) -> Result<Option<Cow<'static, [u8]>>> {
-        Ok(ICONS
-            .iter()
-            .chain(BRAND)
-            .find(|(p, _)| *p == path)
-            .map(|(_, bytes)| Cow::Borrowed(*bytes)))
+        match ICONS.iter().chain(BRAND).find(|(p, _)| *p == path) {
+            Some((_, bytes)) => Ok(Some(Cow::Borrowed(*bytes))),
+            None => moonglass::Assets.load(path),
+        }
     }
 
     fn list(&self, path: &str) -> Result<Vec<SharedString>> {
-        Ok(ICONS
+        let mut out: Vec<SharedString> = ICONS
             .iter()
             .chain(BRAND)
             .filter(|(p, _)| p.starts_with(path))
             .map(|(p, _)| (*p).into())
-            .collect())
+            .collect();
+        out.extend(moonglass::Assets.list(path)?);
+        Ok(out)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::ui::IconName;
+    use riven_format::LoaderKind;
 
     #[test]
-    fn every_icon_is_embedded() {
-        for icon in IconName::ALL {
-            let path = icon.path();
+    fn every_loader_icon_is_embedded() {
+        let kinds = [
+            None,
+            Some(LoaderKind::Fabric),
+            Some(LoaderKind::Forge),
+            Some(LoaderKind::NeoForge),
+            Some(LoaderKind::Quilt),
+        ];
+        for kind in kinds {
+            let path = super::loader_icon(kind).path();
             assert!(
                 super::ICONS.iter().any(|(p, _)| *p == path),
                 "{path} is missing from the icons! list"

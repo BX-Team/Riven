@@ -5,7 +5,7 @@ use riven_format::{Account, Accounts, Instance, Settings};
 use riven_launch::instances::Instances;
 
 use super::session::Session;
-use super::ui::{ContextMenu, MenuEntry, Modal};
+use moonglass::{ContextMenu, MenuEntry, Modal};
 
 /// The screen shown next to the sidebar.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,8 +45,6 @@ pub struct AppState {
     /// `(read, to read)` while an instance's content files are hashed, by instance id.
     pub scans: HashMap<String, (usize, usize)>,
     pub(super) ticking: bool,
-    pub(super) toasts: Vec<super::toast::Toast>,
-    pub(super) toast_serial: u64,
     pub update: super::updater::Update,
 }
 
@@ -168,8 +166,6 @@ impl AppState {
             modpack_updates: HashMap::new(),
             revisions: HashMap::new(),
             ticking: false,
-            toasts: Vec::new(),
-            toast_serial: 0,
             update: Default::default(),
         }
     }
@@ -313,7 +309,7 @@ impl AppState {
         cx.notify();
         cx.spawn(async move |this, cx| {
             cx.background_executor()
-                .timer(super::ui::motion::EXIT)
+                .timer(moonglass::motion::EXIT)
                 .await;
             let _ = this.update(cx, |s, cx| {
                 if s.modal.as_ref().is_some_and(|m| m.serial == serial) {

@@ -15,8 +15,8 @@ use rust_i18n::t;
 
 use super::DevView;
 use super::overview::section_head;
-use crate::gui::theme::ActiveTheme as _;
-use crate::gui::ui::{
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{
     ActionMenu, Button, ButtonSize, Dropdown, IconName, MenuEntry, MenuItem, Switch, TextArea,
     TextField, caption, h_flex, textarea, v_flex,
 };
@@ -541,7 +541,7 @@ impl DevView {
                             .child(key.clone()),
                     )
                     .child(
-                        crate::gui::ui::copy_button("copy-key", move |_| copy.clone(), cx)
+                        moonglass::copy_button("copy-key", move |_| copy.clone(), cx)
                             .ghost()
                             .size(ButtonSize::Xs)
                             .tooltip(t!("dev.copy_key")),
@@ -667,7 +667,7 @@ impl DevView {
                         let color = match mark {
                             "+" => c.ok,
                             "~" => c.warn,
-                            _ => crate::gui::theme::danger(),
+                            _ => moonglass::theme::danger(),
                         };
                         h_flex()
                             .gap(px(8.))
@@ -874,7 +874,7 @@ impl DevView {
                                 .child(link),
                         )
                         .child(
-                            crate::gui::ui::copy_button("copy-link", move |_| copy.clone(), cx)
+                            moonglass::copy_button("copy-link", move |_| copy.clone(), cx)
                                 .ghost()
                                 .size(ButtonSize::Xs)
                                 .tooltip(t!("dev.copy")),

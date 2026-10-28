@@ -15,8 +15,8 @@ use super::java_picker::JavaPicker;
 use super::memory_slider::MemorySlider;
 use super::runtime;
 use super::state::AppState;
-use super::theme::{self, ActiveTheme as _};
-use super::ui::{
+use moonglass::theme::{self, ActiveTheme as _};
+use moonglass::{
     self, Button, ButtonSize, Dropdown, IconName, MenuItem, Section, Switch, TextArea, TextField,
     W_SEMIBOLD, caption, h_flex, icon, setting_block, setting_row, v_flex,
 };
@@ -291,7 +291,7 @@ pub(super) fn write(cx: &mut App, edit: impl FnOnce(&mut Prefs)) {
 
 pub(super) fn reapply_theme(cx: &mut App) {
     let appearance = prefs(cx).appearance.clone();
-    theme::apply(&appearance, None, cx);
+    super::apply_theme(&appearance, None, cx);
 }
 
 impl SettingsView {
@@ -313,7 +313,7 @@ impl SettingsView {
         }
         let mut areas = Vec::new();
         for kind in AREAS {
-            let area = ui::textarea(kind.read(prefs(cx)), (3, 12), window, cx);
+            let area = moonglass::textarea(kind.read(prefs(cx)), (3, 12), window, cx);
             subs.push(cx.subscribe(&area, move |_, area, event, cx| {
                 if let InputEvent::Blur = event {
                     let value = area.read(cx).value().trim().to_string();
@@ -444,7 +444,7 @@ impl SettingsView {
             })
             .collect();
         let selected = PAGES.iter().position(|p| *p == self.page);
-        let pages = ui::motion::highlighted(
+        let pages = moonglass::motion::highlighted(
             "settings-nav",
             v_flex().gap(px(2.)),
             pages,
@@ -510,7 +510,7 @@ impl SettingsView {
                         Some(s.language.clone().unwrap_or("system".into()).into()),
                         |v, _, cx| {
                             let lang = (v.as_ref() != "system").then(|| v.to_string());
-                            super::set_language(lang.as_deref());
+                            super::set_language(lang.as_deref(), cx);
                             write(cx, |s| s.language = lang);
                             cx.refresh_windows();
                         },
@@ -924,7 +924,7 @@ impl SettingsView {
                         .on_click(|_, _, cx| cx.open_url(REPOSITORY)),
                 )
                 .child(
-                    ui::copy_button("copy-info", move |_| report.clone(), cx)
+                    moonglass::copy_button("copy-info", move |_| report.clone(), cx)
                         .size(ButtonSize::Md)
                         .label(t!("about.copy")),
                 )
@@ -1006,7 +1006,11 @@ fn build_facts(window: &Window) -> Vec<(String, String)> {
         ),
         (
             t!("about.toolkit").into(),
-            format!("gpui-kit {} (gpui-base)", env!("RIVEN_GPUI_KIT")),
+            format!(
+                "gpui-kit {} · moonglass {}",
+                env!("RIVEN_GPUI_KIT"),
+                moonglass::VERSION
+            ),
         ),
         (t!("about.renderer").into(), renderer),
         (t!("about.license").into(), env!("CARGO_PKG_LICENSE").into()),
@@ -1131,7 +1135,7 @@ impl Render for SettingsView {
             Page::About => self.about(window, cx),
         };
         let page_id = self.page as usize;
-        let title = ui::motion::enter_nth(
+        let title = moonglass::motion::enter_nth(
             ("settings-title", page_id),
             div()
                 .text_size(px(22.))
@@ -1146,7 +1150,7 @@ impl Render for SettingsView {
             .into_iter()
             .enumerate()
             .map(|(i, card)| {
-                ui::motion::enter_nth(
+                moonglass::motion::enter_nth(
                     ("settings-card", page_id * 100 + i),
                     div().child(card),
                     10.,

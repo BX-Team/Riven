@@ -2,7 +2,6 @@ mod add_mods;
 mod app;
 mod assets;
 mod changes;
-mod chrome;
 mod configs;
 mod crash;
 mod dev;
@@ -23,16 +22,14 @@ mod screenshots;
 mod session;
 mod settings;
 mod state;
-mod theme;
 mod time;
-mod toast;
-mod ui;
 mod updater;
 mod welcome;
 
 use std::process::ExitCode;
 
-use gpui_kit::{App, Bounds, WindowBounds, WindowOptions, px, size};
+use gpui_kit::{App, Bounds, Window, WindowBounds, WindowOptions, px, size};
+use riven_format::{Appearance, ThemeMode};
 
 use state::AppState;
 
@@ -60,13 +57,13 @@ pub fn run(arg: Option<String>) -> ExitCode {
     });
     app.run(move |cx| {
         gpui_kit::init(cx);
-        theme::init(cx);
+        moonglass::init(cx);
         dev::init(cx);
         app::init(cx);
         let state = AppState::init(cx);
         let settings = state.read(cx).settings.clone();
-        set_language(settings.language.as_deref());
-        theme::apply(&settings.appearance, None, cx);
+        set_language(settings.language.as_deref(), cx);
+        apply_theme(&settings.appearance, None, cx);
         if settings.reduce_motion {
             cx.set_reduce_motion(true);
         }
@@ -84,7 +81,7 @@ fn open_main_window(cx: &mut App) {
         window_bounds: Some(WindowBounds::Windowed(bounds)),
         window_min_size: Some(size(px(960.), px(600.))),
         app_id: Some("riven".into()),
-        ..chrome::window_options()
+        ..moonglass::chrome::window_options()
     };
     let opened = gpui_kit::open_window(options, cx, |window, cx| {
         window.set_window_title("Riven Launcher");
@@ -97,11 +94,27 @@ fn open_main_window(cx: &mut App) {
 }
 
 /// Picks the UI language: the saved one, else the system's when we have it, else English.
-pub fn set_language(saved: Option<&str>) {
+pub fn set_language(saved: Option<&str>, cx: &mut App) {
     let system = sys_locale::get_locale().unwrap_or_default();
     let lang = match saved.unwrap_or(&system) {
         l if l.starts_with("ru") => "ru-RU",
         _ => "en-US",
     };
     rust_i18n::set_locale(lang);
+    moonglass::set_labels(
+        moonglass::Labels {
+            clear: rust_i18n::t!("common.clear").into(),
+        },
+        cx,
+    );
+}
+
+/// Switches to the theme the settings pick for the current light or dark mode.
+pub fn apply_theme(appearance: &Appearance, window: Option<&mut Window>, cx: &mut App) {
+    let mode = match appearance.mode {
+        ThemeMode::System => moonglass::ThemeMode::System,
+        ThemeMode::Light => moonglass::ThemeMode::Light,
+        ThemeMode::Dark => moonglass::ThemeMode::Dark,
+    };
+    moonglass::theme::apply(mode, &appearance.dark, &appearance.light, window, cx);
 }

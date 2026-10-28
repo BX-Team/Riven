@@ -9,9 +9,9 @@ use riven_launch::crash::{Cause, Dependency, Diagnosis, Native, Ticking, Ticking
 use rust_i18n::t;
 
 use super::state::AppState;
-use super::theme::ActiveTheme as _;
-use super::toast::ToastKind;
-use super::ui::{Button, ButtonSize, h_flex, v_flex};
+use moonglass::theme::ActiveTheme as _;
+use moonglass::toast::ToastKind;
+use moonglass::{Button, ButtonSize, h_flex, v_flex};
 
 /// One line for the launch bar: what most likely went wrong.
 pub fn summary(cause: &Cause) -> SharedString {
@@ -199,10 +199,10 @@ fn disable(id: &str, file: &Path, name: &str, cx: &mut App) {
     state.update(cx, |s, cx| match result {
         Ok(()) => {
             *s.revisions.entry(id.to_owned()).or_default() += 1;
-            s.toast(ToastKind::Success, t!("crash.disabled", name = name), cx);
+            moonglass::toast::show(ToastKind::Success, t!("crash.disabled", name = name), cx);
             s.close_modal(cx);
         }
-        Err(e) => s.toast(ToastKind::Error, e.to_string(), cx),
+        Err(e) => moonglass::toast::show(ToastKind::Error, e.to_string(), cx),
     });
 }
 

@@ -9,11 +9,11 @@ use gpui_kit::{
 };
 use rust_i18n::t;
 
-use super::dev::highlight::{self, Flavor, ThemeStyles};
 use super::file_tree::{self, FileTree, Node, TreeEvent, is_image};
 use super::runtime;
-use super::theme::ActiveTheme as _;
-use super::ui::{Button, ButtonSize, IconName, MenuEntry, h_flex, icon, v_flex};
+use moonglass::code::{self as highlight, Flavor, ThemeStyles};
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{Button, ButtonSize, IconName, MenuEntry, h_flex, icon, v_flex};
 
 /// What the tab lists from the game folder.
 const TOPS: [&str; 4] = ["config", "defaultconfigs", "kubejs", "options.txt"];
@@ -357,7 +357,7 @@ impl ConfigsView {
                             .text_color(c.text)
                             .on_key_down(cx.listener(|this, event: &KeyDownEvent, _, cx| {
                                 let key = &event.keystroke;
-                                if key.modifiers.secondary() && key.key == "s" {
+                                if key.modifiers.secondary(cx) && key.key == "s" {
                                     cx.stop_propagation();
                                     this.save(cx);
                                 }

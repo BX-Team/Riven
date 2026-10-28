@@ -20,8 +20,8 @@ use super::git::GitOp;
 use crate::gui::dialogs::{dialog_shell, field, open};
 use crate::gui::runtime;
 use crate::gui::state::AppState;
-use crate::gui::theme::ActiveTheme as _;
-use crate::gui::ui::{Button, ButtonSize, Dropdown, IconName, MenuItem, TextField, h_flex, v_flex};
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{Button, ButtonSize, Dropdown, IconName, MenuItem, TextField, h_flex, v_flex};
 
 fn close(cx: &mut App) {
     AppState::global(cx).update(cx, |s, cx| s.close_modal(cx));
@@ -65,7 +65,7 @@ fn plan_view(plan: &Plan, cx: &App) -> AnyElement {
     }
     for e in &plan.remove {
         let text = format!("{} {}", e.id, e.file.path.file_name());
-        lines.push(line("-", crate::gui::theme::danger(), text, None).into_any_element());
+        lines.push(line("-", moonglass::theme::danger(), text, None).into_any_element());
     }
     for p in &plan.problems {
         lines.push(line("!", c.warn, p.to_string(), None).into_any_element());
@@ -878,7 +878,7 @@ impl Render for GroupForm {
                 cx,
             ))
             .child(
-                crate::gui::ui::Switch::new("group-form-default", self.default)
+                moonglass::Switch::new("group-form-default", self.default)
                     .label(t!("dev.group_default").to_string())
                     .on_change(move |on, _, cx| {
                         let _ = view.update(cx, |this, cx| {
@@ -1083,8 +1083,7 @@ impl Render for PullConfigs {
                                 .justify_center()
                                 .when(on, |d| {
                                     d.child(
-                                        crate::gui::ui::icon(IconName::Check, c.on_accent)
-                                            .size(px(11.)),
+                                        moonglass::icon(IconName::Check, c.on_accent).size(px(11.)),
                                     )
                                 }),
                         )

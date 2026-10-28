@@ -15,8 +15,8 @@ use tokio::sync::mpsc;
 
 use super::{DevView, Panel, Tab};
 use crate::gui::runtime;
-use crate::gui::theme::ActiveTheme as _;
-use crate::gui::ui::{Button, ButtonSize, IconName, TextArea, h_flex, scrollbar, v_flex};
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{Button, ButtonSize, IconName, TextArea, h_flex, scrollbar, v_flex};
 
 /// Lines of git output the panel keeps.
 const OUTPUT_LINES: usize = 500;
@@ -63,7 +63,7 @@ impl GitState {
             files_list: UniformListScrollHandle::new(),
             log_list: UniformListScrollHandle::new(),
             installed: git::available(),
-            message: crate::gui::ui::textarea(String::new(), (3, 8), window, cx),
+            message: moonglass::textarea(String::new(), (3, 8), window, cx),
             output: VecDeque::new(),
             running: None,
             clear_message: false,
@@ -653,7 +653,7 @@ impl DevView {
         let (mark, color, text) = match self.git.diff.get(ix)? {
             DiffLine::Added(t) => ("+", c.ok, t.clone()),
             DiffLine::Changed(t) => ("~", c.warn, t.clone()),
-            DiffLine::Removed(t) => ("-", crate::gui::theme::danger(), t.clone()),
+            DiffLine::Removed(t) => ("-", moonglass::theme::danger(), t.clone()),
         };
         Some(
             h_flex()
@@ -677,7 +677,7 @@ impl DevView {
         let c = cx.theme().colors;
         let color = match f.state {
             FileState::Untracked | FileState::Added => c.ok,
-            FileState::Removed | FileState::Conflict => crate::gui::theme::danger(),
+            FileState::Removed | FileState::Conflict => moonglass::theme::danger(),
             _ => c.warn,
         };
         let (folder, name) = f.path.rsplit_once('/').unwrap_or(("", &f.path));

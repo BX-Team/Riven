@@ -25,8 +25,8 @@ use super::launch_bar::loader_display;
 use super::mods;
 use super::runtime;
 use super::state::{AppState, Route};
-use super::theme::ActiveTheme as _;
-use super::ui::{
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{
     Button, ButtonSize, Dropdown, IconName, MenuItem, Switch, Tabs, TextField, h_flex, icon,
     motion, scrollbar, v_flex,
 };
@@ -1288,7 +1288,13 @@ impl NewInstance {
                         this.load_loader_versions(cx);
                     }
                 }))
-                .child(icon(loader_icon(*kind), if on { c.accent } else { c.muted }).size(px(18.)))
+                .child(
+                    icon(
+                        super::assets::loader_icon(*kind),
+                        if on { c.accent } else { c.muted },
+                    )
+                    .size(px(18.)),
+                )
                 .child(div().truncate().child(loader_label(*kind)))
         });
         h_flex().gap(px(8.)).children(cards).into_any_element()
@@ -1418,7 +1424,7 @@ impl NewInstance {
                 .flex()
                 .items_center()
                 .justify_center()
-                .child(icon(loader_icon(kind), c.muted).size(px(24.)))
+                .child(icon(super::assets::loader_icon(kind), c.muted).size(px(24.)))
                 .into_any_element(),
         };
         let summary = v_flex()
@@ -1717,16 +1723,6 @@ impl NewInstance {
                 )
             })
             .into_any_element()
-    }
-}
-
-fn loader_icon(kind: Option<LoaderKind>) -> IconName {
-    match kind {
-        None => IconName::LoaderVanilla,
-        Some(LoaderKind::Fabric) => IconName::LoaderFabric,
-        Some(LoaderKind::Forge) => IconName::LoaderForge,
-        Some(LoaderKind::NeoForge) => IconName::LoaderNeoForge,
-        Some(LoaderKind::Quilt) => IconName::LoaderQuilt,
     }
 }
 

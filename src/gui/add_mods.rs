@@ -26,8 +26,8 @@ use super::instance::InstanceView;
 use super::mods;
 use super::runtime;
 use super::state::AppState;
-use super::theme::ActiveTheme as _;
-use super::ui::{
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{
     Button, ButtonSize, IconName, Tabs, TextField, h_flex, icon, motion, scrollbar, v_flex,
 };
 
@@ -633,7 +633,7 @@ impl AddMods {
             None => Some((false, t!("add_mods.already").into())),
         };
         if let Some((false, text)) = &self.status {
-            super::toast::show(super::toast::ToastKind::Success, text.clone(), cx);
+            moonglass::toast::show(moonglass::toast::ToastKind::Success, text.clone(), cx);
         }
         let _ = self.view.update(cx, |view, cx| view.reload(window, cx));
     }

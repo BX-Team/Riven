@@ -10,8 +10,8 @@ use rust_i18n::t;
 
 use super::{DevView, Edge, Tab, Updates, View, dialogs};
 use crate::gui::state::AppState;
-use crate::gui::theme::ActiveTheme as _;
-use crate::gui::ui::{
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{
     ActionMenu, Button, IconName, MenuEntry, TextField, h_flex, icon, scrollbar, tooltip, v_flex,
 };
 
@@ -362,7 +362,7 @@ impl DevView {
     fn entry_menu(&self, ix: usize, entry: &Entry, cx: &mut Context<Self>) -> ActionMenu {
         let trigger = Button::new(("entry-menu", ix))
             .ghost()
-            .size(crate::gui::ui::ButtonSize::Xs)
+            .size(moonglass::ButtonSize::Xs)
             .icon(IconName::More);
         ActionMenu::new(
             ("entry-actions", ix),

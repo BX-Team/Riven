@@ -11,8 +11,8 @@ use rust_i18n::t;
 
 use super::runtime;
 use super::state::AppState;
-use super::theme::ActiveTheme as _;
-use super::ui::{Button, ButtonSize, IconName, MenuEntry, h_flex, scrollbar, v_flex};
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{Button, ButtonSize, IconName, MenuEntry, h_flex, scrollbar, v_flex};
 
 const THUMB_WIDTH: u32 = 384;
 const TILE_WIDTH: f32 = 220.;
@@ -155,13 +155,11 @@ impl ScreenshotsView {
 
     fn delete(&mut self, path: PathBuf, cx: &mut Context<Self>) {
         if let Err(e) = std::fs::remove_file(&path) {
-            AppState::global(cx).update(cx, |s, cx| {
-                s.toast(
-                    super::toast::ToastKind::Error,
-                    format!("{}: {e}", path.display()),
-                    cx,
-                )
-            });
+            moonglass::toast::show(
+                moonglass::toast::ToastKind::Error,
+                format!("{}: {e}", path.display()),
+                cx,
+            );
             return;
         }
         self.shots.retain(|s| s.path != path);
@@ -403,7 +401,7 @@ impl Render for Viewer {
                     )
                     .child(
                         Button::new("viewer-copy")
-                            .icon(if super::ui::copy::copied("viewer-copy", cx) {
+                            .icon(if moonglass::copy::copied("viewer-copy", cx) {
                                 IconName::Check
                             } else {
                                 IconName::Copy
@@ -413,7 +411,7 @@ impl Render for Viewer {
                                 let view = cx.entity_id();
                                 move |_, _, cx| {
                                     copy_image(&copy, cx);
-                                    super::ui::copy::mark("viewer-copy".into(), view, cx);
+                                    moonglass::copy::mark("viewer-copy".into(), view, cx);
                                 }
                             }),
                     )

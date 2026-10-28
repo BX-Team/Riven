@@ -10,8 +10,8 @@ use rust_i18n::t;
 use super::content::side_label;
 use super::entry::{Page, entry_icon, fitting, installed_version};
 use super::{Check, DevView, Edge, Tab, View};
-use crate::gui::theme::ActiveTheme as _;
-use crate::gui::ui::{Button, Dropdown, IconName, MenuItem, Switch, h_flex, icon, v_flex};
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{Button, Dropdown, IconName, MenuItem, Switch, h_flex, icon, v_flex};
 
 pub(super) const INSPECTOR_WIDTH: f32 = 300.;
 const LABEL_WIDTH: f32 = 112.;
@@ -398,9 +398,9 @@ impl DevView {
                     .when(!problems.is_empty(), |col| {
                         col.child(
                             v_flex().px(px(14.)).pb(px(10.)).gap(px(4.)).children(
-                                problems.into_iter().map(|p| {
-                                    div().text_color(crate::gui::theme::danger()).child(p)
-                                }),
+                                problems
+                                    .into_iter()
+                                    .map(|p| div().text_color(moonglass::theme::danger()).child(p)),
                             ),
                         )
                     })
@@ -469,7 +469,7 @@ impl DevView {
                         Button::new("inspector-remove")
                             .outline()
                             .icon(IconName::Trash)
-                            .text_color(crate::gui::theme::danger())
+                            .text_color(moonglass::theme::danger())
                             .label(t!("dev.remove"))
                             .on_click(cx.listener(move |this, _, window, cx| {
                                 this.remove_entry(&remove_id, window, cx)

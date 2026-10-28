@@ -7,8 +7,8 @@ use riven_format::{Kind, Side};
 use rust_i18n::t;
 
 use super::{Activity, DevView, Edge, Tab, Updates, View, dialogs, kind_label};
-use crate::gui::theme::ActiveTheme as _;
-use crate::gui::ui::{
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{
     ActionMenu, Button, ButtonSize, IconName, MenuEntry, TextField, h_flex, icon, v_flex,
 };
 

@@ -11,7 +11,7 @@ use tokio::sync::mpsc;
 
 use super::runtime;
 use super::state::AppState;
-use super::toast::ToastKind;
+use moonglass::toast::ToastKind;
 
 /// How many game log lines an instance keeps in memory.
 const LOG_LINES: usize = 20_000;
@@ -153,7 +153,7 @@ impl AppState {
                         }
                         let changed = !news.is_empty();
                         for text in news {
-                            s.toast(ToastKind::Info, text.to_string(), cx);
+                            moonglass::toast::show(ToastKind::Info, text.to_string(), cx);
                         }
                         if exited {
                             s.reload_instances(cx);
@@ -213,9 +213,13 @@ impl AppState {
             move |_, cx| {
                 let forgotten = riven_sync::trust::forget(&url);
                 AppState::global(cx).update(cx, |s, cx| match forgotten {
-                    Err(e) => s.toast(ToastKind::Error, e.to_string(), cx),
+                    Err(e) => moonglass::toast::show(ToastKind::Error, e.to_string(), cx),
                     Ok(_) if s.sessions.get(&id).is_some_and(Session::busy) => {
-                        s.toast(ToastKind::Info, rust_i18n::t!("trust.next_launch"), cx)
+                        moonglass::toast::show(
+                            ToastKind::Info,
+                            rust_i18n::t!("trust.next_launch"),
+                            cx,
+                        )
                     }
                     Ok(_) => s.install_pack(&id, Request::default(), cx),
                 });

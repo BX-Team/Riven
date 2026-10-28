@@ -12,8 +12,8 @@ use rust_i18n::t;
 
 use super::runtime;
 use super::state::AppState;
-use super::theme::{ActiveTheme as _, Palette};
-use super::ui::{Button, IconName, h_flex, icon, scrollbars, v_flex};
+use moonglass::theme::{ActiveTheme as _, Palette};
+use moonglass::{Button, IconName, h_flex, icon, scrollbars, v_flex};
 use riven_launch::logs::{LogFile, LogKind};
 
 const ROW_HEIGHT: f32 = 20.;
@@ -201,22 +201,21 @@ impl LogsView {
                 .unwrap_or_else(|_| Err(riven_launch::LaunchError::Upload("cancelled".into())));
             let _ = this.update(cx, |this, cx| {
                 this.uploading = false;
-                let state = AppState::global(cx);
                 match posted {
                     Ok(url) => {
                         cx.write_to_clipboard(ClipboardItem::new_string(url.clone()));
-                        state.update(cx, |s, cx| {
-                            s.toast(
-                                super::toast::ToastKind::Success,
-                                t!("logs.uploaded", url = url).to_string(),
-                                cx,
-                            )
-                        });
+                        moonglass::toast::show(
+                            moonglass::toast::ToastKind::Success,
+                            t!("logs.uploaded", url = url).to_string(),
+                            cx,
+                        );
                         this.pasted = Some(url);
                     }
-                    Err(e) => state.update(cx, |s, cx| {
-                        s.toast(super::toast::ToastKind::Error, e.to_string(), cx)
-                    }),
+                    Err(e) => moonglass::toast::show(
+                        moonglass::toast::ToastKind::Error,
+                        e.to_string(),
+                        cx,
+                    ),
                 }
                 cx.notify();
             });
@@ -276,7 +275,7 @@ impl LogsView {
                 continue;
             }
             items.push(
-                super::ui::caption(caption, cx)
+                moonglass::caption(caption, cx)
                     .mt(px(10.))
                     .into_any_element(),
             );
@@ -423,7 +422,7 @@ impl Render for LogsView {
                     .on_click(cx.listener(|this, _, _, cx| this.upload(cx))),
             )
             .child(
-                super::ui::copy_button(
+                moonglass::copy_button(
                     "copy-log",
                     {
                         let view = cx.entity().downgrade();

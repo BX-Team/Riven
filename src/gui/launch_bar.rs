@@ -13,8 +13,8 @@ use rust_i18n::t;
 
 use super::session::{Phase, Session};
 use super::state::AppState;
-use super::theme::ActiveTheme as _;
-use super::ui::{
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{
     self, Button, ButtonSize, IconName, UiText as _, W_SEMIBOLD, h_flex, icon, tile, v_flex,
 };
 
@@ -167,7 +167,7 @@ pub(super) fn progress_bar(
         .overflow_hidden();
     match fraction {
         Some(f) => {
-            let f = ui::motion::glide(
+            let f = moonglass::motion::glide(
                 SharedString::from(format!("progress:{id}")),
                 f.clamp(0., 1.),
                 window,
@@ -257,7 +257,7 @@ pub(super) fn progress_card(id: &str, window: &mut Window, cx: &mut App) -> Opti
             .child(
                 h_flex()
                     .gap(px(10.))
-                    .child(ui::motion::spinner(
+                    .child(moonglass::motion::spinner(
                         "install-card-spinner",
                         icon(IconName::Loader, c.accent).size(px(16.)),
                         cx,
@@ -391,7 +391,7 @@ fn status(
     v_flex()
         .min_w_0()
         .gap(px(4.))
-        .child(ui::motion::enter(
+        .child(moonglass::motion::enter(
             SharedString::from(format!("status:{id}:{}", phase_key(&phase))),
             div().child(body),
             4.,
@@ -437,7 +437,7 @@ fn play_button(
             .primary()
             .size(ButtonSize::Lg)
             .disabled(true)
-            .child(ui::motion::spinner(
+            .child(moonglass::motion::spinner(
                 "play-spinner",
                 icon(IconName::Loader, c.on_accent),
                 cx,
@@ -608,7 +608,7 @@ fn account_button(
         .content(move |_, window, cx| {
             let popover = cx.entity();
             let panel = accounts_panel(&state, popover, window, cx);
-            ui::motion::enter("accounts-in", panel, 10., window, cx)
+            moonglass::motion::enter("accounts-in", panel, 10., window, cx)
         })
 }
 
@@ -676,8 +676,8 @@ fn accounts_panel(
                     let remove_name = a.name.clone();
                     let dismiss = popover.clone();
                     let picked = popover.clone();
-                    let hover = ui::motion::hover(("account-hover", i), window, cx);
-                    let bg = ui::motion::animate(
+                    let hover = moonglass::motion::hover(("account-hover", i), window, cx);
+                    let bg = moonglass::motion::animate(
                         ("account-bg", i),
                         match (active, hover.on) {
                             (true, _) => c.sel,

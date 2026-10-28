@@ -3,7 +3,6 @@ mod dialogs;
 mod entry;
 mod files;
 mod git;
-pub(super) mod highlight;
 mod inspector;
 mod overview;
 mod panel;
@@ -34,8 +33,8 @@ use super::app::placeholder;
 use super::file_tree::{FileTree, TreeEvent};
 use super::runtime;
 use super::state::AppState;
-use super::theme::ActiveTheme as _;
-use super::ui::{Button, ButtonSize, IconName, h_flex, motion, v_flex};
+use moonglass::theme::ActiveTheme as _;
+use moonglass::{Button, ButtonSize, IconName, h_flex, motion, v_flex};
 
 actions!(dev, [FocusSearch]);
 
@@ -642,10 +641,10 @@ impl DevView {
         }
         cx.defer(move |cx| {
             if let Some(text) = notice {
-                super::toast::show(super::toast::ToastKind::Success, text, cx);
+                moonglass::toast::show(moonglass::toast::ToastKind::Success, text, cx);
             }
             if let Some(text) = error {
-                super::toast::show(super::toast::ToastKind::Error, text, cx);
+                moonglass::toast::show(moonglass::toast::ToastKind::Error, text, cx);
             }
         });
     }
