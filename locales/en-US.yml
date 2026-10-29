@@ -116,6 +116,7 @@ launch:
   cancel: Cancel
   cancelled: Cancelled
   first_install_hint: Mods, resource packs and shaders show up here once they are installed
+  game_files_hint: Game libraries and assets download once, later launches start right away
   preparing: Preparing…
   stop: Stop
   running: "Running · %{time}"

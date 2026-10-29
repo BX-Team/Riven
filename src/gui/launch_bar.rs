@@ -285,10 +285,21 @@ pub(super) fn progress_card(id: &str, window: &mut Window, cx: &mut App) -> Opti
                 div()
                     .text_size(px(12.))
                     .text_color(c.muted)
-                    .child(t!("launch.first_install_hint").to_string()),
+                    .child(install_hint(stage)),
             )
             .into_any_element(),
     )
+}
+
+/// What the files a stage fetches are for; only pack stages bring content.
+fn install_hint(stage: Stage) -> String {
+    match stage {
+        Stage::Pack | Stage::Convert | Stage::PackDownload | Stage::PackInstall => {
+            t!("launch.first_install_hint")
+        }
+        _ => t!("launch.game_files_hint"),
+    }
+    .to_string()
 }
 
 /// What a stage got through, in its own unit.
