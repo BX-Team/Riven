@@ -2,10 +2,9 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use gpui_kit::{
-    AnyElement, App, AppContext as _, ClipboardItem, Context, InteractiveElement as _, IntoElement,
-    MouseButton, ParentElement as _, Render, SharedString, StatefulInteractiveElement as _,
-    Styled as _, StyledImage as _, UniformListScrollHandle, WeakEntity, Window, div, img, px,
-    uniform_list,
+    AnyElement, App, AppContext as _, Context, InteractiveElement as _, IntoElement, MouseButton,
+    ParentElement as _, Render, SharedString, StatefulInteractiveElement as _, Styled as _,
+    StyledImage as _, UniformListScrollHandle, WeakEntity, Window, div, img, px, uniform_list,
 };
 use rust_i18n::t;
 
@@ -181,8 +180,10 @@ impl ScreenshotsView {
             .icon(IconName::ExternalLink),
             MenuEntry::action(t!("mods.show_file"), move |_, cx| cx.reveal_path(&show))
                 .icon(IconName::Folder),
-            MenuEntry::action(t!("screenshots.copy"), move |_, cx| copy_image(&copy, cx))
-                .icon(IconName::Copy),
+            MenuEntry::action(t!("screenshots.copy"), move |_, cx| {
+                super::clipboard::copy_image(&copy, cx)
+            })
+            .icon(IconName::Copy),
             MenuEntry::Separator,
             MenuEntry::action(t!("mods.delete"), move |_, cx| {
                 let (view, path) = (view.clone(), delete.clone());
@@ -246,22 +247,6 @@ impl ScreenshotsView {
                 .into_any_element(),
         )
     }
-}
-
-fn copy_image(path: &Path, cx: &mut App) {
-    let Ok(bytes) = std::fs::read(path) else {
-        return;
-    };
-    let format = if path
-        .extension()
-        .is_some_and(|e| e.eq_ignore_ascii_case("jpg"))
-    {
-        gpui_kit::ImageFormat::Jpeg
-    } else {
-        gpui_kit::ImageFormat::Png
-    };
-    let image = gpui_kit::Image::from_bytes(format, bytes);
-    cx.write_to_clipboard(ClipboardItem::new_image(&image));
 }
 
 impl Render for ScreenshotsView {
@@ -410,7 +395,7 @@ impl Render for Viewer {
                             .on_click({
                                 let view = cx.entity_id();
                                 move |_, _, cx| {
-                                    copy_image(&copy, cx);
+                                    super::clipboard::copy_image(&copy, cx);
                                     moonglass::copy::mark("viewer-copy".into(), view, cx);
                                 }
                             }),

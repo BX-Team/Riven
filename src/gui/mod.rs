@@ -2,6 +2,7 @@ mod add_mods;
 mod app;
 mod assets;
 mod changes;
+mod clipboard;
 mod configs;
 mod crash;
 mod dev;
