@@ -356,9 +356,22 @@ pub fn describe(old: Option<&Project>, new: &Project) -> Vec<DiffLine> {
     out
 }
 
+/// System git, without a console window flashing up on Windows.
+pub(crate) fn command() -> std::process::Command {
+    #[allow(unused_mut)]
+    let mut command = std::process::Command::new("git");
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt as _;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    command
+}
+
 /// Whether a `git` executable runs.
 pub fn available() -> bool {
-    std::process::Command::new("git")
+    command()
         .arg("--version")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -417,7 +430,7 @@ pub async fn run(
     args: &[&str],
     line: &(dyn Fn(String) + Sync),
 ) -> Result<(), GitError> {
-    let mut child = tokio::process::Command::new("git")
+    let mut child = tokio::process::Command::from(command())
         .args(args)
         .current_dir(dir)
         .env("GIT_TERMINAL_PROMPT", "0")

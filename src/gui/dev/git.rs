@@ -54,6 +54,14 @@ pub(super) struct GitState {
 
 impl GitState {
     pub(super) fn new(window: &mut Window, cx: &mut Context<DevView>) -> Self {
+        cx.spawn(async move |this, cx| {
+            let installed = runtime::blocking(git::available).await.unwrap_or(false);
+            let _ = this.update(cx, |this, cx| {
+                this.git.installed = installed;
+                cx.notify();
+            });
+        })
+        .detach();
         Self {
             repo: Repo::Unknown,
             diff: Vec::new(),
@@ -62,7 +70,7 @@ impl GitState {
             diff_list: UniformListScrollHandle::new(),
             files_list: UniformListScrollHandle::new(),
             log_list: UniformListScrollHandle::new(),
-            installed: git::available(),
+            installed: true,
             message: moonglass::textarea(String::new(), (3, 8), window, cx),
             output: VecDeque::new(),
             running: None,
