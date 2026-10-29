@@ -604,16 +604,7 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
                         let picked = self.pick_for(&parent, &info, &versions, kind).await?;
                         match picked.or_else(|| self.choose(&versions)) {
                             Some(v) => v,
-                            None if multi_loader => {
-                                self.plan.notes.push(format!(
-                                    "`{parent}`: skipped `{}`, it has no version for Minecraft {} on {} \
-                                     (likely needed only on another loader)",
-                                    info.slug,
-                                    self.pack.minecraft,
-                                    loader_name(self.pack.loader.kind)
-                                ));
-                                continue;
-                            }
+                            None if multi_loader => continue,
                             None => return Err(self.no_version(&info)),
                         }
                     }
@@ -1185,11 +1176,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(ids(&plan.add), ["zoom"]);
-        assert!(
-            plan.notes.iter().any(|n| n.contains("kotlin-fabric")),
-            "{:?}",
-            plan.notes
-        );
+        assert!(plan.notes.is_empty(), "{:?}", plan.notes);
 
         fake.versions[0].loaders.pop();
         let single = Planner::new(&fake, &fake, &pack)
