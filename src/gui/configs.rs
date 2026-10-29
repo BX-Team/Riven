@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use gpui_kit::base::input::{Editor, EditorState, InputEditorStyle, InputEvent};
+use gpui_kit::base::input::{Editor, EditorState, InputEvent};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
     AnyElement, AppContext as _, Context, Entity, InteractiveElement as _, IntoElement,
@@ -9,9 +9,9 @@ use gpui_kit::{
 };
 use rust_i18n::t;
 
+use super::code_editor;
 use super::file_tree::{self, FileTree, Node, TreeEvent, is_image};
 use super::runtime;
-use moonglass::code::{self as highlight, Flavor, ThemeStyles};
 use moonglass::theme::ActiveTheme as _;
 use moonglass::{Button, ButtonSize, IconName, MenuEntry, h_flex, icon, v_flex};
 
@@ -185,14 +185,7 @@ impl ConfigsView {
         };
         let name = path.rsplit('/').next().unwrap_or(&path).to_owned();
         let initial = text.clone();
-        let editor = cx.new(|cx| {
-            let mut state = EditorState::new(window, cx)
-                .language(Flavor::of(&name).language())
-                .default_value(initial);
-            state.set_highlighter_factory(highlight::factory(), cx);
-            state.set_readonly(self.locked, cx);
-            state
-        });
+        let editor = code_editor::new(&name, initial, self.locked, window, cx);
         let change = cx.subscribe(&editor, |this, editor, event: &InputEvent, cx| {
             if let InputEvent::Change = event
                 && let Some((_, Opened::Text { saved, dirty, .. })) = &mut this.open
@@ -311,18 +304,7 @@ impl ConfigsView {
                 )
                 .into_any_element(),
             Opened::Text { editor, dirty, .. } => {
-                let style = InputEditorStyle {
-                    foreground: c.text,
-                    muted_foreground: c.muted,
-                    background: c.bg,
-                    border: c.border,
-                    selection: c.accent.opacity(0.3),
-                    caret: c.accent,
-                    highlight_styles: ThemeStyles::new(&c),
-                    editor_active_line: Some(c.row),
-                    editor_gutter_background: Some(c.bg),
-                    ..InputEditorStyle::default()
-                };
+                let style = code_editor::style(cx);
                 editor.update(cx, |s, _| s.set_editor_style(style));
                 v_flex()
                     .size_full()

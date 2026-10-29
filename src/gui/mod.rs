@@ -3,6 +3,7 @@ mod app;
 mod assets;
 mod changes;
 mod clipboard;
+mod code_editor;
 mod configs;
 mod crash;
 mod dev;

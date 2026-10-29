@@ -3,6 +3,13 @@ common:
   cancel: Cancel
   close: Close
   stop: Stop
+editor:
+  undo: Undo
+  redo: Redo
+  cut: Cut
+  copy: Copy
+  paste: Paste
+  select_all: Select all
 titlebar:
   developer: Developer mode
 sidebar:
@@ -116,6 +123,7 @@ launch:
   cancel: Cancel
   cancelled: Cancelled
   first_install_hint: Mods, resource packs and shaders show up here once they are installed
+  game_files_hint: Game libraries and assets download once, later launches start right away
   game_files_hint: Game libraries and assets download once, later launches start right away
   preparing: Preparing…
   stop: Stop

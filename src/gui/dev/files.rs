@@ -1,16 +1,15 @@
-use gpui_kit::base::input::{Editor, EditorState, InputEditorStyle, InputEvent};
+use gpui_kit::base::input::{Editor, InputEvent};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
-    AnyElement, AppContext as _, Context, InteractiveElement as _, IntoElement, KeyDownEvent,
-    ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _, Window, div,
-    px,
+    AnyElement, Context, InteractiveElement as _, IntoElement, KeyDownEvent, ParentElement as _,
+    SharedString, StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
 use riven_format::PackPath;
 use rust_i18n::t;
 
 use super::{DevView, OVERRIDES, OpenFile, PROJECT_FILE, Tab, dialogs};
+use crate::gui::code_editor;
 use crate::gui::file_tree::{Node, TreeEvent, is_image};
-use moonglass::code::{self as highlight, Flavor, ThemeStyles};
 use moonglass::theme::ActiveTheme as _;
 use moonglass::{Button, ButtonSize, IconName, MenuEntry, caption, h_flex, icon, motion, v_flex};
 
@@ -238,16 +237,8 @@ impl DevView {
                 return;
             }
         };
-        let flavor = Flavor::of(path.file_name());
         let initial = text.clone();
-        let editor = cx.new(|cx| {
-            let mut state = EditorState::new(window, cx)
-                .language(flavor.language())
-                .default_value(initial);
-            state.set_highlighter_factory(highlight::factory(), cx);
-            state.set_readonly(read_only, cx);
-            state
-        });
+        let editor = code_editor::new(path.file_name(), initial, read_only, window, cx);
         let key = path.clone();
         let change = cx.subscribe(&editor, move |this, editor, event: &InputEvent, cx| {
             if let InputEvent::Change = event
@@ -527,18 +518,7 @@ impl DevView {
             return div().into_any_element();
         };
         let read_only = *path == project_file();
-        let style = InputEditorStyle {
-            foreground: c.text,
-            muted_foreground: c.muted,
-            background: c.bg,
-            border: c.border,
-            selection: c.accent.opacity(0.3),
-            caret: c.accent,
-            highlight_styles: ThemeStyles::new(&c),
-            editor_active_line: Some(c.row),
-            editor_gutter_background: Some(c.bg),
-            ..InputEditorStyle::default()
-        };
+        let style = code_editor::style(cx);
         file.editor.update(cx, |s, _| s.set_editor_style(style));
         let save_path = path.clone();
         let key_path = path.clone();
