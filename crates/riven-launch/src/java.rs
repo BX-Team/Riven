@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-/// Installed memory in MiB, where the system says; Linux reads `/proc/meminfo`.
+/// Installed memory in MiB, where the system says.
 pub fn total_memory_mb() -> Option<u32> {
     #[cfg(target_os = "linux")]
     {
@@ -18,7 +18,37 @@ pub fn total_memory_mb() -> Option<u32> {
             .ok()?;
         u32::try_from(kb / 1024).ok()
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+        let mut status = MEMORYSTATUSEX {
+            dwLength: std::mem::size_of::<MEMORYSTATUSEX>() as u32,
+            ..unsafe { std::mem::zeroed() }
+        };
+        if unsafe { GlobalMemoryStatusEx(&mut status) } == 0 {
+            return None;
+        }
+        u32::try_from(status.ullTotalPhys / (1024 * 1024)).ok()
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let mut bytes: u64 = 0;
+        let mut len = std::mem::size_of::<u64>();
+        let read = unsafe {
+            libc::sysctlbyname(
+                c"hw.memsize".as_ptr(),
+                (&raw mut bytes).cast(),
+                &mut len,
+                std::ptr::null_mut(),
+                0,
+            )
+        };
+        if read != 0 {
+            return None;
+        }
+        u32::try_from(bytes / (1024 * 1024)).ok()
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
     None
 }
 
