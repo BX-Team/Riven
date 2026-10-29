@@ -67,6 +67,7 @@ The launcher updates itself from GitHub Releases (Settings → About), the CLI w
 riven init --mc 1.21.1 --loader neoforge   # new riven.json
 riven add sodium                           # with its dependencies
 riven update --dry-run                     # preview newer versions
+riven migrate                              # latest Minecraft, loader and content
 riven build --channel stable               # signed release in dist/
 riven deploy                               # dist/ → GitHub Pages
 ```

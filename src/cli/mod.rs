@@ -106,6 +106,14 @@ enum Command {
         /// Path or URL of the archive or pack.
         source: String,
     },
+    /// Move the pack to another Minecraft version, with its loader and content.
+    Migrate {
+        /// Minecraft version (default: latest release).
+        minecraft: Option<String>,
+        /// Accept every suggested change without asking.
+        #[arg(long, short)]
+        yes: bool,
+    },
     /// Bump the pack version.
     Bump {
         /// `major`, `minor`, `patch` or an explicit version.
@@ -339,6 +347,7 @@ async fn dispatch(command: Command, out: &Output) -> anyhow::Result<ExitCode> {
         Command::Why { id } => author::why(out, &id),
         Command::Check => author::check(out).await,
         Command::Import { format, source } => import::import(out, format, &source).await,
+        Command::Migrate { minecraft, yes } => author::migrate(out, minecraft, yes).await,
         Command::Bump { to } => author::bump(out, &to),
         Command::Install(args) => sync::install(out, args).await,
         Command::Status { dir } => sync::status(out, dir).await,

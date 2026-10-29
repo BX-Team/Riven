@@ -58,6 +58,16 @@ impl Output {
         }
     }
 
+    pub fn is_json(&self) -> bool {
+        self.json
+    }
+
+    pub fn info(&self, message: &str) {
+        if !self.json {
+            eprintln!("{message}");
+        }
+    }
+
     pub fn success(&self, message: &str) {
         if !self.json {
             eprintln!("{} {message}", style("✓").green().bold());
@@ -124,6 +134,11 @@ impl Output {
         for problem in &plan.problems {
             self.warn(&problem.to_string());
         }
+        for id in &plan.stranded {
+            self.warn(&format!(
+                "`{id}` has no version for this Minecraft version and loader"
+            ));
+        }
         for note in &plan.notes {
             self.note(note);
         }
@@ -148,6 +163,7 @@ pub fn plan_json(plan: &Plan) -> Value {
         "update": plan.update.iter().map(|(from, to)| json!({ "from": from, "to": to })).collect::<Vec<_>>(),
         "remove": plan.remove,
         "problems": plan.problems.iter().map(ToString::to_string).collect::<Vec<_>>(),
+        "stranded": plan.stranded,
         "notes": plan.notes,
     })
 }

@@ -7,7 +7,7 @@ use riven_build::author::{self as core, AddRequest};
 use riven_format::{Group, Project, Reason, Side, SourceKind, UpdatePolicy};
 use serde_json::json;
 
-use super::output::{Output, file_name, side_label};
+use super::output::{Output, file_name, plan_json, side_label};
 use super::project::{PROJECT_FILE, Workspace};
 use super::{GroupCommand, SourceArg, parse_loader};
 
@@ -385,5 +385,121 @@ pub fn bump(out: &Output, to: &str) -> anyhow::Result<ExitCode> {
     out.emit(json!({ "from": old, "to": new }), || {
         out.success(&format!("{old} → {new}"));
     });
+    Ok(ExitCode::SUCCESS)
+}
+
+pub async fn migrate(
+    out: &Output,
+    minecraft: Option<String>,
+    yes: bool,
+) -> anyhow::Result<ExitCode> {
+    let mut ws = Workspace::find()?;
+    let spinner = out.spinner("Fetching version metadata");
+    let migration = core::plan_migration(&ws, minecraft).await;
+    spinner.finish_and_clear();
+    let migration = migration?;
+    let from = ws.project.clone();
+    if migration.minecraft == from.minecraft {
+        out.emit(
+            json!({ "minecraft": from.minecraft, "changed": false }),
+            || {
+                out.success(&format!("Already on Minecraft {}", from.minecraft));
+            },
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
+    let mc = migration.minecraft.clone();
+    let loader = riven_sources::loader_name(from.loader.kind);
+
+    out.info(&format!("Minecraft {} → {mc}", from.minecraft));
+    ws.project.minecraft = mc.clone();
+    if migration.java != from.java.major {
+        out.info(&format!("Java {} → {}", from.java.major, migration.java));
+        ws.project.java.major = migration.java;
+    }
+    let newer_loader = riven_resolve::ModVersion::parse(&migration.loader)
+        > riven_resolve::ModVersion::parse(&from.loader.version);
+    if !migration.loader_fits {
+        out.info(&format!(
+            "{loader} {} → {} ({} has no build for Minecraft {mc})",
+            from.loader.version, migration.loader, from.loader.version
+        ));
+        ws.project.loader.version = migration.loader.clone();
+    } else if newer_loader
+        && (yes
+            || out.confirm(
+                &format!(
+                    "Update {loader} {} → {}?",
+                    from.loader.version, migration.loader
+                ),
+                true,
+            ))
+    {
+        ws.project.loader.version = migration.loader.clone();
+    }
+
+    let spinner = out.spinner(format!("Finding content for Minecraft {mc}"));
+    let plan = core::plan_content_migration(&ws).await;
+    spinner.finish_and_clear();
+    let plan = plan?;
+    if !out.is_json() {
+        out.plan(&plan);
+    }
+    for entry in ws
+        .project
+        .content
+        .iter()
+        .filter(|e| e.source.kind() != SourceKind::Modrinth)
+    {
+        out.warn(&format!(
+            "`{}` is not from Modrinth; check that it supports Minecraft {mc}",
+            entry.id
+        ));
+    }
+    if !plan.stranded.is_empty()
+        && !yes
+        && !out.confirm(
+            &format!(
+                "{} entries have no version for Minecraft {mc}; migrate anyway?",
+                plan.stranded.len()
+            ),
+            false,
+        )
+    {
+        anyhow::bail!("migration cancelled; {PROJECT_FILE} left unchanged");
+    }
+    plan.apply(&mut ws.project);
+
+    let spinner = out.spinner("Checking for updates");
+    let updates = plan_updates(&ws, &[], None).await;
+    spinner.finish_and_clear();
+    let mut updates = updates?;
+    updates.stranded.clear();
+    let apply_updates = !updates.is_empty() && {
+        if !out.is_json() {
+            out.plan(&updates);
+        }
+        yes || out.confirm(&format!("Apply {} updates?", updates.update.len()), true)
+    };
+    if apply_updates {
+        updates.apply(&mut ws.project);
+    }
+    ws.save()?;
+
+    let project = &ws.project;
+    out.emit(
+        json!({
+            "from": { "minecraft": from.minecraft, "loader": from.loader.version, "java": from.java.major },
+            "to": { "minecraft": project.minecraft, "loader": project.loader.version, "java": project.java.major },
+            "migration": plan_json(&plan),
+            "updates": apply_updates.then(|| plan_json(&updates)),
+        }),
+        || {
+            out.success(&format!(
+                "Migrated to Minecraft {mc}, {loader} {}",
+                project.loader.version
+            ))
+        },
+    );
     Ok(ExitCode::SUCCESS)
 }

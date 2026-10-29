@@ -95,6 +95,8 @@ pub struct Plan {
     pub remove: Vec<Entry>,
     /// Problems `riven check` would report for the planned entries.
     pub problems: Vec<Problem>,
+    /// Entries left on a version without the pack's Minecraft version or loader.
+    pub stranded: Vec<String>,
     pub notes: Vec<String>,
 }
 
@@ -410,7 +412,20 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
     }
 
     /// Plans updating `ids` (all `follow` entries when empty) to their newest versions.
-    pub async fn update(mut self, ids: &[String]) -> Result<Plan, ResolveError> {
+    pub async fn update(self, ids: &[String]) -> Result<Plan, ResolveError> {
+        self.update_where(ids, false).await
+    }
+
+    /// Plans moving only entries the pack's Minecraft version or loader no longer fits.
+    pub async fn migrate(self) -> Result<Plan, ResolveError> {
+        self.update_where(&[], true).await
+    }
+
+    async fn update_where(
+        mut self,
+        ids: &[String],
+        stale_only: bool,
+    ) -> Result<Plan, ResolveError> {
         for id in ids {
             if self.pack.entry(id).is_none() {
                 return Err(ResolveError::UnknownEntry(id.clone()));
@@ -422,7 +437,7 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
             if !ids.is_empty() && !ids.contains(&entry.id) {
                 continue;
             }
-            if entry.update == UpdatePolicy::Pinned {
+            if entry.update == UpdatePolicy::Pinned && !stale_only {
                 if !ids.is_empty() {
                     self.plan.notes.push(format!("`{}` is pinned", entry.id));
                 }
@@ -467,10 +482,21 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
                 ));
                 continue;
             };
-            let Some(next) = newest.get(version) else {
+            let stale = !self.compatible(current, entry.kind);
+            if stale_only && !stale {
+                continue;
+            }
+            let next = newest
+                .get(version)
+                .filter(|_| entry.update != UpdatePolicy::Pinned)
+                .filter(|next| next.project == current.project);
+            let Some(next) = next else {
+                if stale {
+                    self.plan.stranded.push(entry.id.clone());
+                }
                 continue;
             };
-            if next.project == current.project && next.published > current.published {
+            if next.published > current.published || stale && next.id != current.id {
                 updates.push((entry, next.clone()));
             }
         }
@@ -1217,6 +1243,37 @@ mod tests {
             .unwrap();
         assert!(plan.is_empty());
         assert_eq!(plan.notes, ["`create` is pinned"]);
+    }
+
+    #[tokio::test]
+    async fn migrate_moves_to_older_builds_for_the_new_minecraft_and_reports_the_rest() {
+        let mut fake = Fake::default();
+        let both = (Support::Required, Support::Required);
+        fake.add_project("A", "alpha", both.0, both.1);
+        fake.add_project("B", "beta", both.0, both.1);
+        fake.add_version("a-old", "A", DAY1, Channel::Release, vec![], "alpha", "");
+        fake.add_version("a-new", "A", DAY3, Channel::Release, vec![], "alpha", "");
+        fake.add_version("b1", "B", DAY2, Channel::Release, vec![], "beta", "");
+        let mut pack = pack();
+        for slug in ["alpha", "beta"] {
+            Planner::new(&fake, &fake, &pack)
+                .add(slug, &AddOptions::default())
+                .await
+                .unwrap()
+                .apply(&mut pack);
+        }
+        fake.versions
+            .iter_mut()
+            .find(|v| v.id == "a-old")
+            .unwrap()
+            .game_versions = vec!["1.21.4".into()];
+        pack.minecraft = "1.21.4".into();
+
+        let plan = Planner::new(&fake, &fake, &pack).migrate().await.unwrap();
+        let updated: Vec<_> = plan.update.iter().map(|(_, n)| &n.source).collect();
+        assert!(matches!(updated[..],
+            [EntrySource::Modrinth { version, .. }] if version == "a-old"));
+        assert_eq!(plan.stranded, ["beta"]);
     }
 
     #[tokio::test]

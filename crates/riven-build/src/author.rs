@@ -10,7 +10,7 @@ use riven_resolve::{
 };
 use riven_sources::{Known, Modrinth, Source, Target};
 
-use crate::workspace::{StoreJars, Workspace, io};
+use crate::workspace::{StoreJars, Workspace, game_meta, io};
 
 const PARALLEL_DOWNLOADS: usize = 8;
 
@@ -515,6 +515,51 @@ pub async fn plan_updates(
         .await?;
     plan.notes.extend(notes);
     Ok(plan)
+}
+
+/// The game and loader `riven migrate` would move a pack to.
+#[derive(Debug, Clone)]
+pub struct Migration {
+    pub minecraft: String,
+    pub java: u32,
+    /// The recommended loader build for `minecraft`.
+    pub loader: String,
+    /// Whether the pack's current loader build also exists for `minecraft`.
+    pub loader_fits: bool,
+}
+
+/// Looks up the game, Java and loader versions for moving to `minecraft` (default: latest release).
+pub async fn plan_migration(
+    ws: &Workspace,
+    minecraft: Option<String>,
+) -> Result<Migration, AuthorError> {
+    let game = game_meta(Some(ws.cache()));
+    let minecraft = match minecraft {
+        Some(mc) => mc,
+        None => game.latest_minecraft().await?,
+    };
+    let java = game.java_major(&minecraft).await?;
+    let kind = ws.project.loader.kind;
+    let loader = game.loader_version(kind, &minecraft).await?;
+    let loader_fits = game
+        .loader_versions(kind, &minecraft)
+        .await?
+        .contains(&ws.project.loader.version);
+    Ok(Migration {
+        minecraft,
+        java,
+        loader,
+        loader_fits,
+    })
+}
+
+/// Plans moving the Modrinth content the pack's game or loader no longer fits.
+pub async fn plan_content_migration(ws: &Workspace) -> Result<Plan, AuthorError> {
+    let modrinth = ws.modrinth();
+    let jars = ws.jars()?;
+    Ok(Planner::new(&modrinth, &jars, &ws.project)
+        .migrate()
+        .await?)
 }
 
 fn entry_mut<'a>(project: &'a mut Project, id: &str) -> Result<&'a mut Entry, AuthorError> {
