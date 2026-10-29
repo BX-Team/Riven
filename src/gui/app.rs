@@ -1,4 +1,3 @@
-use gpui_kit::base::Selectable as _;
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
     AnyElement, App, AppContext as _, Context, DispatchPhase, Entity, ExternalPaths, FocusHandle,
@@ -179,34 +178,6 @@ impl RivenApp {
         });
     }
 
-    /// The developer section's button, shown in the title bar in developer mode.
-    fn render_actions(&self, cx: &mut Context<Self>) -> AnyElement {
-        let state = self.state.read(cx);
-        let developer = state.settings.developer_mode;
-        let in_dev = state.route == Route::Developer;
-        let dev_handle = self.state.clone();
-        h_flex()
-            .gap(px(6.))
-            .children(super::updater::title_button(cx))
-            .when(developer, |row| {
-                row.child(
-                    Button::new("developer")
-                        .icon(IconName::Code)
-                        .selected(in_dev)
-                        .tooltip(t!("titlebar.developer"))
-                        .on_click(move |_, _, cx| {
-                            let route = if in_dev {
-                                dev_handle.read(cx).home()
-                            } else {
-                                Route::Developer
-                            };
-                            Self::navigate(&dev_handle, route, cx);
-                        }),
-                )
-            })
-            .into_any_element()
-    }
-
     fn render_sidebar(
         &self,
         window: &mut Window,
@@ -215,6 +186,7 @@ impl RivenApp {
         let c = cx.theme().colors;
         let state = self.state.read(cx);
         let route = state.route.clone();
+        let developer = state.settings.developer_mode;
         let entries: Vec<(String, String, bool, Option<std::path::PathBuf>)> = state
             .instances
             .iter()
@@ -284,6 +256,7 @@ impl RivenApp {
             cx,
         );
         let settings_handle = self.state.clone();
+        let dev_handle = self.state.clone();
         v_flex()
             .w(px(SIDEBAR_WIDTH))
             .flex_none()
@@ -303,6 +276,16 @@ impl RivenApp {
                     .overflow_y_scroll()
                     .child(list),
             )
+            .when(developer, |col| {
+                col.child(
+                    nav_row("open-developer", false, window, cx)
+                        .child(icon(IconName::Code, c.text2))
+                        .child(t!("sidebar.developer").to_string())
+                        .on_click(move |_, _, cx| {
+                            Self::navigate(&dev_handle, Route::Developer, cx)
+                        }),
+                )
+            })
             .child(
                 nav_row("open-settings", false, window, cx)
                     .child(icon(IconName::Settings, c.text2))
@@ -514,10 +497,10 @@ impl Render for RivenApp {
             }
             _ => None,
         };
-        let actions = self.render_actions(cx);
-        let title_bar = moonglass::TitleBar::new("Riven Launcher")
-            .logo(super::assets::LOGO)
-            .actions(actions);
+        let mut title_bar = moonglass::TitleBar::new("Riven Launcher").logo(super::assets::LOGO);
+        if let Some(update) = super::updater::title_button(cx) {
+            title_bar = title_bar.actions(update);
+        }
         let route_key = SharedString::from(format!("route:{route:?}"));
         let body = if matches!(route, Route::Settings | Route::Developer) {
             moonglass::motion::enter(

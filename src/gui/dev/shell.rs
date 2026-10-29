@@ -349,6 +349,19 @@ impl DevView {
             .border_r_1()
             .border_color(c.border)
             .bg(c.panel)
+            .child(
+                Button::new("dev-back")
+                    .ghost()
+                    .child(icon(IconName::ArrowLeft, c.muted).size(px(17.)))
+                    .tooltip(t!("dev.back_to_launcher"))
+                    .on_click(|_, _, cx| {
+                        AppState::global(cx).update(cx, |s, cx| {
+                            let home = s.home();
+                            s.navigate(home, cx)
+                        })
+                    }),
+            )
+            .child(div().w(px(20.)).h(px(1.)).my(px(2.)).bg(c.border))
             .child(self.activity_button(
                 Activity::Content,
                 IconName::LayoutGrid,

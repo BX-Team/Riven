@@ -10,11 +10,10 @@ editor:
   copy: Копировать
   paste: Вставить
   select_all: Выделить всё
-titlebar:
-  developer: Режим разработчика
 sidebar:
   instances: Инстансы
   new_instance: Новый инстанс
+  developer: Разработка
   settings: Настройки
 library:
   empty_title: Инстансов пока нет
@@ -123,7 +122,6 @@ launch:
   cancel: Отменить
   cancelled: Отменено
   first_install_hint: Моды, ресурспаки и шейдеры появятся здесь, как только установятся
-  game_files_hint: Библиотеки и ресурсы игры скачиваются один раз — следующие запуски начнутся сразу
   game_files_hint: Библиотеки и ресурсы игры скачиваются один раз — следующие запуски начнутся сразу
   preparing: Подготовка…
   stop: Остановить
@@ -432,6 +430,7 @@ add_content:
     file_about: Zip-файлы с диска копируются в инстанс; обновлять их лаунчер не сможет.
     pick_one: Выберите шейдер слева, чтобы увидеть описание
 dev:
+  back_to_launcher: Назад в лаунчер
   font_smaller: Мельче (Ctrl −)
   font_bigger: Крупнее (Ctrl +)
   font_reset: Обычный размер (Ctrl 0)

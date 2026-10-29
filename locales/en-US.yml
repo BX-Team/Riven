@@ -10,11 +10,10 @@ editor:
   copy: Copy
   paste: Paste
   select_all: Select all
-titlebar:
-  developer: Developer mode
 sidebar:
   instances: Instances
   new_instance: New instance
+  developer: Developer
   settings: Settings
 library:
   empty_title: No instances yet
@@ -123,7 +122,6 @@ launch:
   cancel: Cancel
   cancelled: Cancelled
   first_install_hint: Mods, resource packs and shaders show up here once they are installed
-  game_files_hint: Game libraries and assets download once, later launches start right away
   game_files_hint: Game libraries and assets download once, later launches start right away
   preparing: Preparing…
   stop: Stop
@@ -432,6 +430,7 @@ add_content:
     file_about: Zips from your disk are copied into the instance; the launcher cannot update them.
     pick_one: Pick a shader on the left to see what it is
 dev:
+  back_to_launcher: Back to the launcher
   font_smaller: Smaller (Ctrl −)
   font_bigger: Bigger (Ctrl +)
   font_reset: Default size (Ctrl 0)
