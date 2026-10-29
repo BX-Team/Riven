@@ -10,6 +10,14 @@ editor:
   copy: Копировать
   paste: Вставить
   select_all: Выделить всё
+pick:
+  all_files: Все файлы
+  images: Изображения
+  mods: Моды (.jar)
+  archives: Архивы (.zip)
+  content: Моды и архивы
+  packs: Паки
+  mrpacks: Паки Modrinth
 sidebar:
   instances: Инстансы
   new_instance: Новый инстанс

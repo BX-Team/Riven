@@ -18,6 +18,7 @@ use rust_i18n::t;
 use super::DevView;
 use super::git::GitOp;
 use crate::gui::dialogs::{dialog_shell, field, open};
+use crate::gui::pick;
 use crate::gui::runtime;
 use crate::gui::state::AppState;
 use moonglass::theme::ActiveTheme as _;
@@ -258,16 +259,8 @@ impl AddContent {
 
     /// A jar or zip from disk; files outside the project are copied into `local/`.
     fn pick_file(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let paths = cx.prompt_for_paths(PathPromptOptions {
-            files: true,
-            directories: false,
-            multiple: false,
-            prompt: Some(t!("add_mods.pick").into()),
-        });
         cx.spawn_in(window, async move |this, cx| {
-            let Ok(Ok(Some(paths))) = paths.await else {
-                return;
-            };
+            let paths = pick::files(t!("pick.content"), pick::CONTENT, false).await;
             let Some(path) = paths.into_iter().next() else {
                 return;
             };
@@ -1299,6 +1292,21 @@ impl NewFrom {
     }
 
     fn browse_source(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.origin == Origin::Mrpack {
+            cx.spawn_in(window, async move |this, cx| {
+                let paths = pick::files(t!("pick.mrpacks"), pick::MRPACKS, false).await;
+                let Some(path) = paths.into_iter().next() else {
+                    return;
+                };
+                let _ = this.update_in(cx, |this, window, cx| {
+                    let text = path.display().to_string();
+                    this.source
+                        .update(cx, |s, cx| s.set_value(text, window, cx));
+                });
+            })
+            .detach();
+            return;
+        }
         let paths = cx.prompt_for_paths(PathPromptOptions {
             files: self.origin == Origin::Mrpack,
             directories: self.origin == Origin::Packwiz,

@@ -124,6 +124,7 @@ pub struct InstanceSettings {
     builds: Vec<SharedString>,
     changing_version: bool,
     version_error: Option<SharedString>,
+    icon_error: Option<SharedString>,
     java: Entity<JavaPicker>,
     memory: Entity<MemorySlider>,
     fields: Vec<Field>,
@@ -291,6 +292,7 @@ impl InstanceSettings {
             builds: Vec::new(),
             changing_version: false,
             version_error: None,
+            icon_error: None,
             java,
             memory,
             fields,
@@ -329,17 +331,9 @@ impl InstanceSettings {
 
     /// Replaces the instance's icon with a picked image, or removes it.
     fn pick_icon(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let picked = cx.prompt_for_paths(gpui_kit::PathPromptOptions {
-            files: true,
-            directories: false,
-            multiple: false,
-            prompt: None,
-        });
         let (store, id) = (self.store.clone(), self.id.clone());
         cx.spawn_in(window, async move |this, cx| {
-            let Ok(Ok(Some(paths))) = picked.await else {
-                return;
-            };
+            let paths = super::pick::files(t!("pick.images"), super::pick::IMAGES, false).await;
             let Some(path) = paths.into_iter().next() else {
                 return;
             };
@@ -352,11 +346,11 @@ impl InstanceSettings {
             })
             .await
             .unwrap_or_else(|_| Err("cancelled".into()));
-            let _ = this.update(cx, |this, cx| match saved {
-                Ok(_) => AppState::global(cx).update(cx, |s, cx| s.reload_instances(cx)),
-                Err(e) => {
-                    this.version_error = Some(e.into());
-                    cx.notify();
+            let _ = this.update(cx, |this, cx| {
+                this.icon_error = saved.as_ref().err().map(|e| e.clone().into());
+                cx.notify();
+                if saved.is_ok() {
+                    AppState::global(cx).update(cx, |s, cx| s.reload_instances(cx));
                 }
             });
         })
@@ -689,12 +683,12 @@ impl InstanceSettings {
                     row.child(div().text_color(c.warn).child(e))
                 }),
             )
-            .row(setting_row(
-                t!("new_instance.icon").to_string(),
-                None,
-                icon_row,
-                cx,
-            ))
+            .row(
+                setting_row(t!("new_instance.icon").to_string(), None, icon_row, cx)
+                    .when_some(self.icon_error.clone(), |row, e| {
+                        row.child(div().text_color(c.warn).child(e))
+                    }),
+            )
             .row(setting_row(
                 t!("instance_settings.played").to_string(),
                 None,

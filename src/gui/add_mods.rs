@@ -9,9 +9,9 @@ use gpui_kit::base::input::{InputEvent, InputState};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
     AnyElement, App, AppContext as _, Context, Entity, FontWeight, InteractiveElement as _,
-    IntoElement, ParentElement as _, PathPromptOptions, Render, SharedString,
-    StatefulInteractiveElement as _, Styled as _, Subscription, UniformListScrollHandle,
-    WeakEntity, Window, div, img, px, relative, uniform_list,
+    IntoElement, ParentElement as _, Render, SharedString, StatefulInteractiveElement as _,
+    Styled as _, Subscription, UniformListScrollHandle, WeakEntity, Window, div, img, px, relative,
+    uniform_list,
 };
 use riven_format::{Kind, Reason, Source as EntrySource};
 use riven_launch::LaunchError;
@@ -24,6 +24,7 @@ use tokio::sync::mpsc;
 
 use super::instance::InstanceView;
 use super::mods;
+use super::pick;
 use super::runtime;
 use super::state::AppState;
 use moonglass::theme::ActiveTheme as _;
@@ -659,16 +660,12 @@ impl AddMods {
     }
 
     fn pick_files(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let paths = cx.prompt_for_paths(PathPromptOptions {
-            files: true,
-            directories: false,
-            multiple: true,
-            prompt: Some(t!("add_mods.pick").into()),
-        });
+        let (name, extensions) = match self.kind {
+            Kind::Mod => (t!("pick.mods"), pick::JARS),
+            _ => (t!("pick.archives"), pick::ARCHIVES),
+        };
         cx.spawn_in(window, async move |this, cx| {
-            let Ok(Ok(Some(paths))) = paths.await else {
-                return;
-            };
+            let paths = pick::files(name, extensions, true).await;
             if paths.is_empty() {
                 return;
             }

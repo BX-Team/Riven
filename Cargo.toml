@@ -69,7 +69,7 @@ crate-type = ["rlib"]
 
 [features]
 default = ["gui", "cli"]
-gui = ["dep:gpui-kit", "dep:moonglass", "dep:image", "dep:notify", "dep:rust-i18n", "dep:sys-locale"]
+gui = ["dep:gpui-kit", "dep:moonglass", "dep:image", "dep:notify", "dep:rfd", "dep:rust-i18n", "dep:sys-locale"]
 cli = ["dep:clap", "dep:indicatif", "dep:console"]
 
 [dependencies]
@@ -84,6 +84,7 @@ indicatif = { version = "0.18", optional = true }
 moonglass = { version = "0.1", optional = true }
 notify = { version = "8", optional = true }
 reqwest.workspace = true
+rfd = { version = "0.17", default-features = false, features = ["xdg-portal"], optional = true }
 rust-i18n = { version = "4", optional = true }
 riven-build.workspace = true
 riven-format.workspace = true

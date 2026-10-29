@@ -151,16 +151,9 @@ impl DevView {
         let Some(dir) = self.project.as_ref().map(|ws| ws.dir.clone()) else {
             return;
         };
-        let picked = cx.prompt_for_paths(gpui_kit::PathPromptOptions {
-            files: true,
-            directories: false,
-            multiple: false,
-            prompt: None,
-        });
         cx.spawn_in(window, async move |this, cx| {
-            let Ok(Ok(Some(paths))) = picked.await else {
-                return;
-            };
+            let paths =
+                crate::gui::pick::files(t!("pick.images"), crate::gui::pick::IMAGES, false).await;
             let Some(path) = paths.into_iter().next() else {
                 return;
             };

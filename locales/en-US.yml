@@ -10,6 +10,14 @@ editor:
   copy: Copy
   paste: Paste
   select_all: Select all
+pick:
+  all_files: All files
+  images: Images
+  mods: Mods (.jar)
+  archives: Archives (.zip)
+  content: Mods and archives
+  packs: Packs
+  mrpacks: Modrinth packs
 sidebar:
   instances: Instances
   new_instance: New instance

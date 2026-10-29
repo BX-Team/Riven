@@ -10,9 +10,9 @@ use gpui_kit::base::input::{InputEvent, InputState};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
     AnyElement, App, AppContext as _, Context, Entity, ExternalPaths, FontWeight,
-    InteractiveElement as _, IntoElement, ParentElement as _, PathPromptOptions, Render,
-    SharedString, StatefulInteractiveElement as _, Styled as _, Subscription,
-    UniformListScrollHandle, Window, div, img, px, relative, uniform_list,
+    InteractiveElement as _, IntoElement, ParentElement as _, Render, SharedString,
+    StatefulInteractiveElement as _, Styled as _, Subscription, UniformListScrollHandle, Window,
+    div, img, px, relative, uniform_list,
 };
 use riven_format::{Loader, LoaderKind, Release};
 use riven_sources::{Cache, Hit, Modrinth, Version};
@@ -618,16 +618,8 @@ impl NewInstance {
     }
 
     fn pick_file(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let picked = cx.prompt_for_paths(PathPromptOptions {
-            files: true,
-            directories: false,
-            multiple: false,
-            prompt: None,
-        });
         cx.spawn_in(window, async move |this, cx| {
-            let Ok(Ok(Some(paths))) = picked.await else {
-                return;
-            };
+            let paths = super::pick::files(t!("pick.packs"), super::pick::PACKS, false).await;
             let Some(path) = paths.into_iter().next() else {
                 return;
             };
@@ -788,16 +780,8 @@ impl NewInstance {
     }
 
     fn pick_icon(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let picked = cx.prompt_for_paths(PathPromptOptions {
-            files: true,
-            directories: false,
-            multiple: false,
-            prompt: None,
-        });
         cx.spawn_in(window, async move |this, cx| {
-            let Ok(Ok(Some(paths))) = picked.await else {
-                return;
-            };
+            let paths = super::pick::files(t!("pick.images"), super::pick::IMAGES, false).await;
             let Some(path) = paths.into_iter().next() else {
                 return;
             };

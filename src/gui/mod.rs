@@ -19,6 +19,7 @@ mod markdown;
 mod memory_slider;
 mod mods;
 mod new_instance;
+mod pick;
 mod runtime;
 mod screenshots;
 mod session;
