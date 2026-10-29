@@ -5,7 +5,7 @@ use riven_format::{
     Entry, EntryFile, Kind, LoaderKind, PackPath, Project, Reason, Side, Source as EntrySource,
     UpdatePolicy,
 };
-use riven_sources::{DependencyKind, ProjectInfo, Source, Target, Version, loader_name};
+use riven_sources::{Channel, DependencyKind, ProjectInfo, Source, Target, Version, loader_name};
 
 use crate::check::{Env, Installed, Problem, check};
 use crate::meta::{DepKind, JarMeta, ModDep};
@@ -84,6 +84,8 @@ pub struct AddOptions {
     pub side: Option<Side>,
     pub group: Option<String>,
     pub pin: bool,
+    /// Take the newest beta or alpha too, not only the newest release.
+    pub prerelease: bool,
 }
 
 /// A previewable change to `riven.json`.
@@ -276,9 +278,13 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
         version.loaders.iter().any(|l| !self.runs_on_pack_loader(l))
     }
 
-    /// The newest version of any channel; the author decides what is stable enough.
-    fn choose(&self, versions: &[Version]) -> Option<Version> {
-        versions.first().cloned()
+    /// The newest release, or the newest of any channel when asked or when there is no release.
+    fn choose(&self, versions: &[Version], prerelease: bool) -> Option<Version> {
+        versions
+            .iter()
+            .find(|v| prerelease || v.channel == Channel::Release)
+            .or(versions.first())
+            .cloned()
     }
 
     async fn compatible_versions(
@@ -362,7 +368,7 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
                     loader: loader_name(self.pack.loader.kind).into(),
                 })?,
             None => self
-                .choose(&versions)
+                .choose(&versions, options.prerelease)
                 .ok_or_else(|| self.no_version(&info))?,
         };
         let mut entry = self.build_entry(self.fresh_id(&info.slug), &info, &version, kind)?;
@@ -486,10 +492,22 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
             if stale_only && !stale {
                 continue;
             }
-            let next = newest
+            let mut next = newest
                 .get(version)
                 .filter(|_| entry.update != UpdatePolicy::Pinned)
-                .filter(|next| next.project == current.project);
+                .filter(|next| next.project == current.project)
+                .cloned();
+            // An entry on a release stays on releases; one already on a beta follows the betas.
+            if current.channel == Channel::Release
+                && next.as_ref().is_some_and(|n| n.channel != Channel::Release)
+            {
+                next = self
+                    .source
+                    .resolve(&current.project, &self.target(entry.kind))
+                    .await?
+                    .into_iter()
+                    .find(|v| v.channel == Channel::Release);
+            }
             let Some(next) = next else {
                 if stale {
                     self.plan.stranded.push(entry.id.clone());
@@ -497,7 +515,7 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
                 continue;
             };
             if next.published > current.published || stale && next.id != current.id {
-                updates.push((entry, next.clone()));
+                updates.push((entry, next));
             }
         }
         let mut project_ids: Vec<String> = updates.iter().map(|(_, v)| v.project.clone()).collect();
@@ -628,7 +646,7 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
                     None => {
                         let versions = self.compatible_versions(&info, kind).await?;
                         let picked = self.pick_for(&parent, &info, &versions, kind).await?;
-                        match picked.or_else(|| self.choose(&versions)) {
+                        match picked.or_else(|| self.choose(&versions, false)) {
                             Some(v) => v,
                             None if multi_loader => continue,
                             None => return Err(self.no_version(&info)),
@@ -838,7 +856,7 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
     ) -> Result<Option<Version>, ResolveError> {
         let reqs = self.parent_requirements(parent).await;
         if kind != Kind::Mod || reqs.iter().all(|d| d.req.is_any()) {
-            return Ok(self.choose(versions));
+            return Ok(self.choose(versions, false));
         }
         // Version numbers often embed the mod version; try plausible ones first.
         let slug_ids = [info.slug.clone(), info.slug.replace('-', "_")];
@@ -850,7 +868,8 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
                     .any(|d| d.req.matches(&piece))
             })
         };
-        let ordered: Vec<&Version> = versions.iter().collect();
+        let mut ordered: Vec<&Version> = versions.iter().collect();
+        ordered.sort_by_key(|v| v.channel != Channel::Release);
         let (mut candidates, rest): (Vec<&Version>, Vec<&Version>) =
             ordered.into_iter().partition(|v| hinted(v));
         candidates.extend(rest);
@@ -922,7 +941,7 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
             }
             let versions = self.compatible_versions(&info, Kind::Mod).await?;
             let picked = self.pick_for(parent, &info, &versions, Kind::Mod).await?;
-            let Some(version) = picked.or_else(|| self.choose(&versions)) else {
+            let Some(version) = picked.or_else(|| self.choose(&versions, false)) else {
                 continue;
             };
             let side = self
@@ -1215,7 +1234,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn update_takes_newest_of_any_channel_and_drops_new_orphans() {
+    async fn releases_win_unless_betas_are_asked_for_and_updates_drop_new_orphans() {
         let mut fake = create_world();
         let mut pack = pack();
         Planner::new(&fake, &fake, &pack)
@@ -1229,8 +1248,28 @@ mod tests {
 
         let updated: Vec<_> = plan.update.iter().map(|(_, n)| &n.source).collect();
         assert!(matches!(updated[..],
-            [EntrySource::Modrinth { version, .. }] if version == "c3"));
+            [EntrySource::Modrinth { version, .. }] if version == "c2"));
         assert_eq!(ids(&plan.remove), ["ponder", "registrate"]);
+
+        let added = |plan: Plan| match &plan.add[0].source {
+            EntrySource::Modrinth { version, .. } => version.clone(),
+            other => panic!("{other:?}"),
+        };
+        let fresh = self::pack();
+        let plan = Planner::new(&fake, &fake, &fresh)
+            .add("create", &AddOptions::default())
+            .await
+            .unwrap();
+        assert_eq!(added(plan), "c2");
+        let betas = AddOptions {
+            prerelease: true,
+            ..AddOptions::default()
+        };
+        let plan = Planner::new(&fake, &fake, &fresh)
+            .add("create", &betas)
+            .await
+            .unwrap();
+        assert_eq!(added(plan), "c3");
 
         let mut pinned = pack.clone();
         pinned

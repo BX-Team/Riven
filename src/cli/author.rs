@@ -38,6 +38,7 @@ pub struct AddArgs {
     pub side: Option<Side>,
     pub group: Option<String>,
     pub pin: bool,
+    pub beta: bool,
 }
 
 pub async fn add(out: &Output, query: &str, args: AddArgs) -> anyhow::Result<ExitCode> {
@@ -54,6 +55,7 @@ pub async fn add(out: &Output, query: &str, args: AddArgs) -> anyhow::Result<Exi
         side: args.side,
         group: args.group,
         pin: args.pin,
+        prerelease: args.beta,
     };
     let spinner = out.spinner(format!("Resolving `{query}`"));
     let plan = core::plan_add(&ws, &request).await;

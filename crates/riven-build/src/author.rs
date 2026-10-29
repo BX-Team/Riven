@@ -156,6 +156,8 @@ pub struct AddRequest {
     pub side: Option<Side>,
     pub group: Option<String>,
     pub pin: bool,
+    /// Allow a beta or alpha when it is the newest Modrinth version.
+    pub prerelease: bool,
 }
 
 /// Where an `add` query points.
@@ -364,6 +366,7 @@ pub async fn plan_add(ws: &Workspace, request: &AddRequest) -> Result<Plan, Auth
             side: request.side,
             group: request.group.clone(),
             pin: request.pin,
+            prerelease: request.prerelease,
         };
         return Ok(Planner::new(&modrinth, &jars, &ws.project)
             .add(&project_id, &options)

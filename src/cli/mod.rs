@@ -56,6 +56,9 @@ enum Command {
         /// Keep this version on `riven update`.
         #[arg(long)]
         pin: bool,
+        /// Take the newest beta or alpha too, not only the newest release.
+        #[arg(long)]
+        beta: bool,
     },
     /// Remove an entry and the dependencies only it needed.
     Remove {
@@ -325,6 +328,7 @@ async fn dispatch(command: Command, out: &Output) -> anyhow::Result<ExitCode> {
             side,
             group,
             pin,
+            beta,
         } => {
             let options = author::AddArgs {
                 source,
@@ -332,6 +336,7 @@ async fn dispatch(command: Command, out: &Output) -> anyhow::Result<ExitCode> {
                 side: side.map(Into::into),
                 group,
                 pin,
+                beta,
             };
             author::add(out, &query, options).await
         }

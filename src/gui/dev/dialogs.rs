@@ -217,6 +217,7 @@ impl AddContent {
             side: SIDES[self.side],
             group: self.group.clone(),
             pin: false,
+            prerelease: false,
         }
     }
 
