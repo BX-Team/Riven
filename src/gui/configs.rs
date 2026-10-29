@@ -373,7 +373,12 @@ impl ConfigsView {
 impl Render for ConfigsView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let c = cx.theme().colors;
-        let dir = self.game_dir.join("config");
+        let config = self.game_dir.join("config");
+        let dir = if config.is_dir() {
+            config
+        } else {
+            self.game_dir.clone()
+        };
         h_flex()
             .size_full()
             .items_start()
