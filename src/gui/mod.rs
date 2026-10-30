@@ -9,6 +9,7 @@ mod crash;
 mod dev;
 mod dialogs;
 mod file_tree;
+mod help;
 mod instance;
 mod instance_settings;
 mod java_picker;

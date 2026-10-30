@@ -1507,7 +1507,12 @@ impl NewInstance {
                     .gap(px(8.))
                     .font_weight(FontWeight::SEMIBOLD)
                     .child(icon(IconName::ExternalLink, c.text2))
-                    .child(t!("new_instance.link").to_string()),
+                    .child(t!("new_instance.link").to_string())
+                    .child(super::help::button(
+                        "help-install-link",
+                        "cli/installing#riven-install",
+                        cx,
+                    )),
             )
             .child(
                 h_flex()

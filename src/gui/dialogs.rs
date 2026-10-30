@@ -85,6 +85,36 @@ pub(super) fn dialog_shell(
     buttons: Vec<Button>,
     cx: &App,
 ) -> AnyElement {
+    shell(title.into(), None, description.into(), body, buttons, cx)
+}
+
+/// [`dialog_shell`] with a "?" by the title that opens `docs` of the documentation.
+pub(super) fn dialog_shell_help(
+    title: impl Into<SharedString>,
+    docs: &'static str,
+    description: impl Into<SharedString>,
+    body: impl IntoElement,
+    buttons: Vec<Button>,
+    cx: &App,
+) -> AnyElement {
+    shell(
+        title.into(),
+        Some(docs),
+        description.into(),
+        body,
+        buttons,
+        cx,
+    )
+}
+
+fn shell(
+    title: SharedString,
+    docs: Option<&'static str>,
+    description: SharedString,
+    body: impl IntoElement,
+    buttons: Vec<Button>,
+    cx: &App,
+) -> AnyElement {
     let c = cx.theme().colors;
     v_flex()
         .child(
@@ -94,16 +124,21 @@ pub(super) fn dialog_shell(
                 .pt(px(18.))
                 .pb(px(14.))
                 .child(
-                    div()
-                        .text_size(px(15.))
-                        .font_weight(FontWeight::BOLD)
-                        .child(title.into()),
+                    h_flex()
+                        .gap(px(8.))
+                        .child(
+                            div()
+                                .text_size(px(15.))
+                                .font_weight(FontWeight::BOLD)
+                                .child(title),
+                        )
+                        .children(docs.map(|page| super::help::button("dialog-help", page, cx))),
                 )
                 .child(
                     div()
                         .text_color(c.muted)
                         .line_height(relative(1.5))
-                        .child(description.into()),
+                        .child(description),
                 ),
         )
         .child(div().px(px(20.)).pb(px(18.)).child(body))

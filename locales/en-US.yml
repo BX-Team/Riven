@@ -25,6 +25,8 @@ sidebar:
 library:
   empty_title: No instances yet
   empty_hint: Create one or install a pack from a link
+help:
+  open_docs: Open the documentation
 instance:
   vanilla: Vanilla
   open_folder: Open folder

@@ -17,7 +17,7 @@ use rust_i18n::t;
 
 use super::DevView;
 use super::git::GitOp;
-use crate::gui::dialogs::{dialog_shell, field, open};
+use crate::gui::dialogs::{dialog_shell, dialog_shell_help, field, open};
 use crate::gui::pick;
 use crate::gui::runtime;
 use crate::gui::state::AppState;
@@ -519,7 +519,14 @@ impl Render for NewPath {
         } else {
             t!("dev.new_file")
         };
-        dialog_shell(title, t!("dev.new_path_hint"), body, buttons, cx)
+        dialog_shell_help(
+            title,
+            "cli/overview#the-project",
+            t!("dev.new_path_hint"),
+            body,
+            buttons,
+            cx,
+        )
     }
 }
 
@@ -755,8 +762,9 @@ impl Render for GroupForm {
         } else {
             t!("dev.group_add")
         };
-        dialog_shell(
+        dialog_shell_help(
             title,
+            "cli/authoring#riven-group",
             t!("dev.groups_hint"),
             body,
             vec![cancel(), action],
@@ -1364,7 +1372,14 @@ impl Render for NewFrom {
             })
             .on_click(cx.listener(|this, _, _, cx| this.run(cx)));
         let title = title.trim_end_matches('…').to_owned();
-        dialog_shell(title, description, body, vec![cancel(), action], cx)
+        dialog_shell_help(
+            title,
+            "guides/migrating",
+            description,
+            body,
+            vec![cancel(), action],
+            cx,
+        )
     }
 }
 

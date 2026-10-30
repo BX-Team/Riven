@@ -25,6 +25,8 @@ sidebar:
 library:
   empty_title: Инстансов пока нет
   empty_hint: Создайте инстанс или установите пак по ссылке
+help:
+  open_docs: Открыть документацию
 instance:
   vanilla: Ванилла
   open_folder: Открыть папку

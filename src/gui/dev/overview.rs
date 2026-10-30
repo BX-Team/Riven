@@ -222,15 +222,21 @@ impl DevView {
             .size_full()
             .child(facts)
             .child(
-                section_head(t!("dev.groups").into(), t!("dev.groups_hint").into(), cx).child(
-                    Button::new("group-add")
-                        .primary()
-                        .icon(IconName::Plus)
-                        .label(t!("dev.group_add"))
-                        .on_click(move |_, window, cx| {
-                            dialogs::open_group(add.clone(), None, window, cx)
-                        }),
-                ),
+                section_head(t!("dev.groups").into(), t!("dev.groups_hint").into(), cx)
+                    .child(crate::gui::help::button(
+                        "help-groups",
+                        "cli/authoring#riven-group",
+                        cx,
+                    ))
+                    .child(
+                        Button::new("group-add")
+                            .primary()
+                            .icon(IconName::Plus)
+                            .label(t!("dev.group_add"))
+                            .on_click(move |_, window, cx| {
+                                dialogs::open_group(add.clone(), None, window, cx)
+                            }),
+                    ),
             )
             .child(
                 v_flex()

@@ -1613,11 +1613,19 @@ impl Render for AddMods {
                     .on_click(cx.listener(|this, _, window, cx| this.install_selected(window, cx))),
             );
         }
-        let title = match self.host {
-            Host::Project(_) => t!("dev.add_title").into(),
-            Host::Instance { .. } => copy(self.kind, "title"),
-        };
-        super::dialogs::dialog_shell(title, about, body, buttons, cx)
+        match self.host {
+            Host::Project(_) => super::dialogs::dialog_shell_help(
+                t!("dev.add_title"),
+                "cli/authoring#riven-add",
+                about,
+                body,
+                buttons,
+                cx,
+            ),
+            Host::Instance { .. } => {
+                super::dialogs::dialog_shell(copy(self.kind, "title"), about, body, buttons, cx)
+            }
+        }
     }
 }
 

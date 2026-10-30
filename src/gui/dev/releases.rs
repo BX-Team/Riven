@@ -524,6 +524,11 @@ impl DevView {
                                 });
                             }),
                     )
+                    .child(crate::gui::help::button(
+                        "help-signatures",
+                        "guides/signatures",
+                        cx,
+                    ))
                     .child(
                         div()
                             .min_w_0()
@@ -933,11 +938,18 @@ impl DevView {
     pub(super) fn render_releases(&self, cx: &mut Context<Self>) -> AnyElement {
         v_flex()
             .size_full()
-            .child(section_head(
-                t!("dev.releases").into(),
-                t!("dev.releases_hint").into(),
-                cx,
-            ))
+            .child(
+                section_head(
+                    t!("dev.releases").into(),
+                    t!("dev.releases_hint").into(),
+                    cx,
+                )
+                .child(crate::gui::help::button(
+                    "help-releases",
+                    "cli/releases",
+                    cx,
+                )),
+            )
             .child(
                 v_flex()
                     .id("dev-releases")

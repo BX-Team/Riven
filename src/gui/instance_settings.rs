@@ -1217,20 +1217,29 @@ impl InstanceSettings {
                         section.row(setting_row(
                             t!("instance_settings.pack_channel").to_string(),
                             Some(t!("instance_settings.pack_channel_hint").into()),
-                            Dropdown::new(
-                                "pack-channel",
-                                channels,
-                                Some(pack.channel.clone().into()),
-                                move |v, _, cx| {
-                                    let _ = pick.update(cx, |this, cx| {
-                                        if let Some(pack) = &mut this.pack {
-                                            pack.channel = v.to_string();
-                                        }
-                                        this.check_pack(cx);
-                                    });
-                                },
-                            )
-                            .width(px(160.)),
+                            h_flex()
+                                .gap(px(8.))
+                                .child(
+                                    Dropdown::new(
+                                        "pack-channel",
+                                        channels,
+                                        Some(pack.channel.clone().into()),
+                                        move |v, _, cx| {
+                                            let _ = pick.update(cx, |this, cx| {
+                                                if let Some(pack) = &mut this.pack {
+                                                    pack.channel = v.to_string();
+                                                }
+                                                this.check_pack(cx);
+                                            });
+                                        },
+                                    )
+                                    .width(px(160.)),
+                                )
+                                .child(super::help::button(
+                                    "help-channel",
+                                    "cli/installing#riven-install",
+                                    cx,
+                                )),
                             cx,
                         ))
                     })
