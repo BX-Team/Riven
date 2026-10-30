@@ -15,7 +15,6 @@ pick:
   images: Изображения
   mods: Моды (.jar)
   archives: Архивы (.zip)
-  content: Моды и архивы
   packs: Паки
   mrpacks: Паки Modrinth
 sidebar:
@@ -437,6 +436,17 @@ add_content:
     link_about: Прямая ссылка на zip шейдерпака или его страница на Modrinth.
     file_about: Zip-файлы с диска копируются в инстанс; обновлять их лаунчер не сможет.
     pick_one: Выберите шейдер слева, чтобы увидеть описание
+  datapack:
+    title: Добавить датапаки
+    search: Поиск датапаков на Modrinth
+    link_hint: https://…/datapack.zip
+    link_about: Прямая ссылка на zip датапака или его страница на Modrinth.
+    file_about: Zip-файлы с диска копируются в инстанс; обновлять их лаунчер не сможет.
+    pick_one: Выберите датапак слева, чтобы увидеть описание
+  dev:
+    link_hint: Страница Modrinth, репозиторий или релиз GitHub, или прямая ссылка
+    link_about: "Страница Modrinth, репозиторий или релиз GitHub (можно gh:владелец/репо) или прямая ссылка на jar или zip. Источник Riven определит по ссылке."
+    file_about: Файлы с диска копируются в папку local/ проекта и идут вместе с паком.
 dev:
   back_to_launcher: Назад в лаунчер
   font_smaller: Мельче (Ctrl −)
@@ -474,7 +484,6 @@ dev:
   side_server: сервер
   side_both: оба
   side_default: Как в моде
-  source_auto: Авто
   dependency: зависимость
   pinned: "Закреплён: обновления его пропускают"
   pin: Закрепить версию
@@ -483,12 +492,6 @@ dev:
   remove_title: Удаление
   add: Добавить
   add_title: Добавить содержимое
-  add_description: Slug, поиск или ссылка Modrinth, репозиторий GitHub, ссылка на файл или файл с диска — то же, что принимает riven add.
-  add_hint: "sodium, modrinth.com/mod/…, owner/repo, https://…/mod.jar"
-  add_n: "Добавить: %{n}"
-  resolve: Найти
-  resolving: Ищу…
-  ambiguous: Подходит несколько проектов — выберите один
   apply: Применить
   preview_hint: Ничего не запишется, пока вы не примените изменения.
   updates_title: Обновления

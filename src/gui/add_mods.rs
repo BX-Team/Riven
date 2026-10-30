@@ -13,7 +13,8 @@ use gpui_kit::{
     Styled as _, Subscription, UniformListScrollHandle, WeakEntity, Window, div, img, px, relative,
     uniform_list,
 };
-use riven_format::{Kind, Reason, Source as EntrySource};
+use riven_build::author::{self, AddRequest, AuthorError};
+use riven_format::{Kind, Reason, Side, Source as EntrySource};
 use riven_launch::LaunchError;
 use riven_launch::instances::Instances;
 use riven_launch::own::Workbench;
@@ -22,6 +23,7 @@ use riven_sources::{Cache, Hit, Modrinth, Source as _, Support, Target};
 use rust_i18n::t;
 use tokio::sync::mpsc;
 
+use super::dev::{DevView, kind_label};
 use super::instance::InstanceView;
 use super::mods;
 use super::pick;
@@ -29,7 +31,8 @@ use super::runtime;
 use super::state::AppState;
 use moonglass::theme::ActiveTheme as _;
 use moonglass::{
-    Button, ButtonSize, IconName, Tabs, TextField, h_flex, icon, motion, scrollbar, v_flex,
+    Button, ButtonSize, Dropdown, IconName, MenuItem, Switch, Tabs, TextField, h_flex, icon,
+    motion, scrollbar, v_flex,
 };
 
 const RESULTS: u32 = 40;
@@ -103,11 +106,42 @@ struct Details {
     height: f32,
 }
 
-/// The "Add mods" dialog of an instance.
+/// Where added content goes.
+enum Host {
+    Instance {
+        id: String,
+        view: WeakEntity<InstanceView>,
+    },
+    /// The developer section's pack project, written to `riven.json`.
+    Project(WeakEntity<DevView>),
+}
+
+/// How the developer section adds content; an instance takes the defaults.
+#[derive(Clone, Default)]
+struct Options {
+    side: Option<Side>,
+    group: Option<String>,
+    betas: bool,
+}
+
+const PROJECT_KINDS: [Kind; 4] = [
+    Kind::Mod,
+    Kind::ResourcePack,
+    Kind::ShaderPack,
+    Kind::DataPack,
+];
+const SIDES: [Option<Side>; 4] = [
+    None,
+    Some(Side::Client),
+    Some(Side::Server),
+    Some(Side::Both),
+];
+
+/// The "Add mods" dialog of an instance, or "Add content" of a pack project.
 pub struct AddMods {
-    id: String,
+    host: Host,
     kind: Kind,
-    view: WeakEntity<InstanceView>,
+    options: Options,
     target: Option<Target>,
     mode: Mode,
     query: Entity<InputState>,
@@ -230,6 +264,44 @@ async fn install(
     Ok(outcome)
 }
 
+/// The request `riven add` would make for `query` with the dialog's options.
+fn request(query: String, options: &Options) -> AddRequest {
+    AddRequest {
+        query,
+        source: None,
+        asset: None,
+        side: options.side,
+        group: options.group.clone(),
+        pin: false,
+        prerelease: options.betas,
+    }
+}
+
+/// What the project would add for `query`, planned against its current `riven.json`.
+async fn plan_for_project(
+    view: &WeakEntity<DevView>,
+    query: String,
+    options: &Options,
+    cx: &mut gpui_kit::AsyncApp,
+) -> Result<Plan, String> {
+    let ws = view
+        .read_with(cx, |view, _| view.workspace())
+        .ok()
+        .flatten()
+        .ok_or_else(|| t!("dev.no_project").to_string())?;
+    let request = request(query, options);
+    runtime::spawn(async move { author::plan_add(&ws, &request).await })
+        .await
+        .map_err(|_| t!("launch.cancelled").to_string())?
+        .map_err(|e| match e {
+            AuthorError::Resolve(ResolveError::AlreadyPresent { .. }) => ALREADY.to_owned(),
+            e => e.to_string(),
+        })
+}
+
+/// Marks an error that only says the project already has it.
+const ALREADY: &str = "\0already";
+
 /// "Added Sodium and 2 dependencies" for what the plans installed.
 fn summary(plans: &[Plan]) -> Option<SharedString> {
     let added = plans.iter().flat_map(|p| &p.add);
@@ -271,6 +343,16 @@ fn logo(file: Option<&PathBuf>, size: f32, cx: &App) -> AnyElement {
     }
 }
 
+fn side_label(side: Option<Side>) -> SharedString {
+    match side {
+        None => t!("dev.side_default"),
+        Some(Side::Client) => t!("dev.side_client"),
+        Some(Side::Server) => t!("dev.side_server"),
+        Some(Side::Both) => t!("dev.side_both"),
+    }
+    .into()
+}
+
 fn support_label(support: Support) -> SharedString {
     match support {
         Support::Required => t!("add_mods.side_required"),
@@ -296,6 +378,12 @@ fn copy(kind: Kind, key: &str) -> SharedString {
         (Kind::ShaderPack, "link_about") => t!("add_content.shader.link_about"),
         (Kind::ShaderPack, "file_about") => t!("add_content.shader.file_about"),
         (Kind::ShaderPack, "pick_one") => t!("add_content.shader.pick_one"),
+        (Kind::DataPack, "title") => t!("add_content.datapack.title"),
+        (Kind::DataPack, "search") => t!("add_content.datapack.search"),
+        (Kind::DataPack, "link_hint") => t!("add_content.datapack.link_hint"),
+        (Kind::DataPack, "link_about") => t!("add_content.datapack.link_about"),
+        (Kind::DataPack, "file_about") => t!("add_content.datapack.file_about"),
+        (Kind::DataPack, "pick_one") => t!("add_content.datapack.pick_one"),
         (_, "title") => t!("add_mods.title"),
         (_, "search") => t!("add_mods.search"),
         (_, "link_hint") => t!("add_mods.link_hint"),
@@ -306,32 +394,67 @@ fn copy(kind: Kind, key: &str) -> SharedString {
     text.into()
 }
 
-impl AddMods {
-    fn new(
-        id: String,
-        kind: Kind,
-        view: WeakEntity<InstanceView>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
-        let target = AppState::global(cx).read(cx).instance(&id).and_then(|i| {
-            let loader = match &i.loader {
-                Some(loader) => loader.kind,
-                None if kind == Kind::Mod => return None,
-                // Packs and shaders are not filtered by loader.
-                None => riven_format::LoaderKind::Fabric,
-            };
-            Some(Target {
-                minecraft: i.minecraft.clone(),
-                loader,
-                kind,
+fn target_for(host: &Host, kind: Kind, cx: &App) -> Option<Target> {
+    let (minecraft, loader) = match host {
+        Host::Instance { id, .. } => {
+            let state = AppState::global(cx).read(cx);
+            let i = state.instance(id)?;
+            (i.minecraft.clone(), i.loader.as_ref().map(|l| l.kind))
+        }
+        Host::Project(view) => {
+            let ws = view.upgrade()?.read(cx).workspace()?;
+            (ws.project.minecraft, Some(ws.project.loader.kind))
+        }
+    };
+    let loader = match loader {
+        Some(loader) => loader,
+        None if kind == Kind::Mod => return None,
+        // Packs and shaders are not filtered by loader.
+        None => riven_format::LoaderKind::Fabric,
+    };
+    Some(Target {
+        minecraft,
+        loader,
+        kind,
+    })
+}
+
+fn known_for(host: &Host, kind: Kind, cx: &App) -> Vec<String> {
+    match host {
+        Host::Instance { view, .. } => view
+            .upgrade()
+            .map(|v| v.read(cx).known_projects(kind))
+            .unwrap_or_default(),
+        Host::Project(view) => view
+            .upgrade()
+            .and_then(|v| v.read(cx).workspace())
+            .map(|ws| {
+                ws.project
+                    .content
+                    .iter()
+                    .filter_map(|e| match &e.source {
+                        EntrySource::Modrinth { project, .. } => Some(project.clone()),
+                        _ => None,
+                    })
+                    .collect()
             })
-        });
+            .unwrap_or_default(),
+    }
+}
+
+impl AddMods {
+    fn new(host: Host, kind: Kind, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let target = target_for(&host, kind, cx);
+        let dev = matches!(host, Host::Project(_));
         let query =
             cx.new(|cx| InputState::new(window, cx).placeholder(copy(kind, "search").to_string()));
         query.update(cx, |s, cx| s.focus(window, cx));
-        let link = cx
-            .new(|cx| InputState::new(window, cx).placeholder(copy(kind, "link_hint").to_string()));
+        let link_hint: SharedString = if dev {
+            t!("add_content.dev.link_hint").into()
+        } else {
+            copy(kind, "link_hint")
+        };
+        let link = cx.new(|cx| InputState::new(window, cx).placeholder(link_hint.to_string()));
         let subs = vec![
             cx.subscribe(&query, |this, _, event: &InputEvent, cx| {
                 if let InputEvent::Change = event {
@@ -344,10 +467,7 @@ impl AddMods {
                 }
             }),
         ];
-        let known = view
-            .upgrade()
-            .map(|v| v.read(cx).known_projects(kind))
-            .unwrap_or_default();
+        let known = known_for(&host, kind, cx);
         let add = cx.entity().downgrade();
         let details = cx.new(|_| Details {
             add,
@@ -356,9 +476,9 @@ impl AddMods {
             height: 0.,
         });
         let mut this = Self {
-            id,
+            host,
             kind,
-            view,
+            options: Options::default(),
             target,
             mode: Mode::Modrinth,
             query,
@@ -385,12 +505,36 @@ impl AddMods {
         this
     }
 
+    /// Shows another kind of content: its search, its own picks.
+    fn set_kind(&mut self, kind: Kind, window: &mut Window, cx: &mut Context<Self>) {
+        if kind == self.kind || self.installing.is_some() {
+            return;
+        }
+        self.kind = kind;
+        self.target = target_for(&self.host, kind, cx);
+        self.installed = known_for(&self.host, kind, cx).into_iter().collect();
+        self.selected.clear();
+        self.hits.clear();
+        self.focus = None;
+        self.status = None;
+        self.problems.clear();
+        self.details.update(cx, |d, _| d.kind = kind);
+        self.query.update(cx, |s, cx| {
+            s.set_placeholder(copy(kind, "search").to_string(), window, cx);
+            s.set_value("", window, cx);
+        });
+        self.search(cx);
+    }
+
     /// Learns which Modrinth projects the instance has, to mark them in the results.
     fn read_installed(&mut self, cx: &mut Context<Self>) {
         let Some(store) = AppState::global(cx).read(cx).store.clone() else {
             return;
         };
-        let id = self.id.clone();
+        let Host::Instance { id, .. } = &self.host else {
+            return;
+        };
+        let id = id.clone();
         cx.spawn(async move |this, cx| {
             let found = runtime::spawn(async move {
                 Workbench::open(&store, &id)
@@ -559,6 +703,13 @@ impl AddMods {
         if self.installing.is_some() {
             return;
         }
+        let id = match &self.host {
+            Host::Instance { id, .. } => id.clone(),
+            Host::Project(view) => {
+                let view = view.clone();
+                return self.run_project(job, key, view, window, cx);
+            }
+        };
         let Some(store) = AppState::global(cx).read(cx).store.clone() else {
             return;
         };
@@ -566,7 +717,6 @@ impl AddMods {
         self.status = None;
         self.problems.clear();
         cx.notify();
-        let id = self.id.clone();
         let (tx, mut rx) = mpsc::unbounded_channel();
         let (done, abort) = runtime::spawn_abortable(install(store, id, self.kind, job, tx));
         self.abort = Some(abort);
@@ -587,7 +737,7 @@ impl AddMods {
                 this.progress = None;
                 let Ok(result) = result else {
                     this.status = Some((true, t!("launch.cancelled").into()));
-                    let _ = this.view.update(cx, |view, cx| view.reload(window, cx));
+                    this.reload_host(window, cx);
                     cx.notify();
                     return;
                 };
@@ -636,7 +786,77 @@ impl AddMods {
         if let Some((false, text)) = &self.status {
             moonglass::toast::show(moonglass::toast::ToastKind::Success, text.clone(), cx);
         }
-        let _ = self.view.update(cx, |view, cx| view.reload(window, cx));
+        self.reload_host(window, cx);
+    }
+
+    fn reload_host(&self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Host::Instance { view, .. } = &self.host {
+            let _ = view.update(cx, |view, cx| view.reload(window, cx));
+        }
+    }
+
+    /// Adds to the pack project one query at a time, each planned against what the last one wrote.
+    fn run_project(
+        &mut self,
+        job: Job,
+        key: String,
+        view: WeakEntity<DevView>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let queries: Vec<(String, String)> = match job {
+            Job::Projects(projects) => projects,
+            Job::Link(link) => vec![(link.clone(), link)],
+            Job::Files(paths) => paths
+                .into_iter()
+                .map(|p| {
+                    let shown = p.file_name().map_or_else(
+                        || p.display().to_string(),
+                        |n| n.to_string_lossy().into_owned(),
+                    );
+                    (p.display().to_string(), shown)
+                })
+                .collect(),
+        };
+        self.installing = Some(key);
+        self.status = None;
+        self.problems.clear();
+        cx.notify();
+        let options = self.options.clone();
+        cx.spawn_in(window, async move |this, cx| {
+            let mut outcome = Outcome::default();
+            let total = queries.len();
+            for (done, (query, title)) in queries.into_iter().enumerate() {
+                let alive = this.update(cx, |this, cx| {
+                    this.progress = Some((done, total, title.clone()));
+                    cx.notify();
+                });
+                if alive.is_err() {
+                    return;
+                }
+                match plan_for_project(&view, query.clone(), &options, cx).await {
+                    Ok(plan) => {
+                        let _ = view.update(cx, |view, cx| view.apply_plan(&plan, cx));
+                        outcome.plans.push(plan);
+                    }
+                    Err(e) if e == ALREADY => outcome.already.push(query),
+                    Err(e) => outcome.failed.push((title, e)),
+                }
+            }
+            let _ = this.update_in(cx, |this, window, cx| {
+                this.installing = None;
+                this.progress = None;
+                if total == 1
+                    && let Some((_, e)) = outcome.failed.first()
+                {
+                    this.status = Some((true, e.clone().into()));
+                } else {
+                    this.finish(outcome, window, cx);
+                }
+                cx.notify();
+            });
+        })
+        .detach();
     }
 
     fn install_selected(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -868,7 +1088,10 @@ impl AddMods {
                 div()
                     .text_color(c.muted)
                     .line_height(relative(1.5))
-                    .child(copy(self.kind, "link_about")),
+                    .child(match self.host {
+                        Host::Project(_) => t!("add_content.dev.link_about").into(),
+                        Host::Instance { .. } => copy(self.kind, "link_about"),
+                    }),
             )
             .child(
                 h_flex().child(
@@ -897,7 +1120,10 @@ impl AddMods {
                 div()
                     .text_color(c.muted)
                     .line_height(relative(1.5))
-                    .child(copy(self.kind, "file_about")),
+                    .child(match self.host {
+                        Host::Project(_) => t!("add_content.dev.file_about").into(),
+                        Host::Instance { .. } => copy(self.kind, "file_about"),
+                    }),
             )
             .child(
                 h_flex().child(
@@ -914,6 +1140,101 @@ impl AddMods {
                 ),
             )
             .into_any_element()
+    }
+
+    /// The developer section's kinds of content and how they are added.
+    fn render_project_bar(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let Host::Project(dev) = &self.host else {
+            return None;
+        };
+        let groups: Vec<MenuItem> = dev
+            .upgrade()
+            .and_then(|v| v.read(cx).workspace())
+            .map(|ws| ws.project.groups)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|g| MenuItem::new(g.id, g.name))
+            .collect();
+        let view = cx.entity().downgrade();
+        let kinds = Tabs::new(
+            "add-kind",
+            PROJECT_KINDS.iter().map(|k| kind_label(*k)).collect(),
+            PROJECT_KINDS
+                .iter()
+                .position(|k| *k == self.kind)
+                .unwrap_or(0),
+            {
+                let view = view.clone();
+                move |ix, window, cx| {
+                    let _ =
+                        view.update(cx, |this, cx| this.set_kind(PROJECT_KINDS[ix], window, cx));
+                }
+            },
+        );
+        let sides = SIDES
+            .iter()
+            .enumerate()
+            .map(|(i, s)| MenuItem::new(i.to_string(), side_label(*s)))
+            .collect();
+        let side = SIDES
+            .iter()
+            .position(|s| *s == self.options.side)
+            .unwrap_or(0);
+        let pick_side = view.clone();
+        let pick_group = view.clone();
+        let betas = view.clone();
+        let has_groups = !groups.is_empty();
+        let groups: Vec<MenuItem> = std::iter::once(MenuItem::new("", t!("dev.no_group")))
+            .chain(groups)
+            .collect();
+        Some(
+            h_flex()
+                .gap(px(10.))
+                .flex_wrap()
+                .child(kinds)
+                .child(div().flex_1())
+                .child(
+                    Dropdown::new(
+                        "add-side",
+                        sides,
+                        Some(side.to_string().into()),
+                        move |v, _, cx| {
+                            let _ = pick_side.update(cx, |this, cx| {
+                                this.options.side = SIDES[v.parse().unwrap_or(0)];
+                                cx.notify();
+                            });
+                        },
+                    )
+                    .width(px(170.)),
+                )
+                .when(has_groups, |row| {
+                    row.child(
+                        Dropdown::new(
+                            "add-group",
+                            groups,
+                            Some(self.options.group.clone().unwrap_or_default().into()),
+                            move |v, _, cx| {
+                                let _ = pick_group.update(cx, |this, cx| {
+                                    this.options.group = (!v.is_empty()).then(|| v.to_string());
+                                    cx.notify();
+                                });
+                            },
+                        )
+                        .width(px(150.)),
+                    )
+                })
+                .child(
+                    Switch::new("add-betas", self.options.betas)
+                        .label(t!("dev.betas").to_string())
+                        .on_change(move |on, _, cx| {
+                            let _ = betas.update(cx, |this, cx| {
+                                this.options.betas = on;
+                                cx.notify();
+                            });
+                        }),
+                )
+                .into_any_element(),
+        )
     }
 
     /// Under the list: what is picked, progress, and how the last install went.
@@ -1260,6 +1581,7 @@ impl Render for AddMods {
         };
         let body = v_flex()
             .gap(px(14.))
+            .children(self.render_project_bar(cx))
             .child(h_flex().child(tabs))
             .child(content)
             .child(self.render_status(cx));
@@ -1291,7 +1613,11 @@ impl Render for AddMods {
                     .on_click(cx.listener(|this, _, window, cx| this.install_selected(window, cx))),
             );
         }
-        super::dialogs::dialog_shell(copy(self.kind, "title"), about, body, buttons, cx)
+        let title = match self.host {
+            Host::Project(_) => t!("dev.add_title").into(),
+            Host::Instance { .. } => copy(self.kind, "title"),
+        };
+        super::dialogs::dialog_shell(title, about, body, buttons, cx)
     }
 }
 
@@ -1302,6 +1628,12 @@ pub fn open(
     window: &mut Window,
     cx: &mut App,
 ) {
-    let dialog = cx.new(|cx| AddMods::new(id, kind, view, window, cx));
+    let dialog = cx.new(|cx| AddMods::new(Host::Instance { id, view }, kind, window, cx));
+    super::dialogs::open(dialog.into(), WIDTH, cx);
+}
+
+/// "Add content" of the developer section, starting on `kind`.
+pub fn open_project(view: WeakEntity<DevView>, kind: Kind, window: &mut Window, cx: &mut App) {
+    let dialog = cx.new(|cx| AddMods::new(Host::Project(view), kind, window, cx));
     super::dialogs::open(dialog.into(), WIDTH, cx);
 }

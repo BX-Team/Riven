@@ -92,7 +92,7 @@ impl View {
     }
 }
 
-fn kind_label(kind: Kind) -> SharedString {
+pub(crate) fn kind_label(kind: Kind) -> SharedString {
     match kind {
         Kind::Mod => t!("dev.kind_mods"),
         Kind::ResourcePack => t!("dev.kind_resourcepacks"),
@@ -574,7 +574,20 @@ impl DevView {
         }
     }
 
-    fn apply_plan(&mut self, plan: &Plan, cx: &mut Context<Self>) {
+    /// The open project as it is now.
+    pub(crate) fn workspace(&self) -> Option<Workspace> {
+        self.project.clone()
+    }
+
+    /// The kind of content the open list shows, if it shows one.
+    pub(super) fn active_kind(&self) -> Option<Kind> {
+        match &self.active {
+            Tab::List(View::Kind(kind)) if *kind != Kind::File => Some(*kind),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn apply_plan(&mut self, plan: &Plan, cx: &mut Context<Self>) {
         self.edit(
             |project| {
                 plan.apply(project);

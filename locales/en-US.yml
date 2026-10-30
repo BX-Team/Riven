@@ -15,7 +15,6 @@ pick:
   images: Images
   mods: Mods (.jar)
   archives: Archives (.zip)
-  content: Mods and archives
   packs: Packs
   mrpacks: Modrinth packs
 sidebar:
@@ -437,6 +436,17 @@ add_content:
     link_about: A direct link to a shader pack zip, or its page on Modrinth.
     file_about: Zips from your disk are copied into the instance; the launcher cannot update them.
     pick_one: Pick a shader on the left to see what it is
+  datapack:
+    title: Add data packs
+    search: Search data packs on Modrinth
+    link_hint: https://…/datapack.zip
+    link_about: A direct link to a data pack zip, or its page on Modrinth.
+    file_about: Zips from your disk are copied in; the launcher cannot update them.
+    pick_one: Pick a data pack on the left to see what it is
+  dev:
+    link_hint: Modrinth page, GitHub repo or release, or a direct file link
+    link_about: "A Modrinth page, a GitHub repository or release (gh:owner/repo works too) or a direct link to a jar or zip. Riven tells the source from the link."
+    file_about: Files from your disk are copied into the project's local/ folder and ship with the pack.
 dev:
   back_to_launcher: Back to the launcher
   font_smaller: Smaller (Ctrl −)
@@ -474,7 +484,6 @@ dev:
   side_server: server
   side_both: both
   side_default: From the mod
-  source_auto: Auto
   dependency: dependency
   pinned: "Pinned: updates skip it"
   pin: Pin version
@@ -483,12 +492,6 @@ dev:
   remove_title: Remove content
   add: Add
   add_title: Add content
-  add_description: A Modrinth slug, search or link, a GitHub repository, a file URL or a file from disk — what riven add takes.
-  add_hint: "sodium, modrinth.com/mod/…, owner/repo, https://…/mod.jar"
-  add_n: "Add %{n}"
-  resolve: Resolve
-  resolving: Resolving…
-  ambiguous: Several projects match; pick one
   apply: Apply
   preview_hint: Nothing is written until you apply.
   updates_title: Updates

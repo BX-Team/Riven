@@ -5,7 +5,6 @@ use rust_i18n::t;
 pub const IMAGES: &[&str] = &["png", "jpg", "jpeg", "webp", "gif"];
 pub const JARS: &[&str] = &["jar"];
 pub const ARCHIVES: &[&str] = &["zip"];
-pub const CONTENT: &[&str] = &["jar", "zip"];
 pub const PACKS: &[&str] = &["riven", "mrpack", "zip"];
 pub const MRPACKS: &[&str] = &["mrpack", "zip"];
 
