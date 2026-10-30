@@ -124,12 +124,7 @@ struct Options {
     betas: bool,
 }
 
-const PROJECT_KINDS: [Kind; 4] = [
-    Kind::Mod,
-    Kind::ResourcePack,
-    Kind::ShaderPack,
-    Kind::DataPack,
-];
+const PROJECT_KINDS: [Kind; 3] = [Kind::Mod, Kind::ResourcePack, Kind::ShaderPack];
 const SIDES: [Option<Side>; 4] = [
     None,
     Some(Side::Client),
@@ -378,12 +373,6 @@ fn copy(kind: Kind, key: &str) -> SharedString {
         (Kind::ShaderPack, "link_about") => t!("add_content.shader.link_about"),
         (Kind::ShaderPack, "file_about") => t!("add_content.shader.file_about"),
         (Kind::ShaderPack, "pick_one") => t!("add_content.shader.pick_one"),
-        (Kind::DataPack, "title") => t!("add_content.datapack.title"),
-        (Kind::DataPack, "search") => t!("add_content.datapack.search"),
-        (Kind::DataPack, "link_hint") => t!("add_content.datapack.link_hint"),
-        (Kind::DataPack, "link_about") => t!("add_content.datapack.link_about"),
-        (Kind::DataPack, "file_about") => t!("add_content.datapack.file_about"),
-        (Kind::DataPack, "pick_one") => t!("add_content.datapack.pick_one"),
         (_, "title") => t!("add_mods.title"),
         (_, "search") => t!("add_mods.search"),
         (_, "link_hint") => t!("add_mods.link_hint"),
@@ -1642,6 +1631,11 @@ pub fn open(
 
 /// "Add content" of the developer section, starting on `kind`.
 pub fn open_project(view: WeakEntity<DevView>, kind: Kind, window: &mut Window, cx: &mut App) {
+    let kind = if PROJECT_KINDS.contains(&kind) {
+        kind
+    } else {
+        Kind::Mod
+    };
     let dialog = cx.new(|cx| AddMods::new(Host::Project(view), kind, window, cx));
     super::dialogs::open(dialog.into(), WIDTH, cx);
 }

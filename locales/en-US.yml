@@ -438,13 +438,6 @@ add_content:
     link_about: A direct link to a shader pack zip, or its page on Modrinth.
     file_about: Zips from your disk are copied into the instance; the launcher cannot update them.
     pick_one: Pick a shader on the left to see what it is
-  datapack:
-    title: Add data packs
-    search: Search data packs on Modrinth
-    link_hint: https://…/datapack.zip
-    link_about: A direct link to a data pack zip, or its page on Modrinth.
-    file_about: Zips from your disk are copied in; the launcher cannot update them.
-    pick_one: Pick a data pack on the left to see what it is
   dev:
     link_hint: Modrinth page, GitHub repo or release, or a direct file link
     link_about: "A Modrinth page, a GitHub repository or release (gh:owner/repo works too) or a direct link to a jar or zip. Riven tells the source from the link."
