@@ -1,14 +1,19 @@
 ; Per-user installer for Riven Launcher; no administrator rights needed, so the app can update itself.
 ;
-;   makensis /DVERSION=<x.y.z> /DEXE=<path to riven.exe> /DOUT=<setup.exe> packaging\windows\riven.nsi
+;   makensis /DVERSION=<x.y.z> /DEXE=<riven.exe> /DCLI=<riven-cli riven.exe> /DPLUGINS=<folder with EnVar.dll> /DOUT=<setup.exe> packaging\windows\riven.nsi
 ;
-; The updater runs the new installer with /S over the old install; it finds the folder in the registry.
+; The updater runs the new installer with /S over the old install; it finds the folder and the
+; command-line choice in the registry.
+;
+; The command line is the console build installed as riven.com next to riven.exe: PATHEXT tries .COM
+; before .EXE, so `riven` in a terminal gets the console one while shortcuts open the window.
 
 Unicode true
 SetCompressor /SOLID lzma
 ManifestDPIAware true
 
 !include "MUI2.nsh"
+!include "Sections.nsh"
 !include "x64.nsh"
 
 !ifndef VERSION
@@ -17,8 +22,14 @@ ManifestDPIAware true
 !ifndef EXE
   !define EXE "..\..\target\release\riven.exe"
 !endif
+!ifndef CLI
+  !define CLI "..\..\target\cli\release\riven.exe"
+!endif
 !ifndef OUT
   !define OUT "Riven-Setup-x86_64.exe"
+!endif
+!ifdef PLUGINS
+  !addplugindir /x86-unicode "${PLUGINS}"
 !endif
 
 !define NAME      "Riven Launcher"
@@ -51,6 +62,7 @@ VIAddVersionKey "LegalCopyright"  "BX Team, GPL-3.0-or-later"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "..\..\LICENSE"
 !insertmacro MUI_PAGE_DIRECTORY
+!insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
@@ -60,13 +72,12 @@ VIAddVersionKey "LegalCopyright"  "BX Team, GPL-3.0-or-later"
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "Russian"
 
-Function .onInit
-  ${IfNot} ${RunningX64}
-    MessageBox MB_ICONSTOP "Riven Launcher needs 64-bit Windows."
-    Abort
-  ${EndIf}
-  SetRegView 64
-FunctionEnd
+LangString CLI_NAME ${LANG_ENGLISH} "Command line (riven in PATH)"
+LangString CLI_NAME ${LANG_RUSSIAN} "Командная строка (riven в PATH)"
+LangString CLI_ABOUT ${LANG_ENGLISH} "Run riven install, riven add and the other commands from cmd and PowerShell."
+LangString CLI_ABOUT ${LANG_RUSSIAN} "Команды riven install, riven add и другие в cmd и PowerShell."
+LangString MAIN_ABOUT ${LANG_ENGLISH} "The launcher itself."
+LangString MAIN_ABOUT ${LANG_RUSSIAN} "Сам лаунчер."
 
 Section "Riven Launcher" SecMain
   SectionIn RO
@@ -102,14 +113,60 @@ Section "Riven Launcher" SecMain
   WriteRegDWORD HKCU "${UNINSTKEY}" "NoRepair" 1
 SectionEnd
 
+Section /o "$(CLI_NAME)" SecCli
+  SetOutPath "$INSTDIR"
+  ; A running riven.com cannot be overwritten but can be renamed.
+  Delete "$INSTDIR\riven.com.old"
+  Rename "$INSTDIR\riven.com" "$INSTDIR\riven.com.old"
+  File "/oname=riven.com" "${CLI}"
+  Delete "$INSTDIR\riven.com.old"
+  EnVar::SetHKCU
+  EnVar::AddValue "Path" "$INSTDIR"
+  Pop $0
+  WriteRegDWORD HKCU "${REGKEY}" "Cli" 1
+SectionEnd
+
+Section "-Drop the command line when unticked"
+  ${IfNot} ${SectionIsSelected} ${SecCli}
+    Delete "$INSTDIR\riven.com"
+    EnVar::SetHKCU
+    EnVar::DeleteValue "Path" "$INSTDIR"
+    Pop $0
+    WriteRegDWORD HKCU "${REGKEY}" "Cli" 0
+  ${EndIf}
+SectionEnd
+
+!insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecMain} $(MAIN_ABOUT)
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecCli} $(CLI_ABOUT)
+!insertmacro MUI_FUNCTION_DESCRIPTION_END
+
+; After the sections, so it can name them. A silent update keeps the earlier choice.
+Function .onInit
+  ${IfNot} ${RunningX64}
+    MessageBox MB_ICONSTOP "Riven Launcher needs 64-bit Windows."
+    Abort
+  ${EndIf}
+  SetRegView 64
+  ReadRegDWORD $0 HKCU "${REGKEY}" "Cli"
+  ${If} $0 = 1
+    !insertmacro SelectSection ${SecCli}
+  ${EndIf}
+FunctionEnd
+
 Function un.onInit
   SetRegView 64
 FunctionEnd
 
 ; Instances, accounts and settings live in %APPDATA%\Riven and stay.
 Section "Uninstall"
+  EnVar::SetHKCU
+  EnVar::DeleteValue "Path" "$INSTDIR"
+  Pop $0
   Delete "$INSTDIR\riven.exe"
   Delete "$INSTDIR\riven.exe.old"
+  Delete "$INSTDIR\riven.com"
+  Delete "$INSTDIR\riven.com.old"
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"
 

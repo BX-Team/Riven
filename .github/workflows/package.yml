@@ -193,10 +193,16 @@ jobs:
           Compress-Archive -Path target/release/riven.exe -DestinationPath out/riven-x86_64-windows.zip -Force
           Compress-Archive -Path target/cli/release/riven.exe -DestinationPath out/riven-cli-x86_64-windows.zip -Force
           choco install nsis -y --no-progress
+          Invoke-WebRequest -Uri "https://nsis.sourceforge.io/mediawiki/images/7/7f/EnVar_plugin.zip" -OutFile envar.zip
+          $hash = (Get-FileHash envar.zip -Algorithm SHA256).Hash
+          if ($hash -ne "E9AA92DE351345ED82795251D838F1AE9041BA35AF9D381A5780C7843B01F56A") { throw "EnVar_plugin.zip changed: $hash" }
+          Expand-Archive envar.zip -DestinationPath envar -Force
+          $plugins = (Resolve-Path envar/Plugins/x86-unicode).Path
           $exe = (Resolve-Path target/release/riven.exe).Path
+          $cli = (Resolve-Path target/cli/release/riven.exe).Path
           $setup = Join-Path (Resolve-Path out).Path "Riven-Setup-x86_64.exe"
           $version = $env:VERSION -replace '-.*$', ''
-          & "C:\Program Files (x86)\NSIS\makensis.exe" "/DVERSION=$version" "/DEXE=$exe" "/DOUT=$setup" packaging\windows\riven.nsi
+          & "C:\Program Files (x86)\NSIS\makensis.exe" "/DVERSION=$version" "/DEXE=$exe" "/DCLI=$cli" "/DPLUGINS=$plugins" "/DOUT=$setup" packaging\windows\riven.nsi
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload the workflow artifact

@@ -332,7 +332,7 @@ fn apply(install: &Install, file: &Path, staging: &Path) -> Result<Relaunch, Lau
 
 /// A running exe cannot be overwritten on Windows but can be renamed, so the installer finds its place free.
 fn run_installer(setup: &Path, exe: &Path) -> Result<Relaunch, LaunchError> {
-    let aside = exe.with_extension("exe.old");
+    let aside = set_aside(exe);
     let _ = std::fs::remove_file(&aside);
     std::fs::rename(exe, &aside).map_err(io_error(exe))?;
     let status = Command::new(setup).arg("/S").status();
@@ -354,8 +354,19 @@ pub fn cleanup() {
         return;
     }
     if let Install::Installer(exe) = Install::detect() {
-        let _ = std::fs::remove_file(exe.with_extension("exe.old"));
+        for name in ["riven.exe", "riven.com"] {
+            let _ = std::fs::remove_file(set_aside(&exe.with_file_name(name)));
+        }
     }
+}
+
+/// `riven.exe` → `riven.exe.old`; the console `riven.com` updates itself too.
+fn set_aside(exe: &Path) -> PathBuf {
+    let ext = exe
+        .extension()
+        .map(|e| e.to_string_lossy())
+        .unwrap_or_default();
+    exe.with_extension(format!("{ext}.old"))
 }
 
 fn extract_file(archive: &Path, name: &str, to: &Path) -> Result<(), LaunchError> {
@@ -445,6 +456,18 @@ mod tests {
         assert_eq!(
             classify("windows", p("C:/Riven/riven.exe"), None, none),
             Install::Portable("C:/Riven/riven.exe".into())
+        );
+    }
+
+    #[test]
+    fn the_console_build_is_set_aside_under_its_own_name() {
+        assert_eq!(
+            set_aside(Path::new("C:/Riven/riven.exe")),
+            Path::new("C:/Riven/riven.exe.old")
+        );
+        assert_eq!(
+            set_aside(Path::new("C:/Riven/riven.com")),
+            Path::new("C:/Riven/riven.com.old")
         );
     }
 
