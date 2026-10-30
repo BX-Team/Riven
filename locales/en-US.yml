@@ -443,6 +443,9 @@ add_content:
     link_about: "A Modrinth page, a GitHub repository or release (gh:owner/repo works too) or a direct link to a jar or zip. Riven tells the source from the link."
     file_about: Files from your disk are copied into the project's local/ folder and ship with the pack.
 dev:
+  git_working: working copy
+  git_binary: Not a text file; there is nothing to compare line by line.
+  git_no_changes: No line changes against HEAD.
   back_to_launcher: Back to the launcher
   font_smaller: Smaller (Ctrl −)
   font_bigger: Bigger (Ctrl +)

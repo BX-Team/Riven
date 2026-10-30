@@ -356,6 +356,80 @@ pub fn describe(old: Option<&Project>, new: &Project) -> Vec<DiffLine> {
     out
 }
 
+/// One row of a file's diff against `HEAD`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DiffRow {
+    /// A line with its 1-based numbers before and after; `None` on the side that lacks it.
+    Line {
+        old: Option<usize>,
+        new: Option<usize>,
+        text: String,
+    },
+    /// Unchanged lines left out between two hunks.
+    Gap,
+}
+
+impl DiffRow {
+    pub fn added(&self) -> bool {
+        matches!(self, DiffRow::Line { old: None, .. })
+    }
+
+    pub fn removed(&self) -> bool {
+        matches!(self, DiffRow::Line { new: None, .. })
+    }
+}
+
+const DIFF_CONTEXT: usize = 3;
+
+/// The changed hunks of `old` → `new` with a few lines of context around each.
+pub fn diff_lines(old: &str, new: &str) -> Vec<DiffRow> {
+    let diff = similar::TextDiff::from_lines(old, new);
+    let mut rows = Vec::new();
+    for (i, group) in diff.grouped_ops(DIFF_CONTEXT).iter().enumerate() {
+        if i > 0 {
+            rows.push(DiffRow::Gap);
+        }
+        for op in group {
+            for change in diff.iter_changes(op) {
+                rows.push(DiffRow::Line {
+                    old: change.old_index().map(|n| n + 1),
+                    new: change.new_index().map(|n| n + 1),
+                    text: change.value().trim_end_matches(['\n', '\r']).to_owned(),
+                });
+            }
+        }
+    }
+    rows
+}
+
+/// How `path` (relative to the project) differs from `HEAD`; `None` when either side is not text.
+pub fn file_diff(dir: &Path, path: &str) -> Result<Option<Vec<DiffRow>>, GitError> {
+    let repo = gix::discover(dir).map_err(read)?;
+    let prefix = prefix(&repo, dir)?;
+    let in_repo = match prefix.as_str() {
+        "" => path.to_owned(),
+        p => format!("{p}/{path}"),
+    };
+    let committed = repo
+        .head_commit()
+        .ok()
+        .and_then(|head| head.tree().ok()?.lookup_entry_by_path(&in_repo).ok()?)
+        .map(|entry| entry.object().map(|blob| blob.data.clone()))
+        .transpose()
+        .map_err(read)?
+        .unwrap_or_default();
+    let full = dir.join(path);
+    let current = match std::fs::read(&full) {
+        Ok(bytes) => bytes,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(source) => return Err(GitError::Io { path: full, source }),
+    };
+    let (Ok(old), Ok(new)) = (String::from_utf8(committed), String::from_utf8(current)) else {
+        return Ok(None);
+    };
+    Ok(Some(diff_lines(&old, &new)))
+}
+
 /// System git, without a console window flashing up on Windows.
 pub(crate) fn command() -> std::process::Command {
     #[allow(unused_mut)]
@@ -544,6 +618,27 @@ pub fn clone_name(url: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn diff_keeps_line_numbers_and_splits_far_hunks() {
+        let old: String = (1..=20).map(|n| format!("line {n}\n")).collect();
+        let new = old
+            .replace("line 2\n", "line two\n")
+            .replace("line 18\n", "");
+        let rows = diff_lines(&old, &new);
+        let line = |old: Option<usize>, new: Option<usize>, text: &str| DiffRow::Line {
+            old,
+            new,
+            text: text.into(),
+        };
+        assert_eq!(rows[0], line(Some(1), Some(1), "line 1"));
+        assert_eq!(rows[1], line(Some(2), None, "line 2"));
+        assert_eq!(rows[2], line(None, Some(2), "line two"));
+        assert_eq!(rows.iter().filter(|r| **r == DiffRow::Gap).count(), 1);
+        assert!(rows.contains(&line(Some(18), None, "line 18")));
+        assert!(rows.contains(&line(Some(19), Some(18), "line 19")));
+        assert!(diff_lines(&old, &old).is_empty());
+    }
 
     #[test]
     fn status_is_scoped_to_the_project_folder() {

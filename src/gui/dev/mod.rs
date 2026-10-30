@@ -113,6 +113,8 @@ enum Tab {
     File(PackPath),
     Releases,
     History,
+    /// A changed file against `HEAD`; the path is relative to the project.
+    Diff(String),
 }
 
 impl Tab {
@@ -124,6 +126,7 @@ impl Tab {
             Tab::File(path) => path.as_str().to_owned(),
             Tab::Releases => "releases".into(),
             Tab::History => "history".into(),
+            Tab::Diff(path) => format!("diff-{path}"),
         }
     }
 
@@ -135,6 +138,7 @@ impl Tab {
             Tab::File(_) => IconName::File,
             Tab::Releases => IconName::Tag,
             Tab::History => IconName::History,
+            Tab::Diff(_) => IconName::GitBranch,
         }
     }
 }
@@ -995,6 +999,7 @@ impl DevView {
             Tab::File(path) => self.render_file(&path, cx),
             Tab::Releases => self.render_releases(cx),
             Tab::History => self.render_history(cx),
+            Tab::Diff(path) => self.render_diff(&path, cx),
         }
     }
 }

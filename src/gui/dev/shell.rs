@@ -425,6 +425,7 @@ impl DevView {
             Tab::File(path) => path.file_name().to_owned().into(),
             Tab::Releases => t!("dev.releases").into(),
             Tab::History => t!("dev.history").into(),
+            Tab::Diff(path) => path.rsplit('/').next().unwrap_or(path).to_owned().into(),
         }
     }
 

@@ -1,5 +1,6 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use gpui_kit::base::input::TextareaState;
 use gpui_kit::prelude::FluentBuilder as _;
@@ -8,7 +9,7 @@ use gpui_kit::{
     SharedString, StatefulInteractiveElement as _, Styled as _, UniformListScrollHandle, Window,
     div, px, uniform_list,
 };
-use riven_build::git::{self, DiffLine, FileState, GitError, Status};
+use riven_build::git::{self, DiffLine, DiffRow, FileState, GitError, Status};
 use riven_format::PackPath;
 use rust_i18n::t;
 use tokio::sync::mpsc;
@@ -32,6 +33,14 @@ pub(super) enum Repo {
     Failed(SharedString),
 }
 
+pub(super) enum FileDiff {
+    Loading,
+    Ready(Rc<Vec<DiffRow>>),
+    /// One side is not text.
+    Binary,
+    Failed(SharedString),
+}
+
 /// The Git section's state: what gix read, and the output of the last git commands.
 pub(super) struct GitState {
     pub(super) repo: Repo,
@@ -41,6 +50,9 @@ pub(super) struct GitState {
     reading: bool,
     again: bool,
     diff_list: UniformListScrollHandle,
+    /// Changed files read against `HEAD`, by path.
+    files: HashMap<String, FileDiff>,
+    file_diff: UniformListScrollHandle,
     files_list: UniformListScrollHandle,
     log_list: UniformListScrollHandle,
     /// Whether a `git` executable runs; reading works without one.
@@ -68,6 +80,8 @@ impl GitState {
             reading: false,
             again: false,
             diff_list: UniformListScrollHandle::new(),
+            files: HashMap::new(),
+            file_diff: UniformListScrollHandle::new(),
             files_list: UniformListScrollHandle::new(),
             log_list: UniformListScrollHandle::new(),
             installed: true,
@@ -171,6 +185,18 @@ impl DevView {
                 };
                 if std::mem::take(&mut this.git.again) {
                     this.refresh_git(cx);
+                }
+                let open: Vec<String> = this
+                    .tabs
+                    .iter()
+                    .filter_map(|t| match t {
+                        Tab::Diff(path) => Some(path.clone()),
+                        _ => None,
+                    })
+                    .collect();
+                this.git.files.retain(|path, _| open.contains(path));
+                for path in open {
+                    this.load_diff(path, cx);
                 }
                 cx.notify();
             });
@@ -317,17 +343,118 @@ impl DevView {
     }
 
     fn open_changed(&mut self, path: &str, cx: &mut Context<Self>) {
-        let Ok(pack) = PackPath::new(path) else {
-            return;
-        };
+        self.load_diff(path.to_owned(), cx);
+        self.show(Tab::Diff(path.to_owned()), cx);
+    }
+
+    /// The file as an editor tab, when it is one the developer section edits.
+    fn editable(&self, path: &str) -> Option<PackPath> {
+        let pack = PackPath::new(path).ok()?;
         let editable = path == riven_build::workspace::PROJECT_FILE
             || self
                 .project
                 .as_ref()
                 .is_some_and(|ws| ws.override_path(&pack).is_ok_and(|p| p.is_file()));
-        if editable {
-            self.show(Tab::File(pack), cx);
-        }
+        editable.then_some(pack)
+    }
+
+    fn load_diff(&mut self, path: String, cx: &mut Context<Self>) {
+        let Some(dir) = self.project.as_ref().map(|ws| ws.dir.clone()) else {
+            return;
+        };
+        self.git
+            .files
+            .entry(path.clone())
+            .or_insert(FileDiff::Loading);
+        cx.spawn(async move |this, cx| {
+            let read = path.clone();
+            let result = runtime::blocking(move || git::file_diff(&dir, &read))
+                .await
+                .unwrap_or_else(|_| Err(GitError::Read(String::new())));
+            let _ = this.update(cx, |this, cx| {
+                let diff = match result {
+                    Ok(Some(rows)) => FileDiff::Ready(Rc::new(rows)),
+                    Ok(None) => FileDiff::Binary,
+                    Err(e) => FileDiff::Failed(e.to_string().into()),
+                };
+                this.git.files.insert(path, diff);
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// A Diff tab: the file's changed lines against `HEAD`, with their numbers on both sides.
+    pub(super) fn render_diff(&self, path: &str, cx: &mut Context<Self>) -> AnyElement {
+        let c = cx.theme().colors;
+        let mono = cx.theme().mono.clone();
+        let open = self.editable(path);
+        let head = h_flex()
+            .flex_none()
+            .gap(px(10.))
+            .px(px(14.))
+            .py(px(6.))
+            .border_b_1()
+            .border_color(c.row)
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .truncate()
+                    .font_family(mono.clone())
+                    .text_size(px(12.))
+                    .text_color(c.text2)
+                    .child(format!("{path} · HEAD → {}", t!("dev.git_working"))),
+            )
+            .when_some(open, |row, pack| {
+                row.child(
+                    Button::new("diff-open-file")
+                        .size(ButtonSize::Xs)
+                        .icon(IconName::Pencil)
+                        .label(t!("dev.open_file"))
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.show(Tab::File(pack.clone()), cx)
+                        })),
+                )
+            });
+        let note = |text: SharedString| {
+            div()
+                .p(px(18.))
+                .text_color(c.muted)
+                .child(text)
+                .into_any_element()
+        };
+        let body = match self.git.files.get(path) {
+            None | Some(FileDiff::Loading) => note(t!("dev.git_reading").into()),
+            Some(FileDiff::Binary) => note(t!("dev.git_binary").into()),
+            Some(FileDiff::Failed(e)) => note(e.clone()),
+            Some(FileDiff::Ready(rows)) if rows.is_empty() => note(t!("dev.git_no_changes").into()),
+            Some(FileDiff::Ready(rows)) => {
+                let rows = rows.clone();
+                div()
+                    .relative()
+                    .flex_1()
+                    .min_h_0()
+                    .font_family(mono)
+                    .text_size(px(12.5))
+                    .child(
+                        uniform_list("file-diff", rows.len(), move |range, _, cx| {
+                            range
+                                .filter_map(|ix| Some(diff_row_view(rows.get(ix)?, cx)))
+                                .collect::<Vec<_>>()
+                        })
+                        .size_full()
+                        .track_scroll(&self.git.file_diff),
+                    )
+                    .child(scrollbar(&self.git.file_diff))
+                    .into_any_element()
+            }
+        };
+        v_flex()
+            .size_full()
+            .child(head)
+            .child(body)
+            .into_any_element()
     }
 
     /// The Git sidebar: branch sync, changed files and the commit box.
@@ -623,6 +750,7 @@ impl DevView {
             std::time::UNIX_EPOCH + std::time::Duration::from_secs(commit.time.max(0) as u64);
         Some(
             h_flex()
+                .w_full()
                 .h(px(FILE_ROW))
                 .gap(px(10.))
                 .px(px(12.))
@@ -665,6 +793,7 @@ impl DevView {
         };
         Some(
             h_flex()
+                .w_full()
                 .h(px(DIFF_ROW))
                 .px(px(12.))
                 .gap(px(8.))
@@ -693,6 +822,7 @@ impl DevView {
         Some(
             h_flex()
                 .id(("git-file", ix))
+                .w_full()
                 .h(px(FILE_ROW))
                 .px(px(12.))
                 .gap(px(10.))
@@ -747,4 +877,57 @@ impl DevView {
                 cx.notify();
             }))
     }
+}
+
+fn diff_row_view(row: &DiffRow, cx: &gpui_kit::App) -> AnyElement {
+    let c = cx.theme().colors;
+    let DiffRow::Line { old, new, text } = row else {
+        return h_flex()
+            .w_full()
+            .h(px(DIFF_ROW))
+            .px(px(12.))
+            .bg(c.row)
+            .text_color(c.muted)
+            .child("⋯")
+            .into_any_element();
+    };
+    let number = |n: &Option<usize>| {
+        div()
+            .w(px(44.))
+            .flex_none()
+            .pr(px(8.))
+            .flex()
+            .justify_end()
+            .text_color(c.muted)
+            .child(n.map(|n| n.to_string()).unwrap_or_default())
+    };
+    let (sign, tint) = if row.added() {
+        ("+", Some(c.ok))
+    } else if row.removed() {
+        ("-", Some(moonglass::theme::danger()))
+    } else {
+        (" ", None)
+    };
+    h_flex()
+        .w_full()
+        .h(px(DIFF_ROW))
+        .when_some(tint, |r, t| r.bg(t.opacity(0.12)))
+        .child(number(old))
+        .child(number(new))
+        .child(
+            div()
+                .w(px(16.))
+                .flex_none()
+                .text_color(tint.unwrap_or(c.muted))
+                .child(sign),
+        )
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .whitespace_nowrap()
+                .overflow_hidden()
+                .child(text.replace('\t', "    ")),
+        )
+        .into_any_element()
 }

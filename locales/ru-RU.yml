@@ -443,6 +443,9 @@ add_content:
     link_about: "Страница Modrinth, репозиторий или релиз GitHub (можно gh:владелец/репо) или прямая ссылка на jar или zip. Источник Riven определит по ссылке."
     file_about: Файлы с диска копируются в папку local/ проекта и идут вместе с паком.
 dev:
+  git_working: рабочая копия
+  git_binary: Это не текстовый файл, построчно сравнить нельзя.
+  git_no_changes: Построчных изменений относительно HEAD нет.
   back_to_launcher: Назад в лаунчер
   font_smaller: Мельче (Ctrl −)
   font_bigger: Крупнее (Ctrl +)
