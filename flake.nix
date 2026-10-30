@@ -121,6 +121,7 @@
             nativeBuildInputs = [
               pkgs.pkg-config
               pkgs.makeWrapper
+              pkgs.installShellFiles
             ]
             ++ lib.optionals (!cli) [ pkgs.autoPatchelfHook ];
             buildInputs = lib.optionals (!cli) (runtimeLibs ++ [ pkgs.stdenv.cc.cc.lib ]);
@@ -133,12 +134,19 @@
               wrapProgram $out/bin/riven --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath gameLibs} \
                 --prefix PATH : ${lib.makeBinPath gameTools}
             '';
-            postInstall = lib.optionalString (!cli) ''
-              install -Dm644 assets/brand/riven.svg $out/share/icons/hicolor/scalable/apps/riven.svg
-              install -Dm644 assets/brand/riven-512.png $out/share/icons/hicolor/512x512/apps/riven.png
-              install -Dm644 packaging/linux/riven.desktop $out/share/applications/riven.desktop
-              install -Dm644 packaging/linux/riven-mime.xml $out/share/mime/packages/riven.xml
-            '';
+            postInstall =
+              lib.optionalString (pkgs.stdenv.buildPlatform.canExecute pkgs.stdenv.hostPlatform) ''
+                installShellCompletion --cmd riven \
+                  --bash <(COMPLETE=bash $out/bin/riven) \
+                  --zsh <(COMPLETE=zsh $out/bin/riven) \
+                  --fish <(COMPLETE=fish $out/bin/riven)
+              ''
+              + lib.optionalString (!cli) ''
+                install -Dm644 assets/brand/riven.svg $out/share/icons/hicolor/scalable/apps/riven.svg
+                install -Dm644 assets/brand/riven-512.png $out/share/icons/hicolor/512x512/apps/riven.png
+                install -Dm644 packaging/linux/riven.desktop $out/share/applications/riven.desktop
+                install -Dm644 packaging/linux/riven-mime.xml $out/share/mime/packages/riven.xml
+              '';
             # build.rs cannot ask git inside the sandbox; the About page shows this commit.
             RIVEN_REV = self.shortRev or self.dirtyShortRev or "unknown";
             meta = {
@@ -210,12 +218,14 @@
 
         devShells.${system}.default = pkgs.mkShell {
           buildInputs = runtimeLibs;
-          nativeBuildInputs = with pkgs; [
-            rustToolchain
-            pkg-config
-            git
-          ]
-          ++ gameTools;
+          nativeBuildInputs =
+            with pkgs;
+            [
+              rustToolchain
+              pkg-config
+              git
+            ]
+            ++ gameTools;
 
           shellHook = ''
             export LD_LIBRARY_PATH="${lib.makeLibraryPath (runtimeLibs ++ gameLibs)}:$LD_LIBRARY_PATH"

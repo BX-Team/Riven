@@ -1,6 +1,6 @@
 # Maintainer: BX Team
 #
-# Packs the riven binary CI built next to this file; CI sets pkgver.
+# Packs the riven binary and shell completions CI put next to this file; CI sets pkgver.
 pkgname=riven
 pkgver=0.0.0
 pkgrel=1
@@ -27,4 +27,7 @@ package() {
   install -Dm644 "$startdir/riven-mime.xml"   "$pkgdir/usr/share/mime/packages/riven.xml"
   install -Dm644 "$startdir/riven.svg"        "$pkgdir/usr/share/icons/hicolor/scalable/apps/riven.svg"
   install -Dm644 "$startdir/riven-512.png"    "$pkgdir/usr/share/icons/hicolor/512x512/apps/riven.png"
+  install -Dm644 "$startdir/riven.bash"       "$pkgdir/usr/share/bash-completion/completions/riven"
+  install -Dm644 "$startdir/_riven"           "$pkgdir/usr/share/zsh/site-functions/_riven"
+  install -Dm644 "$startdir/riven.fish"       "$pkgdir/usr/share/fish/vendor_completions.d/riven.fish"
 }
