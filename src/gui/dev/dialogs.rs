@@ -10,7 +10,7 @@ use gpui_kit::{
 use riven_build::author::{self, AuthorError};
 use riven_build::import::{ImportKind, ImportStage, Scope, import_pack};
 use riven_build::pull::Drift;
-use riven_build::workspace::Workspace;
+use riven_build::workspace::{OVERRIDE_SIDES, OVERRIDES, Workspace};
 use riven_format::{Kind, LoaderKind, Reason};
 use riven_resolve::Plan;
 use rust_i18n::t;
@@ -22,7 +22,9 @@ use crate::gui::pick;
 use crate::gui::runtime;
 use crate::gui::state::AppState;
 use moonglass::theme::ActiveTheme as _;
-use moonglass::{Button, ButtonSize, Dropdown, IconName, MenuItem, TextField, h_flex, v_flex};
+use moonglass::{
+    Button, ButtonSize, Dropdown, IconName, MenuItem, Tabs, TextField, h_flex, v_flex,
+};
 
 fn close(cx: &mut App) {
     AppState::global(cx).update(cx, |s, cx| s.close_modal(cx));
@@ -350,18 +352,46 @@ pub fn open_create(view: WeakEntity<DevView>, window: &mut Window, cx: &mut App)
     open(dialog.into(), 472., cx);
 }
 
-/// "New file" / "New folder": a path inside `overrides/`, prefilled with the folder it starts in.
+/// "New file" / "New folder": a side, a folder already there and a name.
 pub struct NewPath {
     view: WeakEntity<DevView>,
     folder: bool,
+    side: usize,
+    /// Within the side; empty for its top.
+    dir: String,
+    /// Every folder of each side, relative to it.
+    folders: [Vec<String>; 3],
     input: Entity<InputState>,
     error: Option<SharedString>,
     _input: Subscription,
 }
 
 impl NewPath {
+    fn base(&self) -> String {
+        let side = OVERRIDE_SIDES[self.side];
+        if self.dir.is_empty() {
+            format!("{OVERRIDES}/{side}")
+        } else {
+            format!("{OVERRIDES}/{side}/{}", self.dir)
+        }
+    }
+
+    fn path(&self, cx: &App) -> String {
+        let name = self
+            .input
+            .read(cx)
+            .value()
+            .trim()
+            .trim_matches('/')
+            .to_string();
+        format!("{}/{name}", self.base())
+    }
+
     fn create(&mut self, cx: &mut Context<Self>) {
-        let path = self.input.read(cx).value().trim().to_string();
+        if self.input.read(cx).value().trim().is_empty() {
+            return;
+        }
+        let path = self.path(cx);
         let folder = self.folder;
         let result = self
             .view
@@ -375,14 +405,93 @@ impl NewPath {
             }
         }
     }
+
+    /// Copies files from disk into the chosen folder.
+    fn import(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let base = self.base();
+        cx.spawn_in(window, async move |this, cx| {
+            let paths = pick::files("", &[], true).await;
+            if paths.is_empty() {
+                return;
+            }
+            let _ = this.update(cx, |this, cx| {
+                let result = this
+                    .view
+                    .update(cx, |view, cx| view.import_files(&paths, &base, cx))
+                    .unwrap_or(Ok(()));
+                match result {
+                    Ok(()) => close(cx),
+                    Err(e) => {
+                        this.error = Some(e.into());
+                        cx.notify();
+                    }
+                }
+            });
+        })
+        .detach();
+    }
 }
 
 impl Render for NewPath {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let c = cx.theme().colors;
+        let view = cx.entity().downgrade();
+        let sides = Tabs::new(
+            "new-path-side",
+            vec![
+                t!("dev.overrides_common").into(),
+                t!("dev.overrides_client").into(),
+                t!("dev.overrides_server").into(),
+            ],
+            self.side,
+            {
+                let view = view.clone();
+                move |ix, _, cx| {
+                    let _ = view.update(cx, |this, cx| {
+                        this.side = ix;
+                        if !this.folders[ix].contains(&this.dir) {
+                            this.dir.clear();
+                        }
+                        cx.notify();
+                    });
+                }
+            },
+        );
+        let folders: Vec<MenuItem> = std::iter::once(MenuItem::new("", t!("dev.top_folder")))
+            .chain(
+                self.folders[self.side]
+                    .iter()
+                    .map(|f| MenuItem::new(f.clone(), f.clone())),
+            )
+            .collect();
+        let pick_dir = view.clone();
         let body = v_flex()
             .gap(px(12.))
-            .child(TextField::new(&self.input))
+            .child(field(t!("dev.new_side"), h_flex().child(sides), cx))
+            .child(field(
+                t!("dev.new_in"),
+                Dropdown::new(
+                    "new-path-dir",
+                    folders,
+                    Some(self.dir.clone().into()),
+                    move |v, _, cx| {
+                        let _ = pick_dir.update(cx, |this, cx| {
+                            this.dir = v.to_string();
+                            cx.notify();
+                        });
+                    },
+                )
+                .width(px(432.)),
+                cx,
+            ))
+            .child(field(t!("dev.new_name"), TextField::new(&self.input), cx))
+            .child(
+                div()
+                    .text_size(px(12.))
+                    .text_color(c.muted)
+                    .font_family(cx.theme().mono.clone())
+                    .child(self.path(cx)),
+            )
             .when_some(self.error.clone(), |col, e| {
                 col.child(div().text_color(c.warn).child(e))
             });
@@ -390,22 +499,31 @@ impl Render for NewPath {
             .primary()
             .size(ButtonSize::Md)
             .label(t!("new_instance.create"))
+            .disabled(self.input.read(cx).value().trim().is_empty())
             .on_click(cx.listener(|this, _, _, cx| this.create(cx)));
+        let mut buttons = vec![cancel()];
+        if !self.folder {
+            buttons.insert(
+                0,
+                Button::new("new-path-import")
+                    .ghost()
+                    .size(ButtonSize::Md)
+                    .icon(IconName::Upload)
+                    .label(t!("dev.import_files"))
+                    .on_click(cx.listener(|this, _, window, cx| this.import(window, cx))),
+            );
+        }
+        buttons.push(action);
         let title = if self.folder {
             t!("dev.new_folder")
         } else {
             t!("dev.new_file")
         };
-        dialog_shell(
-            title,
-            t!("dev.new_path_hint"),
-            body,
-            vec![cancel(), action],
-            cx,
-        )
+        dialog_shell(title, t!("dev.new_path_hint"), body, buttons, cx)
     }
 }
 
+/// Opens "New file" or "New folder" on the folder `start` (`overrides/<side>/<dir>/`).
 pub fn open_new_path(
     view: WeakEntity<DevView>,
     start: String,
@@ -413,8 +531,37 @@ pub fn open_new_path(
     window: &mut Window,
     cx: &mut App,
 ) {
+    let mut folders: [Vec<String>; 3] = Default::default();
+    if let Some(ws) = view.upgrade().and_then(|v| v.read(cx).workspace()) {
+        for entry in ws.overrides().unwrap_or_default() {
+            if !entry.dir {
+                continue;
+            }
+            let rest = entry.path.as_str().strip_prefix(OVERRIDES).unwrap_or("");
+            let mut parts = rest.trim_start_matches('/').splitn(2, '/');
+            let side = parts.next().unwrap_or("");
+            if let (Some(ix), Some(dir)) =
+                (OVERRIDE_SIDES.iter().position(|s| *s == side), parts.next())
+            {
+                folders[ix].push(dir.to_owned());
+            }
+        }
+    }
+    let rest = start
+        .strip_prefix(OVERRIDES)
+        .unwrap_or("")
+        .trim_matches('/')
+        .to_owned();
+    let mut parts = rest.splitn(2, '/');
+    let side = OVERRIDE_SIDES
+        .iter()
+        .position(|s| Some(*s) == parts.next())
+        .unwrap_or(0);
+    let dir = parts.next().unwrap_or("").to_owned();
     let dialog = cx.new(|cx| {
-        let input = cx.new(|cx| InputState::new(window, cx).default_value(start));
+        let input = cx.new(|cx| {
+            InputState::new(window, cx).placeholder(if folder { "config" } else { "options.txt" })
+        });
         input.update(cx, |s, cx| s.focus(window, cx));
         let _input =
             cx.subscribe(
@@ -431,6 +578,9 @@ pub fn open_new_path(
         NewPath {
             view,
             folder,
+            side,
+            dir,
+            folders,
             input,
             error: None,
             _input,

@@ -170,6 +170,29 @@ impl Workspace {
         self.write_override(path, "")
     }
 
+    /// Copies a file from disk into the folder `into`, refusing to replace one.
+    pub fn copy_into_override(
+        &self,
+        from: &Path,
+        into: &PackPath,
+    ) -> Result<PackPath, AuthorError> {
+        let name = from
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let path = PackPath::new(format!("{into}/{name}"))
+            .map_err(|_| AuthorError::NotOverride(into.clone()))?;
+        let full = self.override_path(&path)?;
+        if full.exists() {
+            return Err(AuthorError::Exists(full));
+        }
+        if let Some(parent) = full.parent() {
+            std::fs::create_dir_all(parent).map_err(io(parent))?;
+        }
+        std::fs::copy(from, &full).map_err(io(&full))?;
+        Ok(path)
+    }
+
     pub fn create_override_dir(&self, path: &PackPath) -> Result<(), AuthorError> {
         let full = self.override_path(path)?;
         std::fs::create_dir_all(&full).map_err(io(&full))

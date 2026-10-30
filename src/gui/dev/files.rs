@@ -323,6 +323,32 @@ impl DevView {
         Ok(())
     }
 
+    /// Copies files from disk into the folder `into` and shows the first.
+    pub(super) fn import_files(
+        &mut self,
+        paths: &[std::path::PathBuf],
+        into: &str,
+        cx: &mut Context<Self>,
+    ) -> Result<(), String> {
+        let Some(ws) = &self.project else {
+            return Ok(());
+        };
+        let into = PackPath::new(into).map_err(|e| e.to_string())?;
+        let mut first = None;
+        for path in paths {
+            let copied = ws
+                .copy_into_override(path, &into)
+                .map_err(|e| e.to_string())?;
+            first.get_or_insert(copied);
+        }
+        self.refresh_tree(cx);
+        if let Some(shown) = first.as_ref().and_then(|p| in_tree(p)).map(str::to_owned) {
+            self.tree.update(cx, |tree, cx| tree.reveal(&shown, cx));
+        }
+        cx.notify();
+        Ok(())
+    }
+
     fn delete_path(&mut self, path: PackPath, cx: &mut Context<Self>) {
         let Some(ws) = &self.project else {
             return;

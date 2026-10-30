@@ -506,7 +506,15 @@ dev:
   files: Files
   new_file: New file
   new_folder: New folder
-  new_path_hint: "A path inside overrides/: common/ ships to both sides, client/ and server/ to one."
+  new_path_hint: "Files under overrides/ ship with the pack: to both sides, or only to the client or the server."
+  overrides_common: Both sides
+  overrides_client: Client
+  overrides_server: Server
+  top_folder: Top of the side
+  new_side: Goes to
+  new_in: Folder
+  new_name: Name
+  import_files: Add from disk…
   delete_file_title: "Delete %{name}?"
   delete_file_body: It is removed from the project folder; git can bring it back if it was committed.
   discard_title: "Close %{name} without saving?"

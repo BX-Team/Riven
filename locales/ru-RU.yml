@@ -506,7 +506,15 @@ dev:
   files: Файлы
   new_file: Новый файл
   new_folder: Новая папка
-  new_path_hint: "Путь внутри overrides/: common/ попадает на обе стороны, client/ и server/ — на одну."
+  new_path_hint: "Файлы из overrides/ идут вместе с паком: на обе стороны или только на клиент или сервер."
+  overrides_common: Обе стороны
+  overrides_client: Клиент
+  overrides_server: Сервер
+  top_folder: Корень стороны
+  new_side: Куда попадёт
+  new_in: Папка
+  new_name: Имя
+  import_files: Добавить с диска…
   delete_file_title: "Удалить %{name}?"
   delete_file_body: Он удалится из папки проекта; git вернёт его, если он был закоммичен.
   discard_title: "Закрыть %{name} без сохранения?"

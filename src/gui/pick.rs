@@ -8,12 +8,15 @@ pub const ARCHIVES: &[&str] = &["zip"];
 pub const PACKS: &[&str] = &["riven", "mrpack", "zip"];
 pub const MRPACKS: &[&str] = &["mrpack", "zip"];
 
-/// The system file picker showing `extensions` first; empty when cancelled.
+/// The system file picker showing `extensions` first, or any file when there are none; empty when cancelled.
 pub async fn files(name: impl Into<String>, extensions: &[&str], multiple: bool) -> Vec<PathBuf> {
-    let mut dialog = rfd::AsyncFileDialog::new().add_filter(name, extensions);
-    // macOS merges every filter into one list, so a catch-all would undo the first.
-    if !cfg!(target_os = "macos") {
-        dialog = dialog.add_filter(t!("pick.all_files"), &["*"]);
+    let mut dialog = rfd::AsyncFileDialog::new();
+    if !extensions.is_empty() {
+        dialog = dialog.add_filter(name, extensions);
+        // macOS merges every filter into one list, so a catch-all would undo the first.
+        if !cfg!(target_os = "macos") {
+            dialog = dialog.add_filter(t!("pick.all_files"), &["*"]);
+        }
     }
     if multiple {
         dialog
