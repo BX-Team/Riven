@@ -62,6 +62,12 @@ enum Command {
         #[arg(long)]
         beta: bool,
     },
+    /// Add (or with `--remove` take out) tab completion in the PowerShell profiles.
+    #[command(hide = true)]
+    PowershellProfile {
+        #[arg(long)]
+        remove: bool,
+    },
     /// Remove an entry and the dependencies only it needed.
     Remove {
         #[arg(add = complete::entries())]
@@ -361,6 +367,10 @@ async fn dispatch(command: Command, out: &Output) -> anyhow::Result<ExitCode> {
                 beta,
             };
             author::add(out, &query, options).await
+        }
+        Command::PowershellProfile { remove } => {
+            complete::powershell_profile(remove)?;
+            Ok(ExitCode::SUCCESS)
         }
         Command::Remove { id, keep_deps } => author::remove(out, &id, keep_deps).await,
         Command::Update { ids, dry_run, url } => {
