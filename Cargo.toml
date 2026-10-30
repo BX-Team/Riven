@@ -81,7 +81,7 @@ futures-util.workspace = true
 gpui-kit = { version = "0.8.1", default-features = false, optional = true }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"], optional = true }
 indicatif = { version = "0.18", optional = true }
-moonglass = { version = "0.1", optional = true }
+moonglass = { version = "0.1.1", optional = true }
 notify = { version = "8", optional = true }
 reqwest.workspace = true
 rfd = { version = "0.17", default-features = false, features = ["xdg-portal"], optional = true }
