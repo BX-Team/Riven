@@ -3,7 +3,7 @@
 ;   makensis /DVERSION=<x.y.z> /DEXE=<riven.exe> /DCLI=<riven-cli riven.exe> /DPLUGINS=<folder with EnVar.dll> /DOUT=<setup.exe> packaging\windows\riven.nsi
 ;
 ; The updater runs the new installer with /S over the old install; it finds the folder and the
-; command-line choice in the registry.
+; command-line and completion choices in the registry.
 ;
 ; The command line is the console build installed as riven.com next to riven.exe: PATHEXT tries .COM
 ; before .EXE, so `riven` in a terminal gets the console one while shortcuts open the window.
@@ -76,6 +76,10 @@ LangString CLI_NAME ${LANG_ENGLISH} "Command line (riven in PATH)"
 LangString CLI_NAME ${LANG_RUSSIAN} "Командная строка (riven в PATH)"
 LangString CLI_ABOUT ${LANG_ENGLISH} "Run riven install, riven add and the other commands from cmd and PowerShell."
 LangString CLI_ABOUT ${LANG_RUSSIAN} "Команды riven install, riven add и другие в cmd и PowerShell."
+LangString PS_NAME ${LANG_ENGLISH} "Tab completion in PowerShell"
+LangString PS_NAME ${LANG_RUSSIAN} "Автодополнение в PowerShell"
+LangString PS_ABOUT ${LANG_ENGLISH} "Adds a line to your PowerShell profile so Tab completes riven commands and pack entries. Needs PowerShell 7, or Windows PowerShell with scripts allowed."
+LangString PS_ABOUT ${LANG_RUSSIAN} "Добавляет строку в профиль PowerShell: Tab дополняет команды riven и записи пака. Нужен PowerShell 7 или Windows PowerShell с разрешёнными скриптами."
 LangString MAIN_ABOUT ${LANG_ENGLISH} "The launcher itself."
 LangString MAIN_ABOUT ${LANG_RUSSIAN} "Сам лаунчер."
 
@@ -126,7 +130,20 @@ Section /o "$(CLI_NAME)" SecCli
   WriteRegDWORD HKCU "${REGKEY}" "Cli" 1
 SectionEnd
 
-Section "-Drop the command line when unticked"
+Section /o "$(PS_NAME)" SecPs
+  nsExec::Exec '"$INSTDIR\riven.com" powershell-profile'
+  Pop $0
+  WriteRegDWORD HKCU "${REGKEY}" "PowerShell" 1
+SectionEnd
+
+Section "-Drop what was unticked"
+  ${IfNot} ${SectionIsSelected} ${SecPs}
+    ${If} ${FileExists} "$INSTDIR\riven.com"
+      nsExec::Exec '"$INSTDIR\riven.com" powershell-profile --remove'
+      Pop $0
+    ${EndIf}
+    WriteRegDWORD HKCU "${REGKEY}" "PowerShell" 0
+  ${EndIf}
   ${IfNot} ${SectionIsSelected} ${SecCli}
     Delete "$INSTDIR\riven.com"
     EnVar::SetHKCU
@@ -139,6 +156,7 @@ SectionEnd
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
   !insertmacro MUI_DESCRIPTION_TEXT ${SecMain} $(MAIN_ABOUT)
   !insertmacro MUI_DESCRIPTION_TEXT ${SecCli} $(CLI_ABOUT)
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecPs} $(PS_ABOUT)
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 ; After the sections, so it can name them. A silent update keeps the earlier choice.
@@ -152,6 +170,21 @@ Function .onInit
   ${If} $0 = 1
     !insertmacro SelectSection ${SecCli}
   ${EndIf}
+  ReadRegDWORD $0 HKCU "${REGKEY}" "PowerShell"
+  ${If} $0 = 1
+    !insertmacro SelectSection ${SecPs}
+  ${EndIf}
+FunctionEnd
+
+; Completion runs riven.com, so it comes and goes with the command line.
+Function .onSelChange
+  ${If} $0 = ${SecPs}
+  ${AndIf} ${SectionIsSelected} ${SecPs}
+    !insertmacro SelectSection ${SecCli}
+  ${ElseIf} $0 = ${SecCli}
+  ${AndIfNot} ${SectionIsSelected} ${SecCli}
+    !insertmacro UnselectSection ${SecPs}
+  ${EndIf}
 FunctionEnd
 
 Function un.onInit
@@ -160,6 +193,10 @@ FunctionEnd
 
 ; Instances, accounts and settings live in %APPDATA%\Riven and stay.
 Section "Uninstall"
+  ${If} ${FileExists} "$INSTDIR\riven.com"
+    nsExec::Exec '"$INSTDIR\riven.com" powershell-profile --remove'
+    Pop $0
+  ${EndIf}
   EnVar::SetHKCU
   EnVar::DeleteValue "Path" "$INSTDIR"
   Pop $0
