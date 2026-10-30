@@ -81,6 +81,14 @@ jobs:
           target/release/riven --version
           target/cli/release/riven --version
 
+      # Small stubs that ask `riven` for candidates on each Tab; deb, rpm and Arch install them.
+      - name: Shell completions
+        run: |
+          mkdir -p target/completions
+          COMPLETE=bash target/cli/release/riven > target/completions/riven.bash
+          COMPLETE=zsh target/cli/release/riven > target/completions/_riven
+          COMPLETE=fish target/cli/release/riven > target/completions/riven.fish
+
       - name: Archives, deb and rpm
         env:
           ARCH: ${{ matrix.arch }}
@@ -122,7 +130,7 @@ jobs:
         run: |
           pkg=packaging/arch
           cp target/release/riven packaging/linux/riven.desktop packaging/linux/riven-mime.xml \
-            assets/brand/riven.svg assets/brand/riven-512.png "$pkg/"
+            assets/brand/riven.svg assets/brand/riven-512.png target/completions/* "$pkg/"
           docker run --rm -v "$PWD/$pkg:/pkg" -e VER="$VERSION" archlinux:latest bash -euc '
             pacman -Sy --noconfirm --needed base-devel >/dev/null
             useradd -m builder

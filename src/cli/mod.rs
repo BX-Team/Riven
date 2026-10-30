@@ -1,4 +1,5 @@
 mod author;
+mod complete;
 mod import;
 mod output;
 mod project;
@@ -12,6 +13,7 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand, ValueEnum};
 use riven_format::{LoaderKind, Side};
 
+pub use complete::answer as answer_completion;
 use output::Output;
 
 #[derive(Parser)]
@@ -51,7 +53,7 @@ enum Command {
         asset: Option<String>,
         #[arg(long, value_enum)]
         side: Option<SideArg>,
-        #[arg(long)]
+        #[arg(long, add = complete::groups())]
         group: Option<String>,
         /// Keep this version on `riven update`.
         #[arg(long)]
@@ -62,12 +64,14 @@ enum Command {
     },
     /// Remove an entry and the dependencies only it needed.
     Remove {
+        #[arg(add = complete::entries())]
         id: String,
         #[arg(long)]
         keep_deps: bool,
     },
     /// Update entries (all `follow` ones by default) to their newest versions.
     Update {
+        #[arg(add = complete::entries())]
         ids: Vec<String>,
         /// Show the changes without writing `riven.json`.
         #[arg(long)]
@@ -77,11 +81,18 @@ enum Command {
         url: Option<String>,
     },
     /// Keep an entry at its current version.
-    Pin { id: String },
+    Pin {
+        #[arg(add = complete::entries())]
+        id: String,
+    },
     /// Let `riven update` move an entry again.
-    Unpin { id: String },
+    Unpin {
+        #[arg(add = complete::entries())]
+        id: String,
+    },
     /// Set where an entry is installed.
     Side {
+        #[arg(add = complete::entries())]
         id: String,
         #[arg(value_enum)]
         side: SideArg,
@@ -99,7 +110,10 @@ enum Command {
         outdated: bool,
     },
     /// Show what requires an entry.
-    Why { id: String },
+    Why {
+        #[arg(add = complete::entries())]
+        id: String,
+    },
     /// Check dependencies, conflicts and loader mismatches.
     Check,
     /// Create `riven.json` from an existing modpack archive.
@@ -253,9 +267,17 @@ enum GroupCommand {
         default: bool,
     },
     /// Delete a group; its entries become unconditional.
-    Rm { id: String },
+    Rm {
+        #[arg(add = complete::groups())]
+        id: String,
+    },
     /// Put an entry into a group, or `none` to take it out.
-    Set { entry: String, group: String },
+    Set {
+        #[arg(add = complete::entries())]
+        entry: String,
+        #[arg(add = complete::groups_or_none())]
+        group: String,
+    },
 }
 
 #[derive(Clone, Copy, ValueEnum)]

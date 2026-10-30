@@ -11,6 +11,7 @@ rust_i18n::i18n!("locales", fallback = "en-US");
 use std::process::ExitCode;
 
 pub fn run() -> ExitCode {
+    cli::answer_completion();
     riven_launch::update::cleanup();
     #[cfg(feature = "gui")]
     {

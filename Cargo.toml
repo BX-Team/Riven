@@ -70,11 +70,12 @@ crate-type = ["rlib"]
 [features]
 default = ["gui", "cli"]
 gui = ["dep:gpui-kit", "dep:moonglass", "dep:image", "dep:notify", "dep:rfd", "dep:rust-i18n", "dep:sys-locale"]
-cli = ["dep:clap", "dep:indicatif", "dep:console"]
+cli = ["dep:clap", "dep:clap_complete", "dep:indicatif", "dep:console"]
 
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"], optional = true }
+clap_complete = { version = "4.6", features = ["unstable-dynamic"], optional = true }
 console = { version = "0.16", optional = true }
 dirs.workspace = true
 futures-util.workspace = true
@@ -126,6 +127,9 @@ assets = [
     ["packaging/linux/riven-mime.xml", "usr/share/mime/packages/riven.xml", "644"],
     ["assets/brand/riven.svg", "usr/share/icons/hicolor/scalable/apps/riven.svg", "644"],
     ["assets/brand/riven-512.png", "usr/share/icons/hicolor/512x512/apps/riven.png", "644"],
+    ["target/completions/riven.bash", "usr/share/bash-completion/completions/riven", "644"],
+    ["target/completions/_riven", "usr/share/zsh/vendor-completions/_riven", "644"],
+    ["target/completions/riven.fish", "usr/share/fish/vendor_completions.d/riven.fish", "644"],
 ]
 
 [package.metadata.generate-rpm]
@@ -137,6 +141,9 @@ assets = [
     { source = "packaging/linux/riven-mime.xml", dest = "/usr/share/mime/packages/riven.xml", mode = "644" },
     { source = "assets/brand/riven.svg", dest = "/usr/share/icons/hicolor/scalable/apps/riven.svg", mode = "644" },
     { source = "assets/brand/riven-512.png", dest = "/usr/share/icons/hicolor/512x512/apps/riven.png", mode = "644" },
+    { source = "target/completions/riven.bash", dest = "/usr/share/bash-completion/completions/riven", mode = "644" },
+    { source = "target/completions/_riven", dest = "/usr/share/zsh/site-functions/_riven", mode = "644" },
+    { source = "target/completions/riven.fish", dest = "/usr/share/fish/vendor_completions.d/riven.fish", mode = "644" },
 ]
 
 [package.metadata.generate-rpm.requires]
