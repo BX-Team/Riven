@@ -321,6 +321,8 @@ folders:
   config_hint: Launcher settings and accounts
   open: Open
   clear: Clear
+  sweep: Clean up
+  swept: "Removed %{files} files, %{size}"
 about:
   tagline: Minecraft launcher and modpack toolkit
   version: Version
@@ -356,6 +358,8 @@ confirm:
   remove_account_body: The account disappears from the launcher; you can add it again later.
   clear_cache_title: Clear the cache?
   clear_cache_body: Modrinth answers and icons are downloaded again when needed.
+  sweep_store_title: Clean up the file store?
+  sweep_store_body: Files no instance uses are removed. A pack that needs one again downloads it.
   delete_instance_title: "Delete %{name}?"
   delete_instance_body: "The instance folder is deleted with its worlds, configs and screenshots. This cannot be undone."
   delete_mod_title: "Delete %{name}?"

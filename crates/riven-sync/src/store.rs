@@ -1,5 +1,7 @@
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, SystemTime};
 
 use futures_util::StreamExt;
 use riven_format::{Hash, Hashes};
@@ -42,6 +44,16 @@ pub struct Stored {
     pub size: u64,
 }
 
+/// What a sweep of the store removed, or would remove on a dry run.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Sweep {
+    pub files: u64,
+    pub bytes: u64,
+}
+
+/// Files this fresh may belong to an install that has not placed them yet.
+const SWEEP_GRACE: Duration = Duration::from_secs(60 * 60);
+
 /// Content-addressed file store: `<root>/sha512/ab/abcdef…`.
 #[derive(Debug, Clone)]
 pub struct Store {
@@ -76,6 +88,53 @@ impl Store {
     pub fn get(&self, hashes: &Hashes) -> Option<PathBuf> {
         let path = self.path(hashes.sha512.as_deref()?);
         path.is_file().then_some(path)
+    }
+
+    /// Removes blobs whose sha512 is not in `keep`, and downloads interrupted runs left behind.
+    pub fn sweep<S: AsRef<str>>(
+        &self,
+        keep: impl IntoIterator<Item = S>,
+        dry_run: bool,
+    ) -> Result<Sweep, Error> {
+        let keep: HashSet<String> = keep
+            .into_iter()
+            .map(|h| h.as_ref().to_ascii_lowercase())
+            .collect();
+        let now = SystemTime::now();
+        let mut sweep = Sweep::default();
+        let mut remove = |path: &Path| {
+            let Ok(meta) = std::fs::symlink_metadata(path) else {
+                return;
+            };
+            let age = meta
+                .modified()
+                .ok()
+                .and_then(|m| now.duration_since(m).ok());
+            if !meta.is_file() || age.is_none_or(|age| age < SWEEP_GRACE) {
+                return;
+            }
+            if !dry_run && let Err(e) = std::fs::remove_file(path) {
+                tracing::warn!("cannot remove {}: {e}", path.display());
+                return;
+            }
+            sweep.files += 1;
+            sweep.bytes += meta.len();
+        };
+        for temp in list_dir(&self.root.join("tmp"))? {
+            remove(&temp);
+        }
+        for prefix in list_dir(&self.root.join("sha512"))? {
+            for blob in list_dir(&prefix)? {
+                let name = blob.file_name().unwrap_or_default().to_string_lossy();
+                if !keep.contains(name.as_ref()) {
+                    remove(&blob);
+                }
+            }
+            if !dry_run {
+                let _ = std::fs::remove_dir(&prefix);
+            }
+        }
+        Ok(sweep)
     }
 
     fn temp_path(&self) -> PathBuf {
@@ -215,6 +274,14 @@ impl Store {
     }
 }
 
+fn list_dir(dir: &Path) -> Result<Vec<PathBuf>, Error> {
+    match std::fs::read_dir(dir) {
+        Ok(entries) => Ok(entries.flatten().map(|e| e.path()).collect()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(vec![]),
+        Err(e) => Err(io(dir)(e)),
+    }
+}
+
 #[derive(Default)]
 struct Hasher {
     sha512: Sha512,
@@ -268,6 +335,30 @@ mod tests {
         ));
         let leftovers = std::fs::read_dir(dir.join("tmp")).unwrap().count();
         assert_eq!(leftovers, 0);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn sweep_spares_kept_and_fresh_blobs() {
+        let dir = std::env::temp_dir().join(format!("riven-sweep-{}", std::process::id()));
+        let store = Store::new(&dir);
+        let none = Hashes::default();
+        let kept = store.insert(b"kept", &none, "test").unwrap();
+        let old = store.insert(b"old", &none, "test").unwrap();
+        let fresh = store.insert(b"fresh", &none, "test").unwrap();
+        let long_ago = SystemTime::now() - SWEEP_GRACE * 2;
+        for path in [&kept.path, &old.path] {
+            let file = std::fs::File::options().write(true).open(path).unwrap();
+            file.set_modified(long_ago).unwrap();
+        }
+
+        let keep = [kept.sha512.to_uppercase()];
+        let dry = store.sweep(&keep, true).unwrap();
+        assert_eq!(dry, Sweep { files: 1, bytes: 3 });
+        assert!(old.path.is_file());
+        assert_eq!(store.sweep(&keep, false).unwrap(), dry);
+        assert!(!old.path.exists());
+        assert!(kept.path.is_file() && fresh.path.is_file());
         let _ = std::fs::remove_dir_all(dir);
     }
 }

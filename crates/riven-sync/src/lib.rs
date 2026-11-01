@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use riven_format::PackPath;
 
-pub use store::{Error, Store, Stored};
+pub use store::{Error, Store, Stored, Sweep};
 
 #[derive(Debug, thiserror::Error)]
 pub enum SyncError {

@@ -152,6 +152,15 @@ enum Command {
         #[arg(long)]
         dir: Option<PathBuf>,
     },
+    /// Remove files from the store that no launcher instance uses.
+    Gc {
+        /// Game directories installed with `riven install` whose files to keep too.
+        #[arg(long)]
+        dir: Vec<PathBuf>,
+        /// Only report what would be removed.
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Manage keys pinned for installed packs.
     #[command(subcommand)]
     Trust(TrustCommand),
@@ -388,6 +397,7 @@ async fn dispatch(command: Command, out: &Output) -> anyhow::Result<ExitCode> {
         Command::Bump { to } => author::bump(out, &to),
         Command::Install(args) => sync::install(out, args).await,
         Command::Status { dir } => sync::status(out, dir).await,
+        Command::Gc { dir, dry_run } => sync::gc(out, &dir, dry_run),
         Command::Keygen => release::keygen(out),
         Command::Trust(command) => release::trust(out, command),
         Command::Build {

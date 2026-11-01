@@ -180,6 +180,30 @@ impl Instances {
         Ok(())
     }
 
+    /// Clears the file store of what neither these instances nor the game dirs in `also` use.
+    pub fn sweep_store(
+        &self,
+        store: &riven_sync::Store,
+        also: &[PathBuf],
+        dry_run: bool,
+    ) -> Result<riven_sync::Sweep, LaunchError> {
+        let mut dirs: Vec<PathBuf> = self
+            .list()?
+            .into_iter()
+            .map(|(id, _)| self.game_dir(&id))
+            .collect();
+        dirs.extend_from_slice(also);
+        let mut keep = Vec::new();
+        for dir in &dirs {
+            if let Some(state) = riven_sync::install::load_state(dir)? {
+                keep.extend(state.files.into_values().map(|f| f.sha512));
+            }
+            let own = crate::own::load(dir)?;
+            keep.extend(own.content.into_iter().filter_map(|e| e.file.hashes.sha512));
+        }
+        Ok(store.sweep(keep, dry_run)?)
+    }
+
     pub fn delete(&self, id: &str) -> Result<(), LaunchError> {
         let dir = self.dir(id);
         std::fs::remove_dir_all(&dir).map_err(io(&dir))

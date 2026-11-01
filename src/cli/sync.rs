@@ -222,3 +222,20 @@ pub async fn status(out: &Output, dir: Option<PathBuf>) -> anyhow::Result<ExitCo
     );
     Ok(ExitCode::SUCCESS)
 }
+
+pub fn gc(out: &Output, dirs: &[PathBuf], dry_run: bool) -> anyhow::Result<ExitCode> {
+    let instances = riven_launch::instances::Instances::default_location()?;
+    let swept = instances.sweep_store(&store()?, dirs, dry_run)?;
+    out.emit(
+        json!({ "files": swept.files, "bytes": swept.bytes, "dry_run": dry_run }),
+        || {
+            let size = indicatif::HumanBytes(swept.bytes);
+            if dry_run {
+                out.info(&format!("Would remove {} files ({size})", swept.files));
+            } else {
+                out.success(&format!("Removed {} files ({size})", swept.files));
+            }
+        },
+    );
+    Ok(ExitCode::SUCCESS)
+}

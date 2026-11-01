@@ -416,6 +416,42 @@ impl SettingsView {
         self.measure(cx);
     }
 
+    fn sweep_store(&mut self, cx: &mut Context<Self>) {
+        cx.spawn(async move |this, cx| {
+            let swept = runtime::blocking(|| {
+                let store = riven_sync::Store::default_location()
+                    .ok_or(riven_launch::LaunchError::NoDir("data"))?;
+                riven_launch::instances::Instances::default_location()?.sweep_store(
+                    &store,
+                    &[],
+                    false,
+                )
+            })
+            .await;
+            let _ = this.update(cx, |this, cx| {
+                match swept {
+                    Ok(Ok(swept)) => moonglass::toast::show(
+                        moonglass::toast::ToastKind::Success,
+                        t!(
+                            "folders.swept",
+                            files = swept.files,
+                            size = human_size(swept.bytes)
+                        ),
+                        cx,
+                    ),
+                    Ok(Err(e)) => moonglass::toast::show(
+                        moonglass::toast::ToastKind::Error,
+                        e.to_string(),
+                        cx,
+                    ),
+                    Err(_) => {}
+                }
+                this.measure(cx);
+            });
+        })
+        .detach();
+    }
+
     fn render_nav(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let c = cx.theme().colors;
         let back = nav_row("settings-back", false, window, cx)
@@ -826,6 +862,26 @@ impl SettingsView {
                                         move |_, cx| {
                                             let _ =
                                                 view.update(cx, |this, cx| this.clear_cache(cx));
+                                        },
+                                        cx,
+                                    );
+                                }),
+                        )
+                    })
+                    .when(folder == Folder::Store, |row| {
+                        let view = view.clone();
+                        row.child(
+                            Button::new("sweep-store")
+                                .label(t!("folders.sweep"))
+                                .on_click(move |_, _, cx| {
+                                    let view = view.clone();
+                                    super::dialogs::confirm(
+                                        t!("confirm.sweep_store_title"),
+                                        t!("confirm.sweep_store_body"),
+                                        t!("folders.sweep"),
+                                        move |_, cx| {
+                                            let _ =
+                                                view.update(cx, |this, cx| this.sweep_store(cx));
                                         },
                                         cx,
                                     );

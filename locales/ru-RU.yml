@@ -321,6 +321,8 @@ folders:
   config_hint: Настройки лаунчера и аккаунты
   open: Открыть
   clear: Очистить
+  sweep: Почистить
+  swept: "Удалено файлов: %{files}, %{size}"
 about:
   tagline: Лаунчер Minecraft и инструменты для модпаков
   version: Версия
@@ -356,6 +358,8 @@ confirm:
   remove_account_body: Аккаунт пропадёт из лаунчера; его можно будет добавить снова.
   clear_cache_title: Очистить кеш?
   clear_cache_body: Ответы Modrinth и иконки скачаются заново, когда понадобятся.
+  sweep_store_title: Почистить хранилище файлов?
+  sweep_store_body: Файлы, которые не использует ни один инстанс, будут удалены. Если пак снова их запросит, они скачаются заново.
   delete_instance_title: "Удалить %{name}?"
   delete_instance_body: "Папка инстанса удалится вместе с мирами, конфигами и скриншотами. Отменить это нельзя."
   delete_mod_title: "Удалить %{name}?"
