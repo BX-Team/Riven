@@ -38,7 +38,6 @@ instance:
     logs: Logs
     screenshots: Screenshots
     settings: Settings
-  actions: Instance actions
   duplicate: Duplicate
   delete: Delete instance
   delete_running: Stop the game first
@@ -200,7 +199,6 @@ settings:
   developer_mode: Developer mode
   developer_mode_hint: Shows the developer section for pack projects, releases and Git
   back: Library
-  java_auto: automatic
   launch: Launch
   accounts: Accounts
   folders: Folders
@@ -221,7 +219,6 @@ new_instance:
   loader: Mod loader
   loading: Loading versions…
   create: Create
-  offline: Cannot load Minecraft versions; check the connection
   pick_version: Pick a Minecraft version
   find_version: Find a version
   creating: Creating…
@@ -274,7 +271,6 @@ instance_settings:
   java_auto: automatic
   none: none
   custom: custom
-  instance: Instance
   launch: Launch
   version: Version
   set_by_pack: set by the pack

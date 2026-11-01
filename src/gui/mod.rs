@@ -122,3 +122,71 @@ pub fn apply_theme(appearance: &Appearance, window: Option<&mut Window>, cx: &mu
     };
     moonglass::theme::apply(mode, &appearance.dark, &appearance.light, window, cx);
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+    use std::path::Path;
+
+    fn keys(locale: &str) -> BTreeSet<String> {
+        crate::_rust_i18n_backend()
+            .messages_for_locale(locale)
+            .unwrap_or_else(|| panic!("no locale {locale}"))
+            .into_iter()
+            .map(|(k, _)| k.into_owned())
+            .filter(|k| k != "_version")
+            .collect()
+    }
+
+    fn sources(dir: &Path, out: &mut String) {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                sources(&path, out);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                out.push_str(&std::fs::read_to_string(&path).unwrap());
+            }
+        }
+    }
+
+    /// The literal keys of translation calls; `format!` ends in the same three characters.
+    fn used_keys(src: &str) -> BTreeSet<&str> {
+        src.match_indices("t\x21(")
+            .filter(|(i, _)| {
+                !src[..*i]
+                    .chars()
+                    .next_back()
+                    .is_some_and(|c| c.is_alphanumeric() || c == '_')
+            })
+            .filter_map(|(i, m)| src[i + m.len()..].trim_start().strip_prefix('"'))
+            .filter_map(|rest| rest.split_once('"').map(|(key, _)| key))
+            .collect()
+    }
+
+    #[test]
+    fn locales_match_the_code() {
+        let en = keys("en-US");
+        let ru = keys("ru-RU");
+        assert_eq!(
+            en.symmetric_difference(&ru).collect::<Vec<_>>(),
+            Vec::<&String>::new(),
+            "en-US and ru-RU have different keys"
+        );
+
+        let mut src = String::new();
+        sources(&Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut src);
+        let missing: Vec<_> = used_keys(&src)
+            .into_iter()
+            .filter(|k| !en.contains(*k))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "keys missing from the locales: {missing:?}"
+        );
+        let unused: Vec<_> = en
+            .iter()
+            .filter(|k| !src.contains(&format!("\"{k}\"")))
+            .collect();
+        assert!(unused.is_empty(), "keys no code uses: {unused:?}");
+    }
+}

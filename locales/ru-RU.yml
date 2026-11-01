@@ -38,7 +38,6 @@ instance:
     logs: Логи
     screenshots: Скриншоты
     settings: Настройки
-  actions: Действия с инстансом
   duplicate: Дублировать
   delete: Удалить инстанс
   delete_running: Сначала остановите игру
@@ -200,7 +199,6 @@ settings:
   developer_mode: Режим разработчика
   developer_mode_hint: Показывает раздел разработки — проекты паков, релизы и Git
   back: Библиотека
-  java_auto: автоматически
   launch: Запуск
   accounts: Аккаунты
   folders: Каталоги
@@ -221,7 +219,6 @@ new_instance:
   loader: Загрузчик модов
   loading: Загрузка версий…
   create: Создать
-  offline: Не удалось загрузить версии Minecraft — проверьте подключение
   pick_version: Выберите версию Minecraft
   find_version: Найти версию
   creating: Создаю…
@@ -274,7 +271,6 @@ instance_settings:
   java_auto: автоматически
   none: нет
   custom: свои
-  instance: Инстанс
   launch: Запуск
   version: Версия
   set_by_pack: задаётся паком
