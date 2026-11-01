@@ -119,8 +119,8 @@ mod windows {
         out.extend_from_slice(&(size as u32).to_le_bytes());
         out.extend_from_slice(&[0; 16]);
         for row in image.as_raw().chunks_exact(width as usize * 4).rev() {
-            for pixel in row.chunks_exact(4) {
-                out.extend_from_slice(&[pixel[2], pixel[1], pixel[0], pixel[3]]);
+            for &[r, g, b, a] in row.as_chunks::<4>().0 {
+                out.extend_from_slice(&[b, g, r, a]);
             }
         }
         out
