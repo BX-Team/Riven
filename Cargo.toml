@@ -5,6 +5,7 @@ members = ["crates/*"]
 version = "1.2.1"
 authors = ["BX Team"]
 edition = "2024"
+rust-version = "1.98"
 license = "GPL-3.0-or-later"
 homepage = "https://github.com/BX-Team/Riven"
 repository = "https://github.com/BX-Team/Riven"
@@ -35,7 +36,7 @@ thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 url = "2"
-zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+zip = { version = "9.2.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [package]
 name = "riven"
@@ -43,6 +44,7 @@ description = "Riven Launcher — Minecraft launcher and modpack toolkit"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
@@ -82,7 +84,7 @@ futures-util.workspace = true
 gpui-kit = { version = "0.8.1", default-features = false, optional = true }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"], optional = true }
 indicatif = { version = "0.18", optional = true }
-moonglass = { version = "0.1", optional = true }
+moonglass = { version = "0.1.1", optional = true }
 notify = { version = "8", optional = true }
 reqwest.workspace = true
 rfd = { version = "0.17", default-features = false, features = ["xdg-portal"], optional = true }
