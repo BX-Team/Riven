@@ -13,7 +13,9 @@ use super::launch_bar;
 use super::settings::SettingsView;
 use super::state::{AppState, Route};
 use moonglass::theme::ActiveTheme as _;
-use moonglass::{Button, IconName, UiText as _, W_SEMIBOLD, caption, h_flex, icon, v_flex};
+use moonglass::{
+    Button, IconName, MenuEntry, UiText as _, W_SEMIBOLD, caption, h_flex, icon, v_flex,
+};
 
 pub const SIDEBAR_WIDTH: f32 = 240.;
 
@@ -236,8 +238,21 @@ impl RivenApp {
                         })
                         .into_any_element(),
                 })
-                .child(div().truncate().child(name))
-                .on_click(move |_, _, cx| Self::navigate(&handle, target.clone(), cx))
+                .child(div().truncate().child(name.clone()))
+                .on_click({
+                    let id = id.clone();
+                    move |event, window, cx| {
+                        Self::navigate(&handle, target.clone(), cx);
+                        if event.standard_click() && event.click_count() == 2 {
+                            launch_bar::launch(&id, window, cx);
+                        }
+                    }
+                })
+                .on_mouse_down(MouseButton::Right, move |event, _, cx| {
+                    let entries = instance_menu(&id, &name, cx);
+                    AppState::global(cx)
+                        .update(cx, |s, cx| s.open_context_menu(event.position, entries, cx));
+                })
                 .into_any_element()
             })
             .collect();
@@ -327,6 +342,47 @@ impl RivenApp {
             .into_any_element(),
         }
     }
+}
+
+/// The right-click menu of a sidebar instance.
+fn instance_menu(id: &str, name: &str, cx: &App) -> Vec<MenuEntry> {
+    let state = AppState::global(cx).read(cx);
+    let busy = state
+        .sessions
+        .get(id)
+        .is_some_and(super::session::Session::busy);
+    let dir = state.store.as_ref().map(|s| s.dir(id));
+    let (play, settings, delete) = (id.to_owned(), id.to_owned(), id.to_owned());
+    let name = name.to_owned();
+    let mut entries = vec![
+        MenuEntry::action(t!("launch.play"), move |window, cx| {
+            launch_bar::launch(&play, window, cx)
+        })
+        .icon(IconName::Play)
+        .disabled(busy),
+        MenuEntry::action(t!("instance.tabs.settings"), move |window, cx| {
+            super::instance_settings::open(settings.clone(), false, window, cx)
+        })
+        .icon(IconName::Settings),
+    ];
+    if let Some(dir) = dir {
+        entries.push(
+            MenuEntry::action(t!("instance.open_folder"), move |_, cx| {
+                cx.open_with_system(&dir)
+            })
+            .icon(IconName::Folder),
+        );
+    }
+    entries.push(MenuEntry::Separator);
+    entries.push(
+        MenuEntry::action(t!("instance.delete"), move |_, cx| {
+            super::instance_settings::confirm_delete(delete.clone(), name.clone(), cx)
+        })
+        .icon(IconName::Trash)
+        .danger()
+        .disabled(busy),
+    );
+    entries
 }
 
 /// A tinted frame over the window while a file is dragged over it; dropping a pack installs it.

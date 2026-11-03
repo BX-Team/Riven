@@ -121,6 +121,19 @@ pub(super) fn selected_account(st: &AppState) -> Option<Account> {
         .cloned()
 }
 
+/// Starts an instance with the selected account, or asks for one when there is none.
+pub fn launch(id: &str, window: &mut Window, cx: &mut App) {
+    let state = AppState::global(cx);
+    let st = state.read(cx);
+    if st.sessions.get(id).is_some_and(Session::busy) {
+        return;
+    }
+    match selected_account(st) {
+        Some(account) => state.update(cx, |s, cx| s.play(id, account, cx)),
+        None => super::dialogs::open_add_offline(window, cx),
+    }
+}
+
 pub(super) fn stage_label(stage: Stage) -> String {
     match stage {
         Stage::SignIn => t!("launch.stage.sign_in"),
@@ -428,7 +441,6 @@ fn play_button(
     state: &Entity<AppState>,
     id: &str,
     session: Option<&Session>,
-    account: Option<Account>,
     cx: &App,
 ) -> AnyElement {
     let c = cx.theme().colors;
@@ -476,10 +488,7 @@ fn play_button(
             .size(ButtonSize::Lg)
             .icon(IconName::Play)
             .label(t!("launch.play"))
-            .on_click(move |_, window, cx| match account.clone() {
-                Some(account) => state.update(cx, |s, cx| s.play(&id, account, cx)),
-                None => super::dialogs::open_add_offline(window, cx),
-            })
+            .on_click(move |_, window, cx| launch(&id, window, cx))
             .into_any_element(),
     }
 }
@@ -526,7 +535,7 @@ pub fn render(
     };
     let st = state.read(cx);
     let session = st.sessions.get(id);
-    let button = play_button(state, id, session, account.clone(), cx);
+    let button = play_button(state, id, session, cx);
 
     h_flex()
         .flex_none()
