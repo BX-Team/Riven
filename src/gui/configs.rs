@@ -40,7 +40,6 @@ pub struct ConfigsView {
     /// The instance came from a pack, whose configs the player only reads.
     locked: bool,
     error: Option<SharedString>,
-    notice: Option<SharedString>,
     _subs: Vec<Subscription>,
 }
 
@@ -60,7 +59,6 @@ impl ConfigsView {
             loaded: false,
             locked: false,
             error: None,
-            notice: None,
             _subs: subs,
         }
     }
@@ -155,7 +153,6 @@ impl ConfigsView {
             return;
         };
         self.error = None;
-        self.notice = None;
         if is_image(&path) {
             self.open = Some((path.clone(), Opened::Image(full)));
             self.tree
@@ -241,8 +238,6 @@ impl ConfigsView {
                 *saved = text;
                 *dirty = false;
                 self.error = None;
-                self.notice =
-                    Some(t!("dev.saved", name = path.rsplit('/').next().unwrap_or(path)).into());
             }
             Err(e) => self.error = Some(format!("{}: {e}", full.display()).into()),
         }
@@ -279,10 +274,7 @@ impl ConfigsView {
                     .text_size(px(12.))
                     .text_color(c.muted)
                     .child(path.clone()),
-            )
-            .when_some(self.notice.clone(), |row, n| {
-                row.child(div().text_size(px(12.)).text_color(c.ok).child(n))
-            });
+            );
         match opened {
             Opened::Image(full) => v_flex()
                 .size_full()

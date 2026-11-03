@@ -520,7 +520,6 @@ dev:
   discard: Discard
   save: Save
   save_hint: Save (Ctrl+S)
-  saved: "Saved %{name}"
   read_only: Changed through the sections, not by hand
   groups_hint: Optional parts of the pack players switch on or off when installing it.
   groups_none: No groups yet. Add one, then put entries into it from the Content menu.
