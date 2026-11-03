@@ -1,7 +1,11 @@
 use std::rc::Rc;
 
-use gpui_kit::base::input::{self, EditorState, InputEditorStyle};
-use gpui_kit::{Action, App, AppContext as _, Edges, Entity, Window, px};
+use gpui_kit::base::input::{
+    self, EditorState, GutterDecoration, GutterDecorationCollection, InputEditorStyle,
+    OverviewRulerDecoration, OverviewRulerDecorationCollection, OverviewRulerLane,
+};
+use gpui_kit::{Action, App, AppContext as _, Edges, Entity, Hsla, Window, px};
+use riven_build::git::{self, LineChange};
 use rust_i18n::t;
 
 use moonglass::MenuEntry;
@@ -97,5 +101,76 @@ pub fn style(cx: &App) -> InputEditorStyle {
         editor_active_line: Some(c.row),
         editor_gutter_background: Some(c.bg),
         ..InputEditorStyle::default()
+    }
+}
+
+/// Marks in the gutter and on the scrollbar for lines that differ from the committed text.
+pub struct ChangeMarks {
+    head: String,
+    gutter: GutterDecorationCollection,
+    ruler: OverviewRulerDecorationCollection,
+}
+
+impl ChangeMarks {
+    pub fn new(editor: &Entity<EditorState>, head: String, cx: &mut App) -> Self {
+        let (gutter, ruler) = editor.update(cx, |s, cx| {
+            (
+                s.create_gutter_decorations_collection(Vec::new(), cx),
+                s.create_overview_ruler_decorations_collection(Vec::new(), cx),
+            )
+        });
+        let marks = Self {
+            head,
+            gutter,
+            ruler,
+        };
+        marks.update(editor, cx);
+        marks
+    }
+
+    /// Compares the editor's text with `HEAD` again.
+    pub fn update(&self, editor: &Entity<EditorState>, cx: &mut App) {
+        let text = editor.read(cx).value();
+        let c = cx.theme().colors;
+        let starts: Vec<usize> = std::iter::once(0)
+            .chain(text.match_indices('\n').map(|(i, _)| i + 1))
+            .collect();
+        let start = |line: usize| starts.get(line).copied().unwrap_or(text.len());
+        let lines = |r: &std::ops::Range<usize>| {
+            start(r.start)..starts.get(r.end).map_or(text.len(), |&s| s - 1)
+        };
+        let marks: Vec<(std::ops::Range<usize>, Hsla)> = git::line_changes(&self.head, &text)
+            .iter()
+            .map(|change| match change {
+                LineChange::Added(r) => (lines(r), c.ok),
+                LineChange::Modified(r) => (lines(r), c.accent),
+                LineChange::Deleted(line) => {
+                    (start(*line)..start(*line), moonglass::theme::danger())
+                }
+            })
+            .collect();
+        self.gutter.set(
+            marks
+                .iter()
+                .map(|(r, color)| GutterDecoration::new(r.clone()).with_color(*color))
+                .collect(),
+            cx,
+        );
+        self.ruler.set(
+            marks
+                .into_iter()
+                .map(|(r, color)| {
+                    OverviewRulerDecoration::new(r)
+                        .with_lane(OverviewRulerLane::Left)
+                        .with_color(color)
+                })
+                .collect(),
+            cx,
+        );
+    }
+
+    pub fn dispose(&self, cx: &mut App) {
+        self.gutter.dispose(cx);
+        self.ruler.dispose(cx);
     }
 }

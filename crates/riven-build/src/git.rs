@@ -402,22 +402,62 @@ pub fn diff_lines(old: &str, new: &str) -> Vec<DiffRow> {
     rows
 }
 
-/// How `path` (relative to the project) differs from `HEAD`; `None` when either side is not text.
-pub fn file_diff(dir: &Path, path: &str) -> Result<Option<Vec<DiffRow>>, GitError> {
-    let repo = gix::discover(dir).map_err(read)?;
-    let prefix = prefix(&repo, dir)?;
+/// Lines of the current text that differ from `HEAD`, as 0-based line indices of the current text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LineChange {
+    Added(std::ops::Range<usize>),
+    Modified(std::ops::Range<usize>),
+    /// Lines removed just before this line; one past the last line when removed at the end.
+    Deleted(usize),
+}
+
+/// The changed lines of `old` → `new`, for marks beside an editor.
+pub fn line_changes(old: &str, new: &str) -> Vec<LineChange> {
+    similar::TextDiff::from_lines(old, new)
+        .ops()
+        .iter()
+        .filter_map(|op| match *op {
+            similar::DiffOp::Equal { .. } => None,
+            similar::DiffOp::Insert {
+                new_index, new_len, ..
+            } => Some(LineChange::Added(new_index..new_index + new_len)),
+            similar::DiffOp::Delete { new_index, .. } => Some(LineChange::Deleted(new_index)),
+            similar::DiffOp::Replace {
+                new_index, new_len, ..
+            } => Some(LineChange::Modified(new_index..new_index + new_len)),
+        })
+        .collect()
+}
+
+/// The text of `path` (relative to the project) at `HEAD`: empty when it is not committed,
+/// `None` when the project is not in a repository or the file is not text.
+pub fn head_text(dir: &Path, path: &str) -> Result<Option<String>, GitError> {
+    let Ok(repo) = gix::discover(dir) else {
+        return Ok(None);
+    };
+    Ok(String::from_utf8(committed(&repo, dir, path)?).ok())
+}
+
+fn committed(repo: &gix::Repository, dir: &Path, path: &str) -> Result<Vec<u8>, GitError> {
+    let prefix = prefix(repo, dir)?;
     let in_repo = match prefix.as_str() {
         "" => path.to_owned(),
         p => format!("{p}/{path}"),
     };
-    let committed = repo
+    Ok(repo
         .head_commit()
         .ok()
         .and_then(|head| head.tree().ok()?.lookup_entry_by_path(&in_repo).ok()?)
         .map(|entry| entry.object().map(|blob| blob.data.clone()))
         .transpose()
         .map_err(read)?
-        .unwrap_or_default();
+        .unwrap_or_default())
+}
+
+/// How `path` (relative to the project) differs from `HEAD`; `None` when either side is not text.
+pub fn file_diff(dir: &Path, path: &str) -> Result<Option<Vec<DiffRow>>, GitError> {
+    let repo = gix::discover(dir).map_err(read)?;
+    let committed = committed(&repo, dir, path)?;
     let full = dir.join(path);
     let current = match std::fs::read(&full) {
         Ok(bytes) => bytes,
@@ -638,6 +678,18 @@ mod tests {
         assert!(rows.contains(&line(Some(18), None, "line 18")));
         assert!(rows.contains(&line(Some(19), Some(18), "line 19")));
         assert!(diff_lines(&old, &old).is_empty());
+    }
+
+    #[test]
+    fn line_changes_point_at_the_current_lines() {
+        let old = "a\nb\nc\nd\n";
+        assert_eq!(
+            line_changes(old, "a\nB\nc\nnew\nd\n"),
+            [LineChange::Modified(1..2), LineChange::Added(3..4)]
+        );
+        assert_eq!(line_changes(old, "b\nc\nd\n"), [LineChange::Deleted(0)]);
+        assert_eq!(line_changes(old, "a\nb\nc\n"), [LineChange::Deleted(3)]);
+        assert_eq!(line_changes("", "x\n"), [LineChange::Added(0..1)]);
     }
 
     #[test]

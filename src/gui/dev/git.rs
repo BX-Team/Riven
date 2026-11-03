@@ -198,6 +198,10 @@ impl DevView {
                 for path in open {
                     this.load_diff(path, cx);
                 }
+                let files: Vec<_> = this.files.keys().cloned().collect();
+                for path in files {
+                    this.load_head(path, cx);
+                }
                 cx.notify();
             });
         })
