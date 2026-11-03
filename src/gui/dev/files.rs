@@ -313,7 +313,7 @@ impl DevView {
                 file.dirty = false;
                 self.releases.changes = super::releases::Changes::Stale;
                 self.error = None;
-                self.notice = Some(t!("dev.saved", name = path.file_name()).into());
+                self.notice = None;
                 self.refresh_git(cx);
             }
             Err(e) => self.error = Some(e.to_string().into()),
