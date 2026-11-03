@@ -217,7 +217,7 @@ impl RivenApp {
                     cx,
                 )
                 .child(match icon {
-                    Some(path) => gpui_kit::img(path)
+                    Some(path) => gpui_kit::img(super::sharp::image(path, 18.))
                         .size(px(18.))
                         .flex_none()
                         .rounded(px(4.))

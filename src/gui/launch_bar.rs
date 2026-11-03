@@ -57,7 +57,7 @@ pub fn instance_tile(
     cx: &App,
 ) -> AnyElement {
     match icon {
-        Some(path) => gpui_kit::img(path.clone())
+        Some(path) => gpui_kit::img(super::sharp::image(path.clone(), size))
             .size(px(size))
             .flex_none()
             .rounded(px(radius))

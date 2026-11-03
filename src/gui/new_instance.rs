@@ -1749,7 +1749,7 @@ fn side_panel(height: f32, cx: &App) -> gpui_kit::Stateful<gpui_kit::Div> {
 fn logo(file: Option<&PathBuf>, size: f32, cx: &App) -> AnyElement {
     let c = cx.theme().colors;
     match file {
-        Some(path) => img(path.clone())
+        Some(path) => img(super::sharp::image(path.clone(), size))
             .size(px(size))
             .flex_none()
             .rounded(px(size / 5.))

@@ -25,6 +25,7 @@ mod runtime;
 mod screenshots;
 mod session;
 mod settings;
+mod sharp;
 mod state;
 mod time;
 mod updater;

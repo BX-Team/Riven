@@ -1080,7 +1080,7 @@ impl InstanceView {
                         .min_w_0()
                         .gap(px(10.))
                         .child(match &row.icon {
-                            Some(path) => img(path.clone())
+                            Some(path) => img(super::sharp::image(path.clone(), 24.))
                                 .size(px(24.))
                                 .flex_none()
                                 .rounded(px(5.))
