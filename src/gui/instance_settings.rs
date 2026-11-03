@@ -128,6 +128,8 @@ pub struct InstanceSettings {
     java: Entity<JavaPicker>,
     memory: Entity<MemorySlider>,
     fields: Vec<Field>,
+    /// A field was typed into since the last save; closing the dialog never blurs it.
+    edited: bool,
     _subs: Vec<Subscription>,
 }
 
@@ -249,15 +251,15 @@ impl InstanceSettings {
         let mut fields = Vec::new();
         for (group, label, input) in specs {
             let sub = match &input {
-                Input::Line(s) => cx.subscribe(s, |this, _, event, cx| {
-                    if let InputEvent::Blur | InputEvent::PressEnter { .. } = event {
-                        this.store_fields(cx);
-                    }
+                Input::Line(s) => cx.subscribe(s, |this, _, event, cx| match event {
+                    InputEvent::Change => this.edited = true,
+                    InputEvent::Blur | InputEvent::PressEnter { .. } => this.store_fields(cx),
+                    _ => {}
                 }),
-                Input::Area(s) => cx.subscribe(s, |this, _, event, cx| {
-                    if let InputEvent::Blur = event {
-                        this.store_fields(cx);
-                    }
+                Input::Area(s) => cx.subscribe(s, |this, _, event, cx| match event {
+                    InputEvent::Change => this.edited = true,
+                    InputEvent::Blur => this.store_fields(cx),
+                    _ => {}
                 }),
             };
             subs.push(sub);
@@ -279,6 +281,12 @@ impl InstanceSettings {
                 upstream: riven_launch::modpack::follows(&instance).then(|| instance.clone()),
                 remote: Remote::Unchecked,
             });
+        subs.push(cx.on_release(|this, cx| {
+            if this.edited {
+                this.read_fields(cx);
+                this.write(cx);
+            }
+        }));
         let mut view = Self {
             id,
             page: Page::General,
@@ -296,6 +304,7 @@ impl InstanceSettings {
             java,
             memory,
             fields,
+            edited: false,
             _subs: subs,
         };
         if !from_pack {
@@ -416,7 +425,7 @@ impl InstanceSettings {
         .detach();
     }
 
-    fn texts(&self, group: Group, cx: &Context<Self>) -> Vec<String> {
+    fn texts(&self, group: Group, cx: &App) -> Vec<String> {
         self.fields
             .iter()
             .filter(|f| f.group == group)
@@ -426,6 +435,11 @@ impl InstanceSettings {
 
     /// Reads the fields of every overridden group into the instance and saves it.
     fn store_fields(&mut self, cx: &mut Context<Self>) {
+        self.read_fields(cx);
+        self.save(cx);
+    }
+
+    fn read_fields(&mut self, cx: &App) {
         let number = |s: &str, fallback: u32| s.parse().unwrap_or(fallback);
         let args = self.texts(Group::JvmArgs, cx);
         let window = self.texts(Group::Window, cx);
@@ -446,11 +460,16 @@ impl InstanceSettings {
             current.pre_launch = opt(&commands[0]);
             current.post_exit = opt(&commands[1]);
         }
-        self.save(cx);
+    }
+
+    fn save(&mut self, cx: &mut Context<Self>) {
+        self.write(cx);
+        cx.notify();
     }
 
     /// Writes the edited fields over the instance on disk, keeping what launches changed.
-    fn save(&mut self, cx: &mut Context<Self>) {
+    fn write(&mut self, cx: &mut App) {
+        self.edited = false;
         let mut fresh = self
             .store
             .load(&self.id)
@@ -464,7 +483,6 @@ impl InstanceSettings {
         self.instance = fresh;
         let (id, instance) = (self.id.clone(), self.instance.clone());
         AppState::global(cx).update(cx, |s, cx| s.save_instance(&id, &instance, cx));
-        cx.notify();
     }
 
     fn is_overridden(&self, group: Group) -> bool {
