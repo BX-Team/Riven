@@ -155,8 +155,10 @@ impl RivenApp {
         });
     }
 
+    /// Only from the library: settings and the developer section hide the sidebar it belongs to.
     fn new_instance(&mut self, _: &NewInstance, window: &mut Window, cx: &mut Context<Self>) {
-        if self.state.read(cx).modal.is_none() {
+        let state = self.state.read(cx);
+        if state.modal.is_none() && matches!(state.route, Route::Instance(_) | Route::Empty) {
             super::new_instance::open(window, cx);
         }
     }
