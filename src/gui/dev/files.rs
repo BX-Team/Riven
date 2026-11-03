@@ -8,10 +8,11 @@ use riven_format::PackPath;
 use rust_i18n::t;
 
 use super::{DevView, OVERRIDES, OpenFile, PROJECT_FILE, Tab, dialogs};
-use crate::gui::code_editor;
 use crate::gui::file_tree::{Node, TreeEvent, is_image};
+use crate::gui::{code_editor, runtime};
 use moonglass::theme::ActiveTheme as _;
 use moonglass::{Button, ButtonSize, IconName, MenuEntry, caption, h_flex, icon, motion, v_flex};
+use riven_build::git;
 
 const TREE_ROW: f32 = 26.;
 
@@ -245,6 +246,9 @@ impl DevView {
                 && let Some(file) = this.files.get_mut(&key)
             {
                 let dirty = editor.read(cx).value().as_ref() != file.saved;
+                if let Some(marks) = &file.marks {
+                    marks.update(&editor, cx);
+                }
                 if dirty != file.dirty {
                     file.dirty = dirty;
                     cx.notify();
@@ -253,14 +257,41 @@ impl DevView {
         });
         editor.update(cx, |s, cx| s.focus(window, cx));
         self.files.insert(
-            path,
+            path.clone(),
             OpenFile {
                 editor,
                 saved: text,
                 dirty: false,
+                marks: None,
                 _change: change,
             },
         );
+        self.load_head(path, cx);
+    }
+
+    /// Reads an open file's text at `HEAD` and marks the lines changed since.
+    pub(super) fn load_head(&mut self, path: PackPath, cx: &mut Context<Self>) {
+        let Some(dir) = self.project.as_ref().map(|ws| ws.dir.clone()) else {
+            return;
+        };
+        cx.spawn(async move |this, cx| {
+            let read = path.as_str().to_owned();
+            let head = runtime::blocking(move || git::head_text(&dir, &read))
+                .await
+                .ok()
+                .and_then(Result::ok)
+                .flatten();
+            let _ = this.update(cx, |this, cx| {
+                let Some(file) = this.files.get_mut(&path) else {
+                    return;
+                };
+                if let Some(old) = file.marks.take() {
+                    old.dispose(cx);
+                }
+                file.marks = head.map(|head| code_editor::ChangeMarks::new(&file.editor, head, cx));
+            });
+        })
+        .detach();
     }
 
     /// Drops the read-only `riven.json` view so it is read again after a change.

@@ -166,6 +166,8 @@ struct OpenFile {
     /// The text on disk, to tell unsaved changes.
     saved: String,
     dirty: bool,
+    /// Lines changed since `HEAD`, once its text is read; none outside a repository.
+    marks: Option<crate::gui::code_editor::ChangeMarks>,
     _change: Subscription,
 }
 
