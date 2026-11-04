@@ -6739,6 +6739,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "riven-demo"
+version = "1.2.1"
+dependencies = [
+ "gpui-kit",
+ "moonglass",
+ "tracing",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "riven-format"
 version = "1.2.1"
 dependencies = [

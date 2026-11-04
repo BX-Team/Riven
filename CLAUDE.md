@@ -17,6 +17,7 @@ Cargo workspace; the root package is `riven` (lib `riven_lib`, binary `riven`).
 | `riven-sync`     | Installer: diff, content store, state, preserve, manual files.              |
 | `riven-game`     | Game files: Mojang/loader metadata, downloads, Forge installers, Java, run. |
 | `riven-launch`   | Instances, accounts, MS sign-in, Java, logs; launches through `riven-game`. |
+| `riven-demo`     | The launcher's main screens on made-up data, built for the browser (bxteam.org). |
 
 The root crate is a thin shell: `src/cli/` (clap subcommands, progress, `--json`), later `src/app/` (lifecycle) and `src/ui/` (gpui views).
 
@@ -24,6 +25,16 @@ The root crate is a thin shell: `src/cli/` (clap subcommands, progress, `--json`
 - `lib.rs::run()` is the entry point: no args and the `gui` feature → GUI, otherwise CLI.
 - Features: `default = ["gui", "cli"]`; `--no-default-features --features cli` is the headless `riven-cli` build for servers and Docker. Anything gpui-related must stay behind `gui`.
 - Windows: the release exe is GUI-subsystem; CLI runs call `AttachConsole(ATTACH_PARENT_PROCESS)` so output reaches the launching terminal.
+
+### riven-demo
+
+The site shows `crates/riven-demo` instead of screenshots: the sidebar, instances with mods (Vanilla Reimagined's real list), resource packs, shaders and worlds (icons from Modrinth's CDN), an Add dialog over a fixed catalog, row menus, the launch bar with a scripted launch and log, and Settings (General with live themes, Java & memory, Launch, Accounts, About). It depends on `gpui-kit` and `moonglass` only — never on another `riven-*` crate, since none of them builds for `wasm32` — so it **repeats** the layout of `src/gui` rather than sharing it: when a screen it shows changes in the app, change it here too. Screens it has no data for show a placeholder with a download button.
+
+- `crates/riven-demo/build-web.sh` writes `dist/` (`index.html`, `riven_demo.js`, the wasm). It needs a **nightly** toolchain with the `wasm32-unknown-unknown` target — gpui's web backend pulls `wasm_thread`, which uses an unstable feature — and `wasm-bindgen-cli` at the exact version in `Cargo.lock`; `wasm-opt` (binaryen) is used when present.
+- It runs on one thread (`WebPlatform::new(false)`), so the page needs no COOP/COEP headers and can sit in an iframe. gpui puts its canvas on `<body>`, so the demo is always its own page.
+- The browser has no fonts gpui can read: Inter (OFL, `assets/fonts`) is bundled and set as the theme font. `std::time::Instant::now()` panics on `wasm32-unknown-unknown`; do not call it, nor moonglass APIs that do (theme fades: the demo switches palettes itself in `settings.rs`).
+- `cargo run -p riven-demo` opens the same window natively, for working on it.
+- The site serves it from `apps/web/public/demo/riven/` in the BX-Team/code repository: after a change, copy `dist/riven_demo.js` and `dist/riven_demo_bg.wasm` there. The site writes its own page around them, so `web/index.html` is only for trying the build locally.
 
 ## Commands
 

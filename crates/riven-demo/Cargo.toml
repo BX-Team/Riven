@@ -1,0 +1,21 @@
+[package]
+name = "riven-demo"
+description = "The Riven Launcher interface on made-up data, built for the browser"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+gpui-kit = { version = "0.9.0", default-features = false }
+moonglass = "0.1.2"
+tracing.workspace = true
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+wasm-bindgen = "0.2.130"

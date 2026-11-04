@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Riven Launcher demo</title>
+<link rel="icon" href="data:,">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #141414; }
+  #status {
+    position: fixed; inset: 0; display: grid; place-items: center;
+    font: 13px/1.5 system-ui, sans-serif; color: #8a8a8a;
+  }
+  body.ready #status { display: none; }
+</style>
+</head>
+<body>
+<div id="status">Loading Riven…</div>
+<script type="module">
+  import init from './riven_demo.js';
+  const status = document.getElementById('status');
+  // gpui adds its canvas to <body> once the app starts.
+  new MutationObserver((_, observer) => {
+    if (document.querySelector('canvas')) {
+      document.body.classList.add('ready');
+      observer.disconnect();
+    }
+  }).observe(document.body, { childList: true });
+  init().catch(error => {
+    console.error(error);
+    status.textContent = 'This browser cannot run the demo: it needs WebGPU or WebGL 2.';
+  });
+</script>
+</body>
+</html>
