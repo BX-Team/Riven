@@ -37,6 +37,7 @@ instance:
     configs: Configs
     logs: Logs
     screenshots: Screenshots
+    worlds: Worlds
     settings: Settings
   duplicate: Duplicate
   delete: Delete instance
@@ -49,6 +50,50 @@ configs:
   pick: Pick a file on the left to edit it
   binary: This file is not text; open it in another app from its menu
   too_big: This file is too large to edit here
+worlds:
+  count: "Worlds: %{n}"
+  loading: Reading worlds…
+  none: No worlds yet; they appear after the first game
+  backup: Back up
+  backed_up: Backed up
+  backup_hint: Save a backup of the world; the game may be running
+  working: Working…
+  backups_total: "backups: %{n} · %{size}"
+  last_backup: "backed up %{time} (%{n} total)"
+  no_backups: no backups
+  played: "played %{time}"
+  cheats: cheats
+  day: "day %{n}"
+  copy_seed: Copy seed
+  seed_copied: "Seed %{seed} copied"
+  backups: "Backups: %{n}"
+  restore: Restore
+  restore_body: The current world is replaced by this backup
+  restored: World restored from the backup
+  open_backups: "Backups (%{n})"
+  backups_title: "Backups: %{name}"
+  backups_hint: A backup keeps the whole world in a zip; roll back to it at any time
+  no_backups_yet: This world has no backups yet
+  restore_hint: Replace the current world with this backup
+  delete_backup_body: The backup is deleted from disk
+  copy_to: Copy to instance
+  copied: "World copied to “%{name}”"
+  delete: Delete world
+  delete_title: "Delete the world “%{name}”?"
+  delete_body: The world is deleted from disk. Its backups stay.
+  running: Game is running
+  running_hint: Worlds cannot be restored or deleted while the game runs
+  mode:
+    survival: Survival
+    creative: Creative
+    adventure: Adventure
+    spectator: Spectator
+    hardcore: Hardcore
+  difficulty:
+    peaceful: Peaceful
+    easy: Easy
+    normal: Normal
+    hard: Hard
 screenshots:
   open: Open in the image viewer
   copy: Copy image
@@ -122,6 +167,9 @@ time:
   minutes: "%{m} min"
   hours_minutes: "%{h} h %{m} min"
   under_minute: under a minute
+  just_now: just now
+  minutes_ago: "%{n} min ago"
+  hours_ago: "%{n} h ago"
 launch:
   play: Play
   pack_current: Pack up to date

@@ -36,15 +36,17 @@ enum Tab {
     Shaders,
     Configs,
     Logs,
+    Worlds,
     Screenshots,
 }
 
-const TABS: [Tab; 6] = [
+const TABS: [Tab; 7] = [
     Tab::Mods,
     Tab::ResourcePacks,
     Tab::Shaders,
     Tab::Configs,
     Tab::Logs,
+    Tab::Worlds,
     Tab::Screenshots,
 ];
 
@@ -56,6 +58,7 @@ impl Tab {
             Tab::Shaders => t!("instance.tabs.shaders"),
             Tab::Configs => t!("instance.tabs.configs"),
             Tab::Logs => t!("instance.tabs.logs"),
+            Tab::Worlds => t!("instance.tabs.worlds"),
             Tab::Screenshots => t!("instance.tabs.screenshots"),
         }
         .into()
@@ -109,6 +112,7 @@ pub struct InstanceView {
     logs: Entity<LogsView>,
     configs: Entity<super::configs::ConfigsView>,
     screenshots: Entity<super::screenshots::ScreenshotsView>,
+    worlds: Entity<super::worlds::WorldsView>,
     loading: bool,
     /// Installed from a pack, so its mods stay locked until the player allows their own.
     from_pack: bool,
@@ -169,6 +173,10 @@ impl InstanceView {
             cx.new(|cx| super::configs::ConfigsView::new(dir, window, cx))
         };
         let screenshots = cx.new(|_| super::screenshots::ScreenshotsView::new(game_dir.clone()));
+        let worlds = {
+            let (id, dir, game) = (id.clone(), store.dir(&id), game_dir.clone());
+            cx.new(|_| super::worlds::WorldsView::new(id, dir, game))
+        };
         let search =
             cx.new(|cx| InputState::new(window, cx).placeholder(t!("mods.search").to_string()));
         let _search = cx.subscribe(&search, |this, input, event, cx| {
@@ -192,6 +200,7 @@ impl InstanceView {
             logs,
             configs,
             screenshots,
+            worlds,
             loading: true,
             from_pack,
             removed_pack: 0,
@@ -228,6 +237,7 @@ impl InstanceView {
         match tab {
             Tab::Configs => self.configs.update(cx, |c, cx| c.ensure_loaded(cx)),
             Tab::Screenshots => self.screenshots.update(cx, |s, cx| s.reload(cx)),
+            Tab::Worlds => self.worlds.update(cx, |w, cx| w.reload(cx)),
             _ => {}
         }
         if let Some(kind) = tab.content()
@@ -1157,6 +1167,7 @@ impl Render for InstanceView {
             }
             Tab::Logs => self.logs.clone().into_any_element(),
             Tab::Configs => self.configs.clone().into_any_element(),
+            Tab::Worlds => self.worlds.clone().into_any_element(),
             Tab::Screenshots => self.screenshots.clone().into_any_element(),
         };
         let tab = TABS.iter().position(|t| *t == self.tab).unwrap_or(0);

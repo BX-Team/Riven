@@ -255,7 +255,7 @@ fn dir_size(path: &Path) -> u64 {
         .sum()
 }
 
-fn human_size(bytes: u64) -> String {
+pub(super) fn human_size(bytes: u64) -> String {
     const UNITS: [&str; 4] = ["B", "KB", "MB", "GB"];
     let mut value = bytes as f64;
     let mut unit = 0;

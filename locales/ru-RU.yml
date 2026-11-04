@@ -37,6 +37,7 @@ instance:
     configs: Конфиги
     logs: Логи
     screenshots: Скриншоты
+    worlds: Миры
     settings: Настройки
   duplicate: Дублировать
   delete: Удалить инстанс
@@ -49,6 +50,50 @@ configs:
   pick: Выберите файл слева, чтобы его изменить
   binary: Это не текстовый файл; откройте его в другой программе через меню
   too_big: Файл слишком большой для редактирования здесь
+worlds:
+  count: "Миров: %{n}"
+  loading: Читаем миры…
+  none: Миров пока нет; они появятся после первой игры
+  backup: Создать копию
+  backed_up: Копия создана
+  backup_hint: Сохранить резервную копию мира; игра может быть запущена
+  working: Работаем…
+  backups_total: "копий: %{n} · %{size}"
+  last_backup: "копия %{time} (всего %{n})"
+  no_backups: копий нет
+  played: "играли %{time}"
+  cheats: читы
+  day: "день %{n}"
+  copy_seed: Копировать сид
+  seed_copied: "Сид %{seed} скопирован"
+  backups: "Копий: %{n}"
+  restore: Восстановить
+  restore_body: Текущий мир заменится этой копией
+  restored: Мир восстановлен из копии
+  open_backups: "Резервные копии (%{n})"
+  backups_title: "Резервные копии: %{name}"
+  backups_hint: Копия сохраняет весь мир в zip-архив; к ней можно откатиться в любой момент
+  no_backups_yet: Копий этого мира пока нет
+  restore_hint: Заменить текущий мир этой копией
+  delete_backup_body: Копия удалится с диска
+  copy_to: Копировать в инстанс
+  copied: "Мир скопирован в «%{name}»"
+  delete: Удалить мир
+  delete_title: "Удалить мир «%{name}»?"
+  delete_body: Мир удалится с диска. Резервные копии останутся.
+  running: Игра запущена
+  running_hint: Пока игра идёт, восстанавливать и удалять миры нельзя
+  mode:
+    survival: Выживание
+    creative: Творческий
+    adventure: Приключение
+    spectator: Наблюдатель
+    hardcore: Хардкор
+  difficulty:
+    peaceful: Мирная
+    easy: Лёгкая
+    normal: Нормальная
+    hard: Сложная
 screenshots:
   open: Открыть в просмотрщике
   copy: Копировать изображение
@@ -122,6 +167,9 @@ time:
   minutes: "%{m} мин"
   hours_minutes: "%{h} ч %{m} мин"
   under_minute: меньше минуты
+  just_now: только что
+  minutes_ago: "%{n} мин назад"
+  hours_ago: "%{n} ч назад"
 launch:
   play: Играть
   pack_current: Пак актуален

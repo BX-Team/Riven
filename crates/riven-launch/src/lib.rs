@@ -10,6 +10,7 @@ pub mod own;
 pub mod prism;
 pub mod update;
 mod vault;
+pub mod worlds;
 
 use std::path::{Path, PathBuf};
 

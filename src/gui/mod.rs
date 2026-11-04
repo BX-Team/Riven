@@ -30,6 +30,7 @@ mod state;
 mod time;
 mod updater;
 mod welcome;
+mod worlds;
 
 use std::process::ExitCode;
 
