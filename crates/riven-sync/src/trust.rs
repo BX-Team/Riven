@@ -47,17 +47,59 @@ pub fn save(path: &Path, trusted: &Trusted) -> Result<(), TrustError> {
     std::fs::rename(&tmp, path).map_err(io)
 }
 
+/// The key pinned for `url`, or for another channel of the same pack: switching channels must not re-trust.
 pub fn pinned(trusted: &Trusted, url: &str) -> Option<PublicKey> {
-    trusted.keys.get(url).and_then(|k| PublicKey::parse(k).ok())
+    trusted
+        .keys
+        .get(url)
+        .or_else(|| {
+            trusted
+                .keys
+                .iter()
+                .find(|(pinned, _)| crate::remote::same_pack(pinned, url))
+                .map(|(_, key)| key)
+        })
+        .and_then(|k| PublicKey::parse(k).ok())
 }
 
 /// Unpins the key of the pack at `url`, so its next install pins the one it serves; `false` if none was pinned.
 pub fn forget(url: &str) -> Result<bool, TrustError> {
     let path = default_path()?;
     let mut trusted = load(&path)?;
-    if trusted.keys.remove(url).is_none() {
+    if !unpin(&mut trusted, url) {
         return Ok(false);
     }
     save(&path, &trusted)?;
     Ok(true)
+}
+
+fn unpin(trusted: &mut Trusted, url: &str) -> bool {
+    let before = trusted.keys.len();
+    trusted
+        .keys
+        .retain(|pinned, _| pinned != url && !crate::remote::same_pack(pinned, url));
+    trusted.keys.len() != before
+}
+
+#[cfg(test)]
+mod tests {
+    use riven_format::KeyPair;
+
+    use super::*;
+
+    #[test]
+    fn a_key_pinned_on_one_channel_holds_for_the_others() {
+        let key = KeyPair::generate().unwrap().public();
+        let mut trusted = Trusted::default();
+        let stable = "https://x.test/pack/channels/stable.json";
+        trusted.keys.insert(stable.into(), key.to_string());
+        let beta = "https://x.test/pack/channels/beta.json";
+        assert_eq!(pinned(&trusted, beta), Some(key));
+        assert_eq!(
+            pinned(&trusted, "https://x.test/other/channels/beta.json"),
+            None
+        );
+        assert!(unpin(&mut trusted, beta));
+        assert!(trusted.keys.is_empty());
+    }
 }
