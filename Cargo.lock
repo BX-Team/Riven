@@ -6691,6 +6691,7 @@ dependencies = [
  "gpui-kit",
  "image",
  "indicatif",
+ "libc",
  "moonglass",
  "notify",
  "reqwest",

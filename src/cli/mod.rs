@@ -344,6 +344,7 @@ fn parse_loader(raw: &str) -> anyhow::Result<(LoaderKind, Option<String>)> {
 }
 
 pub fn run() -> ExitCode {
+    restore_sigpipe();
     let cli = Cli::from_arg_matches(&help::command().get_matches()).unwrap_or_else(|e| e.exit());
     let out = Output::new(cli.json);
     let runtime = tokio::runtime::Runtime::new().expect("tokio runtime starts");
@@ -355,6 +356,18 @@ pub fn run() -> ExitCode {
         }
     }
 }
+
+/// Dies quietly when stdout is a closed pipe (`riven list | head`), as other Unix tools do.
+#[cfg(unix)]
+fn restore_sigpipe() {
+    // Rust ignores SIGPIPE, which turns every println! after the reader is gone into a panic.
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+}
+
+#[cfg(not(unix))]
+fn restore_sigpipe() {}
 
 async fn dispatch(command: Command, out: &Output) -> anyhow::Result<ExitCode> {
     match command {

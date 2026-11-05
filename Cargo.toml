@@ -102,6 +102,9 @@ tracing.workspace = true
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url.workspace = true
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
