@@ -4,7 +4,7 @@ use std::process::ExitCode;
 
 use anyhow::{Context, bail};
 use console::style;
-use riven_format::{Changes, Release};
+use riven_format::{Changes, InstallSide, Release};
 use riven_sync::install::{self, Event, Planned};
 use riven_sync::remote::{self, Fetched};
 use riven_sync::update::{self, Check, DEFAULT_CHANNEL, Request};
@@ -202,7 +202,11 @@ pub async fn status(out: &Output, dir: Option<PathBuf>) -> anyhow::Result<ExitCo
         || {
             println!("{} {}", style("source").dim(), state.source);
             println!("{} {}", style("version").dim(), state.version);
-            println!("{} {:?}", style("side").dim(), state.side);
+            let side = match state.side {
+                InstallSide::Client => "client",
+                InstallSide::Server => "server",
+            };
+            println!("{} {side}", style("side").dim());
             println!("{} {}", style("files").dim(), state.files.len());
             for (group, on) in &groups {
                 println!(
