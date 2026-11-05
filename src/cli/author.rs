@@ -235,27 +235,12 @@ pub async fn list(out: &Output, tree: bool, outdated: bool) -> anyhow::Result<Ex
     out.emit(json!(entries), || {
         let width = entries.iter().map(|e| e.id.len()).max().unwrap_or(0);
         for entry in &entries {
-            let mut flags = Vec::new();
-            if entry.update == UpdatePolicy::Pinned {
-                flags.push("pinned".to_owned());
-            }
-            if let Some(group) = &entry.group {
-                flags.push(format!("group:{group}"));
-            }
-            if entry.reason == Reason::Dependency {
-                flags.push("dependency".to_owned());
-            }
-            let flags = if flags.is_empty() {
-                String::new()
-            } else {
-                style(format!(" ({})", flags.join(", "))).dim().to_string()
-            };
             println!(
                 "{:width$}  {}{}{}",
                 style(&entry.id).bold(),
                 file_name(entry),
                 side_label(entry.side),
-                flags
+                flags(entry, true)
             );
         }
         eprintln!("{}", style(plural(entries.len(), "entry", "entries")).dim());
@@ -291,6 +276,25 @@ fn explicit(project: &Project) -> impl Iterator<Item = &riven_format::Entry> {
     roots.into_iter()
 }
 
+/// ` (pinned, group:shaders)`; the tree shows dependencies by nesting instead.
+fn flags(entry: &riven_format::Entry, dependency: bool) -> String {
+    let mut flags = Vec::new();
+    if entry.update == UpdatePolicy::Pinned {
+        flags.push("pinned".to_owned());
+    }
+    if let Some(group) = &entry.group {
+        flags.push(format!("group:{group}"));
+    }
+    if dependency && entry.reason == Reason::Dependency {
+        flags.push("dependency".to_owned());
+    }
+    if flags.is_empty() {
+        String::new()
+    } else {
+        style(format!(" ({})", flags.join(", "))).dim().to_string()
+    }
+}
+
 fn print_tree(project: &Project) {
     fn walk(project: &Project, id: &str, depth: usize, stack: &mut Vec<String>) {
         let indent = "  ".repeat(depth);
@@ -303,14 +307,15 @@ fn print_tree(project: &Project) {
             return;
         }
         println!(
-            "{indent}{} {}{}",
+            "{indent}{} {}{}{}",
             if depth == 0 {
                 style(id).bold()
             } else {
                 style(id)
             },
             style(file_name(entry)).dim(),
-            side_label(entry.side)
+            side_label(entry.side),
+            flags(entry, false)
         );
         stack.push(id.to_owned());
         let mut requires = entry.requires.clone();
