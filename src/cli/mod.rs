@@ -1,5 +1,6 @@
 mod author;
 mod complete;
+mod help;
 mod import;
 mod output;
 mod project;
@@ -10,7 +11,7 @@ mod upgrade;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{FromArgMatches as _, Parser, Subcommand, ValueEnum};
 use riven_format::{LoaderKind, Side};
 
 pub use complete::answer as answer_completion;
@@ -343,7 +344,7 @@ fn parse_loader(raw: &str) -> anyhow::Result<(LoaderKind, Option<String>)> {
 }
 
 pub fn run() -> ExitCode {
-    let cli = Cli::parse();
+    let cli = Cli::from_arg_matches(&help::command().get_matches()).unwrap_or_else(|e| e.exit());
     let out = Output::new(cli.json);
     let runtime = tokio::runtime::Runtime::new().expect("tokio runtime starts");
     match runtime.block_on(dispatch(cli.command, &out)) {
