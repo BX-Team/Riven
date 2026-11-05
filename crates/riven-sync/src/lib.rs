@@ -14,6 +14,8 @@ pub use store::{Error, Store, Stored, Sweep};
 pub enum SyncError {
     #[error("`{0}` is not a pack link (an http(s) URL of the pack or a channel)")]
     BadLink(String),
+    #[error("`{0}` is not a channel name (letters, digits, `-`, `_`, `.`)")]
+    BadChannel(String),
     #[error("request to {url} failed: {source}")]
     Http { url: String, source: reqwest::Error },
     #[error("{url} returned {status}")]

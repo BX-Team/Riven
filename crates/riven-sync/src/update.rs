@@ -123,7 +123,15 @@ pub async fn check(
         (release, url, origin, None, Some(digest))
     } else {
         let channel = request.channel.as_deref().unwrap_or(DEFAULT_CHANNEL);
-        let link: Link = remote::parse_link(&raw, channel)?;
+        let mut link: Link = remote::parse_link(&raw, channel)?;
+        if let Some(wanted) = request.channel.as_deref()
+            && remote::channel_of(link.pointer.as_str()).is_some_and(|c| c != wanted)
+        {
+            let switched = remote::with_channel(link.pointer.as_str(), wanted)
+                .and_then(|p| Url::parse(&p).ok())
+                .ok_or_else(|| SyncError::BadChannel(wanted.to_owned()))?;
+            link.pointer = switched;
+        }
         let same_pack = state
             .as_ref()
             .is_some_and(|s| s.source == link.pointer.as_str());
