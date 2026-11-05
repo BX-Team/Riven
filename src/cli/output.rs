@@ -145,6 +145,11 @@ impl Output {
     }
 }
 
+/// `1 entry`, `3 entries`.
+pub fn plural(n: usize, one: &str, many: &str) -> String {
+    format!("{n} {}", if n == 1 { one } else { many })
+}
+
 pub fn file_name(entry: &Entry) -> &str {
     entry.file.path.file_name()
 }

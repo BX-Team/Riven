@@ -12,7 +12,7 @@ use riven_sync::{Store, trust};
 use serde_json::json;
 
 use super::InstallArgs;
-use super::output::Output;
+use super::output::{Output, plural};
 
 fn game_dir(dir: Option<PathBuf>) -> anyhow::Result<PathBuf> {
     match dir {
@@ -115,9 +115,10 @@ pub async fn install(out: &Output, args: InstallArgs) -> anyhow::Result<ExitCode
         }),
         || {
             out.success(&format!(
-                "{name} {} installed in {} ({installed} files changed, {removed} removed){}",
+                "{name} {} installed in {} ({} changed, {removed} removed){}",
                 state.version,
                 dir.display(),
+                plural(installed, "file", "files"),
                 if groups_on.is_empty() {
                     String::new()
                 } else {
@@ -235,9 +236,15 @@ pub fn gc(out: &Output, dirs: &[PathBuf], dry_run: bool) -> anyhow::Result<ExitC
         || {
             let size = indicatif::HumanBytes(swept.bytes);
             if dry_run {
-                out.info(&format!("Would remove {} files ({size})", swept.files));
+                out.info(&format!(
+                    "Would remove {} ({size})",
+                    plural(swept.files as usize, "file", "files")
+                ));
             } else {
-                out.success(&format!("Removed {} files ({size})", swept.files));
+                out.success(&format!(
+                    "Removed {} ({size})",
+                    plural(swept.files as usize, "file", "files")
+                ));
             }
         },
     );

@@ -7,7 +7,7 @@ use riven_build::author::{self as core, AddRequest};
 use riven_format::{Group, Project, Reason, Side, SourceKind, UpdatePolicy};
 use serde_json::json;
 
-use super::output::{Output, file_name, plan_json, side_label};
+use super::output::{Output, file_name, plan_json, plural, side_label};
 use super::project::{PROJECT_FILE, Workspace};
 use super::{GroupCommand, SourceArg, parse_loader};
 
@@ -66,13 +66,8 @@ pub async fn add(out: &Output, query: &str, args: AddArgs) -> anyhow::Result<Exi
     plan.apply(&mut ws.project);
     ws.save()?;
     out.success(&format!(
-        "Added {} {}",
-        plan.add.len(),
-        if plan.add.len() == 1 {
-            "entry"
-        } else {
-            "entries"
-        }
+        "Added {}",
+        plural(plan.add.len(), "entry", "entries")
     ));
     Ok(ExitCode::SUCCESS)
 }
@@ -83,7 +78,10 @@ pub async fn remove(out: &Output, id: &str, keep_deps: bool) -> anyhow::Result<E
     out.plan(&plan);
     plan.apply(&mut ws.project);
     ws.save()?;
-    out.success(&format!("Removed {}", plan.remove.len()));
+    out.success(&format!(
+        "Removed {}",
+        plural(plan.remove.len(), "entry", "entries")
+    ));
     Ok(ExitCode::SUCCESS)
 }
 
@@ -174,7 +172,14 @@ pub fn group(out: &Output, command: GroupCommand) -> anyhow::Result<ExitCode> {
         }
         GroupCommand::Rm { id } => {
             let freed = core::remove_group(project, &id)?;
-            format!("Removed group `{id}`; {freed} entries are now unconditional")
+            format!(
+                "Removed group `{id}`; {} now unconditional",
+                if freed == 1 {
+                    "1 entry is".to_owned()
+                } else {
+                    format!("{freed} entries are")
+                }
+            )
         }
         GroupCommand::Set { entry, group } => {
             let group = (group != "none").then_some(group);
@@ -253,7 +258,7 @@ pub async fn list(out: &Output, tree: bool, outdated: bool) -> anyhow::Result<Ex
                 flags
             );
         }
-        eprintln!("{}", style(format!("{} entries", entries.len())).dim());
+        eprintln!("{}", style(plural(entries.len(), "entry", "entries")).dim());
     });
     Ok(ExitCode::SUCCESS)
 }
@@ -367,7 +372,10 @@ pub async fn check(out: &Output) -> anyhow::Result<ExitCode> {
                 out.warn(line);
             }
             if clean {
-                out.success(&format!("{} entries, no problems", ws.project.content.len()));
+                out.success(&format!(
+                    "{}, no problems",
+                    plural(ws.project.content.len(), "entry", "entries")
+                ));
             }
         },
     );
@@ -462,8 +470,12 @@ pub async fn migrate(
         && !yes
         && !out.confirm(
             &format!(
-                "{} entries have no version for Minecraft {mc}; migrate anyway?",
-                plan.stranded.len()
+                "{} no version for Minecraft {mc}; migrate anyway?",
+                if plan.stranded.len() == 1 {
+                    "1 entry has".to_owned()
+                } else {
+                    format!("{} entries have", plan.stranded.len())
+                }
             ),
             false,
         )

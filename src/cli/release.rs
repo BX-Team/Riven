@@ -7,7 +7,7 @@ use riven_build::ship::{self, ExportKind};
 use riven_format::InstallSide;
 use serde_json::json;
 
-use super::output::Output;
+use super::output::{Output, plural};
 use super::project::Workspace;
 use super::{ExportFormat, TrustCommand};
 
@@ -88,11 +88,11 @@ pub fn build(
                 out.warn("the release is unsigned; installers cannot tell it from a forgery");
             }
             out.success(&format!(
-                "Built {} {}: {} files ({} blobs), channel `{channel}` → {}",
+                "Built {} {}: {} ({}), channel `{channel}` → {}",
                 release.id,
                 release.version,
-                release.files.len(),
-                built.blobs.len(),
+                plural(release.files.len(), "file", "files"),
+                plural(built.blobs.len(), "blob", "blobs"),
                 pointer.version
             ));
             eprintln!(

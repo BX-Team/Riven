@@ -6,7 +6,7 @@ use riven_format::SourceKind;
 use serde_json::json;
 
 use super::ImportFormat;
-use super::output::Output;
+use super::output::{Output, plural};
 
 pub async fn import(out: &Output, format: ImportFormat, source: &str) -> anyhow::Result<ExitCode> {
     let dir = std::env::current_dir().context("cannot read the current directory")?;
@@ -58,8 +58,8 @@ pub async fn import(out: &Output, format: ImportFormat, source: &str) -> anyhow:
         || {
             if !unmatched.is_empty() {
                 out.warn(&format!(
-                    "{} files were not identified and were skipped:",
-                    unmatched.len()
+                    "{} not identified and skipped:",
+                    plural(unmatched.len(), "file was", "files were")
                 ));
                 for path in &unmatched {
                     eprintln!("  {path}");
@@ -72,12 +72,12 @@ pub async fn import(out: &Output, format: ImportFormat, source: &str) -> anyhow:
                 out.note(&format!("`{id}` is not on Modrinth; copied into local/"));
             }
             out.success(&format!(
-                "Imported `{}` {}: {} entries ({} Modrinth), {} override files",
+                "Imported `{}` {}: {} ({} Modrinth), {}",
                 project.name,
                 project.version,
-                project.content.len(),
+                plural(project.content.len(), "entry", "entries"),
                 count(SourceKind::Modrinth),
-                overrides
+                plural(overrides, "override file", "override files")
             ));
         },
     );
