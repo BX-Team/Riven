@@ -509,7 +509,12 @@ impl<'a, S: Source, J: JarFetcher> Planner<'a, S, J> {
                     .find(|v| v.channel == Channel::Release);
             }
             let Some(next) = next else {
-                if stale {
+                if stale && entry.update == UpdatePolicy::Pinned {
+                    self.plan.notes.push(format!(
+                        "`{}` is pinned to a version that does not fit; unpin it to move it too",
+                        entry.id
+                    ));
+                } else if stale {
                     self.plan.stranded.push(entry.id.clone());
                 }
                 continue;
