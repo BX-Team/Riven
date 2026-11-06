@@ -64,6 +64,14 @@ enum Command {
         #[arg(long)]
         beta: bool,
     },
+    /// Search Modrinth for content that fits the pack.
+    Search {
+        query: String,
+        #[arg(long, value_enum, default_value = "mod")]
+        kind: SearchKind,
+        #[arg(long, default_value_t = 10)]
+        limit: u32,
+    },
     /// Add (or with `--remove` take out) tab completion in the PowerShell profiles.
     #[command(hide = true)]
     PowershellProfile {
@@ -313,6 +321,25 @@ enum SourceArg {
 }
 
 #[derive(Clone, Copy, ValueEnum)]
+enum SearchKind {
+    Mod,
+    Resourcepack,
+    Shader,
+    Datapack,
+}
+
+impl From<SearchKind> for riven_format::Kind {
+    fn from(kind: SearchKind) -> Self {
+        match kind {
+            SearchKind::Mod => Self::Mod,
+            SearchKind::Resourcepack => Self::ResourcePack,
+            SearchKind::Shader => Self::ShaderPack,
+            SearchKind::Datapack => Self::DataPack,
+        }
+    }
+}
+
+#[derive(Clone, Copy, ValueEnum)]
 enum SideArg {
     Client,
     Server,
@@ -391,6 +418,9 @@ async fn dispatch(command: Command, out: &Output) -> anyhow::Result<ExitCode> {
                 beta,
             };
             author::add(out, &queries, options).await
+        }
+        Command::Search { query, kind, limit } => {
+            author::search(out, &query, kind.into(), limit).await
         }
         Command::PowershellProfile { remove } => {
             complete::powershell_profile(remove)?;

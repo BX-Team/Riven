@@ -4,7 +4,8 @@ use std::process::ExitCode;
 use anyhow::{Context, bail};
 use console::style;
 use riven_build::author::{self as core, AddRequest};
-use riven_format::{Group, Project, Reason, Side, SourceKind, UpdatePolicy};
+use riven_format::{Group, Kind, Project, Reason, Side, SourceKind, UpdatePolicy};
+use riven_sources::{Source as _, Target};
 use serde_json::json;
 
 use super::output::{Output, file_name, merged_plan_json, plan_json, plural, side_label};
@@ -78,6 +79,84 @@ pub async fn add(out: &Output, queries: &[String], args: AddArgs) -> anyhow::Res
         out.success(&format!("Added {}", plural(added, "entry", "entries")))
     });
     Ok(ExitCode::SUCCESS)
+}
+
+pub async fn search(out: &Output, query: &str, kind: Kind, limit: u32) -> anyhow::Result<ExitCode> {
+    let ws = Workspace::find()?;
+    let target = Target {
+        minecraft: ws.project.minecraft.clone(),
+        loader: ws.project.loader.kind,
+        kind,
+    };
+    let spinner = out.spinner(format!("Searching Modrinth for `{query}`"));
+    let hits = ws.modrinth().search(query, &target, limit).await;
+    spinner.finish_and_clear();
+    let hits = hits?;
+    let added: HashSet<&str> = ws
+        .project
+        .content
+        .iter()
+        .filter_map(|e| match &e.source {
+            riven_format::Source::Modrinth { project, .. } => Some(project.as_str()),
+            _ => None,
+        })
+        .collect();
+    let rows: Vec<_> = hits
+        .iter()
+        .map(|h| {
+            json!({
+                "id": h.id,
+                "slug": h.slug,
+                "title": h.title,
+                "description": h.description,
+                "author": h.author,
+                "downloads": h.downloads,
+                "added": added.contains(h.id.as_str()),
+            })
+        })
+        .collect();
+    out.emit(json!(rows), || {
+        if hits.is_empty() {
+            out.info(&format!(
+                "Nothing on Modrinth matches `{query}` for Minecraft {}",
+                ws.project.minecraft
+            ));
+            return;
+        }
+        let width = hits.iter().map(|h| h.slug.len()).max().unwrap_or(0);
+        for hit in &hits {
+            let mark = if added.contains(hit.id.as_str()) {
+                style(" (added)").green().to_string()
+            } else {
+                String::new()
+            };
+            println!(
+                "{:width$}  {}{mark} {}",
+                style(&hit.slug).bold(),
+                hit.title,
+                style(format!(
+                    "by {}, {} downloads",
+                    hit.author,
+                    downloads(hit.downloads)
+                ))
+                .dim()
+            );
+            if !hit.description.is_empty() {
+                println!("{:width$}  {}", "", style(hit.description.trim()).dim());
+            }
+        }
+        out.note("add one with `riven add <slug>`");
+    });
+    Ok(ExitCode::SUCCESS)
+}
+
+/// `1.2M`, `34K`, `512`.
+fn downloads(n: u64) -> String {
+    match n {
+        1_000_000.. => format!("{:.1}M", n as f64 / 1e6),
+        1_000.. => format!("{}K", n / 1_000),
+        _ => n.to_string(),
+    }
 }
 
 pub async fn remove(out: &Output, id: &str, keep_deps: bool) -> anyhow::Result<ExitCode> {

@@ -11,7 +11,7 @@ const SECTIONS: &[(&str, &[&str])] = &[
     (
         "Content",
         &[
-            "add", "remove", "update", "list", "why", "pin", "unpin", "side", "group",
+            "search", "add", "remove", "update", "list", "why", "pin", "unpin", "side", "group",
         ],
     ),
     (
