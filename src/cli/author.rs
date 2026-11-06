@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 use std::process::ExitCode;
 
-use anyhow::Context;
+use anyhow::{Context, bail};
 use console::style;
 use riven_build::author::{self as core, AddRequest};
 use riven_format::{Group, Project, Reason, Side, SourceKind, UpdatePolicy};
 use serde_json::json;
 
-use super::output::{Output, file_name, plan_json, plural, side_label};
+use super::output::{Output, file_name, merged_plan_json, plan_json, plural, side_label};
 use super::project::{PROJECT_FILE, Workspace};
 use super::{GroupCommand, SourceArg, parse_loader};
 
@@ -41,34 +41,42 @@ pub struct AddArgs {
     pub beta: bool,
 }
 
-pub async fn add(out: &Output, query: &str, args: AddArgs) -> anyhow::Result<ExitCode> {
+pub async fn add(out: &Output, queries: &[String], args: AddArgs) -> anyhow::Result<ExitCode> {
+    if args.asset.is_some() && queries.len() > 1 {
+        bail!("`--asset` picks a file of one GitHub release; add that one on its own");
+    }
     let mut ws = Workspace::find()?;
-    let request = AddRequest {
-        query: query.to_owned(),
-        source: args.source.map(|s| match s {
-            SourceArg::Modrinth => SourceKind::Modrinth,
-            SourceArg::Github => SourceKind::GitHub,
-            SourceArg::Url => SourceKind::Url,
-            SourceArg::Local => SourceKind::Local,
-        }),
-        asset: args.asset,
-        side: args.side,
-        group: args.group,
-        pin: args.pin,
-        prerelease: args.beta,
-    };
-    let spinner = out.spinner(format!("Resolving `{query}`"));
-    let plan = core::plan_add(&ws, &request).await;
-    spinner.finish_and_clear();
-    let plan = plan?;
-
-    out.plan(&plan);
-    plan.apply(&mut ws.project);
+    let mut plans = Vec::new();
+    for query in queries {
+        let request = AddRequest {
+            query: query.clone(),
+            source: args.source.map(|s| match s {
+                SourceArg::Modrinth => SourceKind::Modrinth,
+                SourceArg::Github => SourceKind::GitHub,
+                SourceArg::Url => SourceKind::Url,
+                SourceArg::Local => SourceKind::Local,
+            }),
+            asset: args.asset.clone(),
+            side: args.side,
+            group: args.group.clone(),
+            pin: args.pin,
+            prerelease: args.beta,
+        };
+        let spinner = out.spinner(format!("Resolving `{query}`"));
+        let plan = core::plan_add(&ws, &request).await;
+        spinner.finish_and_clear();
+        let plan = plan.with_context(|| format!("cannot add `{query}`; nothing was added"))?;
+        if !out.is_json() {
+            out.plan(&plan);
+        }
+        plan.apply(&mut ws.project);
+        plans.push(plan);
+    }
     ws.save()?;
-    out.success(&format!(
-        "Added {}",
-        plural(plan.add.len(), "entry", "entries")
-    ));
+    let added: usize = plans.iter().map(|p| p.add.len()).sum();
+    out.emit(merged_plan_json(&plans), || {
+        out.success(&format!("Added {}", plural(added, "entry", "entries")))
+    });
     Ok(ExitCode::SUCCESS)
 }
 

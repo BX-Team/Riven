@@ -162,6 +162,26 @@ pub fn side_label(side: Side) -> String {
     }
 }
 
+/// Several plans applied one after another, as one plan.
+pub fn merged_plan_json(plans: &[Plan]) -> Value {
+    let mut merged = serde_json::Map::new();
+    for plan in plans {
+        let Value::Object(fields) = plan_json(plan) else {
+            continue;
+        };
+        for (key, value) in fields {
+            let Value::Array(items) = value else { continue };
+            if let Value::Array(all) = merged
+                .entry(key)
+                .or_insert_with(|| Value::Array(Vec::new()))
+            {
+                all.extend(items);
+            }
+        }
+    }
+    Value::Object(merged)
+}
+
 pub fn plan_json(plan: &Plan) -> Value {
     json!({
         "add": plan.add,

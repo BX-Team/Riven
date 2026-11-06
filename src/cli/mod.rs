@@ -44,8 +44,9 @@ enum Command {
     },
     /// Add content and its dependencies.
     Add {
-        /// Modrinth slug, id, search query or URL; a GitHub repo or release URL; a file URL; a local file.
-        query: String,
+        /// Modrinth slug, id, search query or URL; a GitHub repo or release URL; a file URL; a local file. Several at once are fine.
+        #[arg(required = true)]
+        queries: Vec<String>,
         /// Where `query` points (default: guessed from it).
         #[arg(long, value_enum)]
         source: Option<SourceArg>,
@@ -373,7 +374,7 @@ async fn dispatch(command: Command, out: &Output) -> anyhow::Result<ExitCode> {
     match command {
         Command::Init { mc, loader } => author::init(out, mc, &loader).await,
         Command::Add {
-            query,
+            queries,
             source,
             asset,
             side,
@@ -389,7 +390,7 @@ async fn dispatch(command: Command, out: &Output) -> anyhow::Result<ExitCode> {
                 pin,
                 beta,
             };
-            author::add(out, &query, options).await
+            author::add(out, &queries, options).await
         }
         Command::PowershellProfile { remove } => {
             complete::powershell_profile(remove)?;
