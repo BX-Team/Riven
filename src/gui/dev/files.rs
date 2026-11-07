@@ -1,9 +1,9 @@
-use gpui_kit::base::input::{Editor, InputEvent};
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, Context, InteractiveElement as _, IntoElement, KeyDownEvent, ParentElement as _,
     SharedString, StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
+use gpui_base::input::{Editor, InputEvent};
 use riven_format::PackPath;
 use rust_i18n::t;
 
@@ -27,8 +27,8 @@ fn tree_row(
     depth: usize,
     on: bool,
     window: &mut Window,
-    cx: &mut gpui_kit::App,
-) -> (gpui_kit::Stateful<gpui_kit::Div>, bool) {
+    cx: &mut gpui::App,
+) -> (gpui::Stateful<gpui::Div>, bool) {
     let c = cx.theme().colors;
     let hover = motion::hover(SharedString::from(format!("tree:{key}")), window, cx);
     let lit = hover.on;
@@ -535,11 +535,11 @@ impl DevView {
                     .items_center()
                     .justify_center()
                     .children(full.map(|p| {
-                        use gpui_kit::StyledImage as _;
-                        gpui_kit::img(p)
+                        use gpui::StyledImage as _;
+                        gpui::img(p)
                             .max_w_full()
                             .max_h_full()
-                            .object_fit(gpui_kit::ObjectFit::ScaleDown)
+                            .object_fit(gpui::ObjectFit::ScaleDown)
                     })),
             )
             .into_any_element()

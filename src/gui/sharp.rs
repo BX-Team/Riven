@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use gpui_kit::{App, Asset, ImageCacheError, ImageSource, RenderImage, Window};
+use gpui::{App, Asset, ImageCacheError, ImageSource, RenderImage, Window};
 use image::imageops::FilterType;
 
 /// An image file scaled down on the CPU to the pixels it covers.

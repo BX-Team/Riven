@@ -1,5 +1,5 @@
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, Context, FontWeight, InteractiveElement as _, IntoElement, ParentElement as _,
     SharedString, StatefulInteractiveElement as _, Styled as _, div, px, relative,
 };
@@ -15,7 +15,7 @@ pub(super) fn section_head(
     title: SharedString,
     hint: SharedString,
     cx: &Context<DevView>,
-) -> gpui_kit::Div {
+) -> gpui::Div {
     let c = cx.theme().colors;
     h_flex()
         .flex_none()

@@ -2,13 +2,13 @@ use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use gpui_kit::base::input::TextareaState;
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, Context, Entity, InteractiveElement as _, IntoElement, ParentElement as _,
     SharedString, StatefulInteractiveElement as _, Styled as _, UniformListScrollHandle, Window,
     div, px, uniform_list,
 };
+use gpui_base::input::TextareaState;
 use riven_build::git::{self, DiffLine, DiffRow, FileState, GitError, Status};
 use riven_format::PackPath;
 use rust_i18n::t;
@@ -729,7 +729,7 @@ impl DevView {
         id: &'static str,
         len: usize,
         handle: &UniformListScrollHandle,
-        rows: impl Fn(std::ops::Range<usize>, &mut Window, &mut gpui_kit::App) -> Vec<R> + 'static,
+        rows: impl Fn(std::ops::Range<usize>, &mut Window, &mut gpui::App) -> Vec<R> + 'static,
     ) -> AnyElement {
         div()
             .absolute()
@@ -883,7 +883,7 @@ impl DevView {
     }
 }
 
-fn diff_row_view(row: &DiffRow, cx: &gpui_kit::App) -> AnyElement {
+fn diff_row_view(row: &DiffRow, cx: &gpui::App) -> AnyElement {
     let c = cx.theme().colors;
     let DiffRow::Line { old, new, text } = row else {
         return h_flex()

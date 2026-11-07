@@ -1,5 +1,5 @@
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, AppContext as _, Context, DragMoveEvent, EmptyView, FontWeight,
     InteractiveElement as _, IntoElement, ParentElement as _, ScrollStrategy, SharedString,
     StatefulInteractiveElement as _, Styled as _, div, px, uniform_list,
@@ -93,7 +93,7 @@ impl DevView {
     fn status_row(
         &self,
         spin: bool,
-        color: gpui_kit::Hsla,
+        color: gpui::Hsla,
         text: String,
         cx: &mut Context<Self>,
     ) -> AnyElement {

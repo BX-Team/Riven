@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     App, AppContext as _, Context, EventEmitter, InteractiveElement as _, IntoElement, MouseButton,
     ParentElement as _, Pixels, Point, Render, SharedString, StatefulInteractiveElement as _,
     Styled as _, UniformListScrollHandle, Window, div, px, uniform_list,
@@ -157,7 +157,7 @@ impl FileTree {
         cx.notify();
     }
 
-    fn render_row(&self, ix: usize, cx: &mut Context<Self>) -> Option<gpui_kit::AnyElement> {
+    fn render_row(&self, ix: usize, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
         let c = cx.theme().colors;
         let node = self.nodes.get(*self.shown.get(ix)?)?.clone();
         let depth = ancestors(&node.path).count();
@@ -197,7 +197,7 @@ impl FileTree {
             }))
             .on_mouse_down(
                 MouseButton::Right,
-                cx.listener(move |_, event: &gpui_kit::MouseDownEvent, _, cx| {
+                cx.listener(move |_, event: &gpui::MouseDownEvent, _, cx| {
                     cx.stop_propagation();
                     cx.emit(TreeEvent::Menu {
                         node: Some(menu.clone()),
@@ -247,7 +247,7 @@ impl Render for FileTree {
             .text_size(px(12.))
             .on_mouse_down(
                 MouseButton::Right,
-                cx.listener(|_, event: &gpui_kit::MouseDownEvent, _, cx| {
+                cx.listener(|_, event: &gpui::MouseDownEvent, _, cx| {
                     cx.emit(TreeEvent::Menu {
                         node: None,
                         position: event.position,

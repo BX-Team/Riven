@@ -34,7 +34,7 @@ mod worlds;
 
 use std::process::ExitCode;
 
-use gpui_kit::{App, Bounds, Window, WindowBounds, WindowOptions, px, size};
+use gpui::{App, Bounds, Window, WindowBounds, WindowOptions, px, size};
 use riven_format::{Appearance, ThemeMode};
 
 use state::AppState;
@@ -55,14 +55,13 @@ pub fn run(arg: Option<String>) -> ExitCode {
     if let Some(open) = open {
         let _ = tx.send(open);
     }
-    let app = gpui_kit::application().with_assets(assets::Assets);
+    let app = moonglass::application().with_assets(assets::Assets);
     app.on_open_urls(move |urls| {
         for open in urls.iter().filter_map(|u| links::Open::parse(u)) {
             let _ = tx.send(open);
         }
     });
     app.run(move |cx| {
-        gpui_kit::init(cx);
         moonglass::init(cx);
         dev::init(cx);
         app::init(cx);
@@ -89,7 +88,7 @@ fn open_main_window(cx: &mut App) {
         app_id: Some("riven".into()),
         ..moonglass::chrome::window_options()
     };
-    let opened = gpui_kit::open_window(options, cx, |window, cx| {
+    let opened = moonglass::open_window(options, cx, |window, cx| {
         window.set_window_title("Riven Launcher");
         app::RivenApp::view(window, cx)
     });

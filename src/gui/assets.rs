@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use gpui_kit::{AssetSource, Result, SharedString};
+use gpui::{AssetSource, Result, SharedString};
 use moonglass::IconName;
 use riven_format::LoaderKind;
 

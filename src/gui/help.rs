@@ -1,4 +1,4 @@
-use gpui_kit::{
+use gpui::{
     App, InteractiveElement as _, IntoElement, ParentElement as _, StatefulInteractiveElement as _,
     Styled as _, div, px,
 };

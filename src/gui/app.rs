@@ -1,5 +1,5 @@
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, App, AppContext as _, Context, DispatchPhase, Entity, ExternalPaths, FocusHandle,
     FontWeight, InteractiveElement as _, IntoElement, KeyBinding, MouseButton, MouseDownEvent,
     NavigationDirection, ParentElement as _, Render, SharedString, StatefulInteractiveElement as _,
@@ -219,7 +219,7 @@ impl RivenApp {
                     cx,
                 )
                 .child(match icon {
-                    Some(path) => gpui_kit::img(super::sharp::image(path, 18.))
+                    Some(path) => gpui::img(super::sharp::image(path, 18.))
                         .size(px(18.))
                         .flex_none()
                         .rounded(px(4.))
@@ -450,19 +450,19 @@ fn back_button(state: Entity<AppState>, dev: Option<Entity<DevView>>) -> impl In
 }
 
 /// Screens are drawn again only when they change, not with every frame of a dialog over them.
-fn full() -> gpui_kit::StyleRefinement {
-    gpui_kit::StyleRefinement::default().size_full()
+fn full() -> gpui::StyleRefinement {
+    gpui::StyleRefinement::default().size_full()
 }
 
 /// A 30 px list row of the left column; the selected one sits on a [`moonglass::motion::highlighted`] list.
 pub fn nav_row(
-    id: impl Into<gpui_kit::ElementId>,
+    id: impl Into<gpui::ElementId>,
     active: bool,
     window: &mut Window,
     cx: &mut App,
-) -> gpui_kit::base::Button {
+) -> gpui_base::Button {
     let c = cx.theme().colors;
-    let id: gpui_kit::ElementId = id.into();
+    let id: gpui::ElementId = id.into();
     let key = format!("nav:{id}");
     let hover = moonglass::motion::hover(SharedString::from(format!("{key}:hover")), window, cx);
     let bg = moonglass::motion::animate(
@@ -476,7 +476,7 @@ pub fn nav_row(
         cx,
     );
     hover
-        .track(gpui_kit::base::Button::new(id))
+        .track(gpui_base::Button::new(id))
         .selected(active)
         .justify_start()
         .h(px(30.))
@@ -496,12 +496,7 @@ pub fn nav_row(
 }
 
 /// A centered empty state with an icon, a title and a hint.
-pub fn placeholder(
-    name: IconName,
-    title: SharedString,
-    hint: SharedString,
-    cx: &App,
-) -> gpui_kit::Div {
+pub fn placeholder(name: IconName, title: SharedString, hint: SharedString, cx: &App) -> gpui::Div {
     let c = cx.theme().colors;
     v_flex()
         .size_full()

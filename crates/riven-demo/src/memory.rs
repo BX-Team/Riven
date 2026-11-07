@@ -1,9 +1,9 @@
-use gpui_kit::base::slider::{SliderEvent, SliderState};
-use gpui_kit::base::{Slider, SliderIndicator, SliderThumb, SliderTrack};
-use gpui_kit::{
+use gpui::{
     AppContext as _, Context, DefiniteLength, Entity, IntoElement, ParentElement as _, Render,
     Styled as _, Subscription, Window, div, px, relative,
 };
+use gpui_base::slider::{SliderEvent, SliderState};
+use gpui_base::{Slider, SliderIndicator, SliderThumb, SliderTrack};
 use moonglass::theme::ActiveTheme as _;
 use moonglass::{W_SEMIBOLD, h_flex, v_flex};
 

@@ -1,12 +1,12 @@
 use std::time::Duration;
 
-use gpui_kit::base::input::{InputEvent, InputState};
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, FontWeight, InteractiveElement as _,
     IntoElement, ParentElement as _, Render, SharedString, StatefulInteractiveElement as _,
     Styled as _, Subscription, Window, div, img, px, relative,
 };
+use gpui_base::input::{InputEvent, InputState};
 use moonglass::theme::ActiveTheme as _;
 use moonglass::toast::ToastKind;
 use moonglass::{
@@ -850,7 +850,7 @@ impl Demo {
             let seed = 4_206_913_377_u64.wrapping_mul(w as u64 + ix as u64 + 1);
             let entries = vec![
                 MenuEntry::action("Copy seed", move |_, cx| {
-                    cx.write_to_clipboard(gpui_kit::ClipboardItem::new_string(seed.to_string()));
+                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(seed.to_string()));
                     moonglass::toast::show(ToastKind::Success, format!("Seed {seed} copied"), cx)
                 })
                 .icon(IconName::Copy),

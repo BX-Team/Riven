@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use futures_util::{StreamExt as _, stream};
-use gpui_kit::SharedString;
+use gpui::SharedString;
 use riven_launch::mods::{ContentFile, Details};
 use riven_sources::{Cache, Known, Modrinth};
 

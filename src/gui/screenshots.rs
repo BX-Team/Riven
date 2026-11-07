@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use gpui_kit::{
+use gpui::{
     AnyElement, App, AppContext as _, Context, InteractiveElement as _, IntoElement, MouseButton,
     ParentElement as _, Render, SharedString, StatefulInteractiveElement as _, Styled as _,
     StyledImage as _, UniformListScrollHandle, WeakEntity, Window, div, img, px, uniform_list,
@@ -234,7 +234,7 @@ impl ScreenshotsView {
                         .children(
                             shot.thumb
                                 .clone()
-                                .map(|t| img(t).size_full().object_fit(gpui_kit::ObjectFit::Cover)),
+                                .map(|t| img(t).size_full().object_fit(gpui::ObjectFit::Cover)),
                         ),
                 )
                 .child(
@@ -366,7 +366,7 @@ impl Render for Viewer {
                         img(self.shot.path.clone())
                             .max_w_full()
                             .max_h_full()
-                            .object_fit(gpui_kit::ObjectFit::ScaleDown),
+                            .object_fit(gpui::ObjectFit::ScaleDown),
                     ),
             )
             .child(

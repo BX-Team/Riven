@@ -1,10 +1,10 @@
-use gpui_kit::base::input::{InputEvent, InputState};
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, AppContext as _, Context, Entity, FontWeight, InteractiveElement as _, IntoElement,
     ParentElement as _, Render, StatefulInteractiveElement as _, Styled as _, Subscription,
     WeakEntity, Window, div, img, px,
 };
+use gpui_base::input::{InputEvent, InputState};
 use moonglass::theme::ActiveTheme as _;
 use moonglass::toast::ToastKind;
 use moonglass::{Button, IconName, TextField, W_SEMIBOLD, h_flex, v_flex};

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, Context, FontWeight, Hsla, InteractiveElement as _, IntoElement,
     ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _, div, px,
 };
@@ -503,11 +503,7 @@ impl DevView {
             }))
     }
 
-    fn status_item(
-        &self,
-        id: &'static str,
-        cx: &mut Context<Self>,
-    ) -> gpui_kit::Stateful<gpui_kit::Div> {
+    fn status_item(&self, id: &'static str, cx: &mut Context<Self>) -> gpui::Stateful<gpui::Div> {
         let c = cx.theme().colors;
         h_flex()
             .id(id)

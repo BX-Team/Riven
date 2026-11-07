@@ -1,12 +1,12 @@
 use std::path::{Path, PathBuf};
 
-use gpui_kit::base::input::{Editor, EditorState, InputEvent};
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, AppContext as _, Context, Entity, InteractiveElement as _, IntoElement,
     KeyDownEvent, ParentElement as _, Render, SharedString, Styled as _, StyledImage as _,
     Subscription, Window, div, img, px,
 };
+use gpui_base::input::{Editor, EditorState, InputEvent};
 use rust_i18n::t;
 
 use super::code_editor;
@@ -291,7 +291,7 @@ impl ConfigsView {
                             img(full.clone())
                                 .max_w_full()
                                 .max_h_full()
-                                .object_fit(gpui_kit::ObjectFit::ScaleDown),
+                                .object_fit(gpui::ObjectFit::ScaleDown),
                         ),
                 )
                 .into_any_element(),

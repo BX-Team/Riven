@@ -1,10 +1,10 @@
-use gpui_kit::base::input::{InputState, TextareaState};
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, FontWeight, InteractiveElement as _,
     IntoElement, ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _,
     Window, WindowAppearance, div, img, px,
 };
+use gpui_base::input::{InputState, TextareaState};
 use moonglass::theme::{self, ActiveTheme as _, ThemeMode};
 use moonglass::toast::ToastKind;
 use moonglass::{
@@ -107,10 +107,10 @@ fn apply_theme(prefs: &Prefs, window: &Window, cx: &mut App) {
         .palette();
     theme.colors = colors;
     theme.dark = dark;
-    gpui_kit::base::Theme::global_mut(cx).appearance = if dark {
-        gpui_kit::base::ThemeAppearance::Dark
+    gpui_base::Theme::global_mut(cx).appearance = if dark {
+        gpui_base::ThemeAppearance::Dark
     } else {
-        gpui_kit::base::ThemeAppearance::Light
+        gpui_base::ThemeAppearance::Light
     };
     cx.refresh_windows();
 }

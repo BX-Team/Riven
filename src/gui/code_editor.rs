@@ -1,10 +1,10 @@
 use std::rc::Rc;
 
-use gpui_kit::base::input::{
+use gpui::{Action, App, AppContext as _, Edges, Entity, Hsla, Window, px};
+use gpui_base::input::{
     self, EditorState, GutterDecoration, GutterDecorationCollection, InputEditorStyle,
     OverviewRulerDecoration, OverviewRulerDecorationCollection, OverviewRulerLane,
 };
-use gpui_kit::{Action, App, AppContext as _, Edges, Entity, Hsla, Window, px};
 use riven_build::git::{self, LineChange};
 use rust_i18n::t;
 

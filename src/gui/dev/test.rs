@@ -1,5 +1,5 @@
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{AnyElement, Context, IntoElement, ParentElement as _, Styled as _, px};
+use gpui::prelude::FluentBuilder as _;
+use gpui::{AnyElement, Context, IntoElement, ParentElement as _, Styled as _, px};
 use riven_build::ship;
 use riven_format::InstallSide;
 use riven_sync::update::Request;

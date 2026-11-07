@@ -137,5 +137,6 @@ This project is licensed under the GPL-3.0-or-later License — see the [LICENSE
 ## 💛 Credits
 
 - [zed-industries/zed](https://github.com/zed-industries/zed): Home of the [gpui](https://www.gpui.rs/) GPU-accelerated UI framework Riven is built on.
-- [longbridge/gpui-kit](https://github.com/longbridge/gpui-kit): The gpui component library under the Riven design.
+- [BX-Team/moonglass](https://github.com/BX-Team/moonglass): BX Team's gpui design system, the look of Riven.
+- [longbridge/gpui-kit](https://github.com/longbridge/gpui-kit): GPUI Base, the behavior under moonglass: text input, popovers, focus, scrollbars.
 - [Modrinth](https://modrinth.com): The content platform Riven searches and installs from.

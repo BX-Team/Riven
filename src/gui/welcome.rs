@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, FontWeight, InteractiveElement as _,
     IntoElement, ParentElement as _, Render, SharedString, StatefulInteractiveElement as _,
     Styled as _, Window, div, px, relative,
@@ -377,7 +377,7 @@ impl Render for Welcome {
         });
         let head = h_flex()
             .gap(px(14.))
-            .child(gpui_kit::img(super::assets::LOGO).size(px(40.)).flex_none())
+            .child(gpui::img(super::assets::LOGO).size(px(40.)).flex_none())
             .child(
                 v_flex()
                     .flex_1()

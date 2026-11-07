@@ -5,15 +5,15 @@ use std::time::Duration;
 
 use super::markdown::{self, Described};
 use futures_util::{StreamExt as _, stream};
-use gpui_kit::base::Scrollbar;
-use gpui_kit::base::input::{InputEvent, InputState};
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, ExternalPaths, FontWeight,
     InteractiveElement as _, IntoElement, ParentElement as _, Render, SharedString,
     StatefulInteractiveElement as _, Styled as _, Subscription, UniformListScrollHandle, Window,
     div, img, px, relative, uniform_list,
 };
+use gpui_base::Scrollbar;
+use gpui_base::input::{InputEvent, InputState};
 use riven_format::{Loader, LoaderKind, Release};
 use riven_sources::{Cache, Hit, Modrinth, Version};
 use riven_sync::update::{self, Request};
@@ -1716,7 +1716,7 @@ impl NewInstance {
 }
 
 /// Small tags naming what a field or drop area takes.
-fn chips<const N: usize>(names: [&'static str; N], cx: &App) -> gpui_kit::Div {
+fn chips<const N: usize>(names: [&'static str; N], cx: &App) -> gpui::Div {
     let c = cx.theme().colors;
     h_flex()
         .flex_wrap()
@@ -1734,7 +1734,7 @@ fn chips<const N: usize>(names: [&'static str; N], cx: &App) -> gpui_kit::Div {
 }
 
 /// The right column of every mode, with a rule on its left.
-fn side_panel(height: f32, cx: &App) -> gpui_kit::Stateful<gpui_kit::Div> {
+fn side_panel(height: f32, cx: &App) -> gpui::Stateful<gpui::Div> {
     v_flex()
         .id("new-instance-side")
         .w(px(SIDE_WIDTH))

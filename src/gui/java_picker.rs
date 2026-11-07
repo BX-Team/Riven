@@ -2,13 +2,13 @@ use std::rc::Rc;
 
 use std::path::PathBuf;
 
-use gpui_kit::base::input::{InputEvent, InputState};
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, Global, InteractiveElement as _,
     IntoElement, ParentElement as _, PathPromptOptions, Render, ScrollHandle, SharedString,
     StatefulInteractiveElement as _, Styled as _, Subscription, Window, div, px,
 };
+use gpui_base::input::{InputEvent, InputState};
 use riven_format::JavaChoice;
 use riven_launch::java::{self, JavaInstall};
 use rust_i18n::t;

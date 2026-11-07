@@ -1,12 +1,12 @@
 use std::time::Duration;
 
-use gpui_kit::base::{Popover, box_shadow};
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     Anchor, Animation, AnimationExt as _, AnyElement, App, Entity, InteractiveElement as _,
     IntoElement, ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _,
     Window, div, ease_in_out, hsla, px, relative,
 };
+use gpui_base::{Popover, box_shadow};
 use riven_format::{Account, AccountKind, Instance};
 use riven_launch::game::Stage;
 use rust_i18n::t;
@@ -29,13 +29,7 @@ pub fn initials(name: &str) -> SharedString {
 }
 
 /// An account's picture: the head of its skin once fetched, or its initials on a tile.
-pub fn account_tile(
-    name: &str,
-    id: Option<&str>,
-    size: f32,
-    radius: f32,
-    cx: &App,
-) -> gpui_kit::Div {
+pub fn account_tile(name: &str, id: Option<&str>, size: f32, radius: f32, cx: &App) -> gpui::Div {
     let skin = id.and_then(|id| AppState::global(cx).read(cx).skins.get(id).cloned());
     match skin {
         Some(path) => div()
@@ -43,7 +37,7 @@ pub fn account_tile(
             .flex_none()
             .rounded(px(radius))
             .overflow_hidden()
-            .child(gpui_kit::img(path).size_full()),
+            .child(gpui::img(path).size_full()),
         None => tile(initials(name), size, radius, cx),
     }
 }
@@ -57,7 +51,7 @@ pub fn instance_tile(
     cx: &App,
 ) -> AnyElement {
     match icon {
-        Some(path) => gpui_kit::img(super::sharp::image(path.clone(), size))
+        Some(path) => gpui::img(super::sharp::image(path.clone(), size))
             .size(px(size))
             .flex_none()
             .rounded(px(radius))
@@ -617,7 +611,7 @@ fn account_button(
         .child(
             account_tile(&name, account.map(|a| a.id.as_str()), 22., 5., cx)
                 .text_size(px(11.))
-                .font_weight(gpui_kit::FontWeight::BOLD),
+                .font_weight(gpui::FontWeight::BOLD),
         )
         .child(div().child(name))
         .child(icon(IconName::ChevronUp, c.muted).size(px(12.)));
@@ -634,10 +628,10 @@ fn account_button(
 
 fn accounts_panel(
     state: &Entity<AppState>,
-    popover: Entity<gpui_kit::base::PopoverState>,
+    popover: Entity<gpui_base::PopoverState>,
     window: &mut Window,
     cx: &mut App,
-) -> gpui_kit::Div {
+) -> gpui::Div {
     let c = cx.theme().colors;
     let st = state.read(cx);
     let active_id = selected_account(st).map(|a| a.id);
@@ -662,7 +656,7 @@ fn accounts_panel(
                 .child(
                     div()
                         .flex_1()
-                        .font_weight(gpui_kit::FontWeight::BOLD)
+                        .font_weight(gpui::FontWeight::BOLD)
                         .text_size(px(15.))
                         .child(t!("accounts.title").to_string()),
                 )

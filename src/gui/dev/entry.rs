@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 use std::time::{Duration, UNIX_EPOCH};
 
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, Context, FontWeight, InteractiveElement as _, IntoElement, ParentElement as _,
     SharedString, StatefulInteractiveElement as _, Styled as _, div, img, px, relative,
 };
@@ -98,7 +98,7 @@ pub(super) fn entry_icon(
     entry: &Entry,
     page: Option<&Page>,
     size: f32,
-    cx: &gpui_kit::App,
+    cx: &gpui::App,
 ) -> AnyElement {
     match page {
         Some(Page::Ready(facts)) if facts.icon.is_some() => {

@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use gpui_kit::{
+use gpui::{
     AnyElement, App, FontWeight, HighlightStyle, InteractiveText, IntoElement, ParentElement as _,
     Styled as _, StyledText, UnderlineStyle, div, px, relative,
 };

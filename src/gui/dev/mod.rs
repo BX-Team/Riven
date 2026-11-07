@@ -15,14 +15,14 @@ mod watch;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use gpui_kit::base::input::{EditorState, InputEvent, InputState};
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, App, AppContext as _, Context, DragMoveEvent, Entity, FocusHandle, Focusable,
     InteractiveElement as _, IntoElement, KeyBinding, ParentElement as _, PathPromptOptions,
     Render, SharedString, StatefulInteractiveElement as _, Styled as _, Subscription,
     UniformListScrollHandle, Window, actions, div, px,
 };
+use gpui_base::input::{EditorState, InputEvent, InputState};
 use riven_build::author::{AuthorError, CheckReport};
 use riven_build::workspace::{OVERRIDE_SIDES, OVERRIDES, PROJECT_FILE, Workspace};
 use riven_format::{Entry, Kind, PackPath, Project, Reason, Side};
@@ -885,7 +885,7 @@ impl DevView {
     }
 
     /// A thin strip on a border that resizes `edge` when dragged; place it in a `relative` parent.
-    fn edge_handle(&self, edge: Edge, cx: &mut Context<Self>) -> gpui_kit::Stateful<gpui_kit::Div> {
+    fn edge_handle(&self, edge: Edge, cx: &mut Context<Self>) -> gpui::Stateful<gpui::Div> {
         div()
             .id(SharedString::from(format!("dev-edge-{edge:?}")))
             .absolute()
@@ -894,13 +894,13 @@ impl DevView {
             .w(px(6.))
             .cursor_col_resize()
             .on_mouse_down(
-                gpui_kit::MouseButton::Left,
-                cx.listener(move |this, event: &gpui_kit::MouseDownEvent, _, cx| {
+                gpui::MouseButton::Left,
+                cx.listener(move |this, event: &gpui::MouseDownEvent, _, cx| {
                     let width = this.width(edge, cx);
                     this.resizing = Some((edge, f32::from(event.position.x), width));
                 }),
             )
-            .on_drag(EdgeDrag, |_, _, _, cx| cx.new(|_| gpui_kit::EmptyView))
+            .on_drag(EdgeDrag, |_, _, _, cx| cx.new(|_| gpui::EmptyView))
     }
 
     fn drag_edge(&mut self, event: &DragMoveEvent<EdgeDrag>, cx: &mut Context<Self>) {

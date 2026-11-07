@@ -1,5 +1,5 @@
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, Context, FontWeight, InteractiveElement as _, IntoElement, ParentElement as _,
     SharedString, StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
@@ -48,7 +48,7 @@ impl DevView {
     }
 
     /// A sidebar heading with room for buttons on the right.
-    pub(super) fn side_head(&self, title: SharedString, cx: &mut Context<Self>) -> gpui_kit::Div {
+    pub(super) fn side_head(&self, title: SharedString, cx: &mut Context<Self>) -> gpui::Div {
         let c = cx.theme().colors;
         h_flex()
             .flex_none()

@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
-use gpui_kit::{AppContext as _, Context, SharedString};
+use gpui::{AppContext as _, Context, SharedString};
 use riven_format::Account;
 use riven_launch::LaunchError;
 use riven_launch::game::{self, Progress, Stage};

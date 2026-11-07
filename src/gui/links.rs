@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use gpui_kit::App;
+use gpui::App;
 
 /// The loopback port the running launcher listens on for links from later launches.
 const PORT: u16 = 47655;

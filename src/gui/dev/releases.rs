@@ -1,13 +1,13 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use gpui_kit::base::input::{InputEvent, InputState, TextareaState};
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, AppContext as _, Context, Entity, FontWeight, InteractiveElement as _, IntoElement,
     ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _, Subscription,
     Window, div, px, relative,
 };
+use gpui_base::input::{InputEvent, InputState, TextareaState};
 use riven_build::author;
 use riven_build::ship::{self, DEFAULT_BRANCH, DEFAULT_REMOTE, DIST, ExportKind, FileChange};
 use riven_format::Channel;
@@ -49,7 +49,7 @@ pub(super) struct Releases {
     link: Option<String>,
     exported: Option<PathBuf>,
     /// The pack icon as read from the project, drawn from memory so a new one shows at once.
-    icon: Option<std::sync::Arc<gpui_kit::Image>>,
+    icon: Option<std::sync::Arc<gpui::Image>>,
     version: Entity<InputState>,
     branch: Entity<InputState>,
     remote: Entity<InputState>,
@@ -139,10 +139,7 @@ impl DevView {
             .as_ref()
             .and_then(|p| std::fs::read(ws.dir.join(p.as_str())).ok())
             .map(|bytes| {
-                std::sync::Arc::new(gpui_kit::Image::from_bytes(
-                    gpui_kit::ImageFormat::Png,
-                    bytes,
-                ))
+                std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png, bytes))
             });
     }
 
@@ -375,7 +372,7 @@ impl DevView {
         );
     }
 
-    fn card(&self, title: SharedString, cx: &Context<Self>) -> gpui_kit::Div {
+    fn card(&self, title: SharedString, cx: &Context<Self>) -> gpui::Div {
         let c = cx.theme().colors;
         v_flex()
             .gap(px(10.))
@@ -433,7 +430,7 @@ impl DevView {
                 h_flex()
                     .gap(px(10.))
                     .child(match &self.releases.icon {
-                        Some(image) => gpui_kit::img(image.clone())
+                        Some(image) => gpui::img(image.clone())
                             .size(px(40.))
                             .rounded(px(8.))
                             .into_any_element(),

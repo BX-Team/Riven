@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use gpui_kit::{Context, Window};
+use gpui::{Context, Window};
 use notify::{RecursiveMode, Watcher as _};
 use riven_build::workspace::{OVERRIDES, PROJECT_FILE, Workspace};
 use tokio::sync::mpsc;

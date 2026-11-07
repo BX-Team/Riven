@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use gpui_kit::{AnyView, App, AppContext as _, Context, Entity, Global, Pixels};
+use gpui::{AnyView, App, AppContext as _, Context, Entity, Global, Pixels};
 use riven_format::{Account, Accounts, Instance, Settings};
 use riven_launch::instances::Instances;
 
@@ -272,7 +272,7 @@ impl AppState {
     /// Opens a menu at the pointer, replacing one already open.
     pub fn open_context_menu(
         &mut self,
-        position: gpui_kit::Point<Pixels>,
+        position: gpui::Point<Pixels>,
         entries: Vec<MenuEntry>,
         cx: &mut Context<Self>,
     ) {

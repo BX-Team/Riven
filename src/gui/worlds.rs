@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, InteractiveElement as _, IntoElement,
     MouseButton, ParentElement as _, Render, SharedString, StatefulInteractiveElement as _,
     Styled as _, Subscription, WeakEntity, Window, div, img, px,
@@ -51,7 +51,7 @@ fn backed_up(folder: &str) -> SharedString {
 }
 
 /// "Back up", or a green check with "Backed up" for a moment after it worked.
-fn backup_done(id: impl Into<gpui_kit::ElementId>, cx: &App) -> Button {
+fn backup_done(id: impl Into<gpui::ElementId>, cx: &App) -> Button {
     let c = cx.theme().colors;
     Button::new(id)
         .outline()
@@ -268,7 +268,7 @@ impl WorldsView {
         if let Some(seed) = world.seed {
             entries.push(
                 MenuEntry::action(t!("worlds.copy_seed"), move |_, cx| {
-                    cx.write_to_clipboard(gpui_kit::ClipboardItem::new_string(seed.to_string()));
+                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(seed.to_string()));
                     moonglass::toast::show(
                         moonglass::toast::ToastKind::Success,
                         t!("worlds.seed_copied", seed = seed).to_string(),
@@ -754,7 +754,7 @@ fn ask(
     path: PathBuf,
     kind: Ask,
     cx: &mut Context<BackupsDialog>,
-) -> impl Fn(&gpui_kit::ClickEvent, &mut Window, &mut App) + 'static {
+) -> impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static {
     cx.listener(move |this, _, _, cx| {
         this.asking = Some((path.clone(), kind));
         cx.notify();

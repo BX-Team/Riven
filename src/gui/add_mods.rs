@@ -5,14 +5,14 @@ use std::time::Duration;
 
 use super::markdown::{self, Described};
 use futures_util::{StreamExt as _, stream};
-use gpui_kit::base::input::{InputEvent, InputState};
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, FontWeight, InteractiveElement as _,
     IntoElement, ParentElement as _, Render, SharedString, StatefulInteractiveElement as _,
     Styled as _, Subscription, UniformListScrollHandle, WeakEntity, Window, div, img, px, relative,
     uniform_list,
 };
+use gpui_base::input::{InputEvent, InputState};
 use riven_build::author::{self, AddRequest, AuthorError};
 use riven_format::{Kind, Reason, Side, Source as EntrySource};
 use riven_launch::LaunchError;
@@ -277,7 +277,7 @@ async fn plan_for_project(
     view: &WeakEntity<DevView>,
     query: String,
     options: &Options,
-    cx: &mut gpui_kit::AsyncApp,
+    cx: &mut gpui::AsyncApp,
 ) -> Result<Plan, String> {
     let ws = view
         .read_with(cx, |view, _| view.workspace())
@@ -1054,7 +1054,7 @@ impl AddMods {
             )
             .child(
                 self.details.clone().cached(
-                    gpui_kit::StyleRefinement::default()
+                    gpui::StyleRefinement::default()
                         .w(px(DETAILS_WIDTH))
                         .h(px(height)),
                 ),

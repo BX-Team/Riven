@@ -3,14 +3,14 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-use gpui_kit::base::input::{InputEvent, InputState};
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     App, AppContext as _, Context, Entity, FontWeight, InteractiveElement as _, IntoElement,
     MouseButton, ParentElement as _, Render, SharedString, StatefulInteractiveElement as _,
     Styled as _, Subscription, UniformListScrollHandle, WeakEntity, Window, div, img, px,
     uniform_list,
 };
+use gpui_base::input::{InputEvent, InputState};
 use riven_format::Kind;
 use rust_i18n::t;
 
@@ -726,7 +726,7 @@ impl InstanceView {
     }
 
     /// What the toolbar offers: adding and updating own mods, or why it cannot.
-    fn render_mod_actions(&self, cx: &mut Context<Self>) -> Vec<gpui_kit::AnyElement> {
+    fn render_mod_actions(&self, cx: &mut Context<Self>) -> Vec<gpui::AnyElement> {
         let c = cx.theme().colors;
         if !self.editable(cx) {
             return vec![
@@ -1004,7 +1004,7 @@ impl InstanceView {
         ix: usize,
         row: &ModRow,
         cx: &mut Context<Self>,
-    ) -> gpui_kit::AnyElement {
+    ) -> gpui::AnyElement {
         let c = cx.theme().colors;
         let view = cx.entity().downgrade();
         let menu = ActionMenu::new(
@@ -1061,7 +1061,7 @@ impl InstanceView {
         let menu = {
             let row = row.clone();
             let view = cx.entity().downgrade();
-            move |event: &gpui_kit::MouseDownEvent, _: &mut Window, cx: &mut App| {
+            move |event: &gpui::MouseDownEvent, _: &mut Window, cx: &mut App| {
                 let Ok(entries) =
                     view.read_with(cx, |this, cx| this.row_menu(&row, view.clone(), cx))
                 else {

@@ -5,7 +5,7 @@ mod data;
 mod memory;
 mod settings;
 
-use gpui_kit::{App, AppContext as _, Bounds, WindowBounds, WindowOptions, px, size};
+use gpui::{App, AppContext as _, Bounds, WindowBounds, WindowOptions, px, size};
 
 /// The family of the font the demo ships, since a browser has none gpui can read.
 const FONT: &str = "Inter Variable";
@@ -17,7 +17,6 @@ pub fn run() {
         if let Some(http) = http {
             cx.set_http_client(http);
         }
-        gpui_kit::init(cx);
         moonglass::init(cx);
         load_font(cx);
         open(cx);
@@ -26,20 +25,20 @@ pub fn run() {
 }
 
 /// The browser's fetch, so mod icons load from Modrinth's CDN as they do in the app.
-type Http = Option<std::sync::Arc<dyn gpui_kit::http_client::HttpClient>>;
+type Http = Option<std::sync::Arc<dyn gpui::http_client::HttpClient>>;
 
 #[cfg(target_family = "wasm")]
-fn application() -> (gpui_kit::Application, Http) {
-    gpui_kit::platform::web_init();
+fn application() -> (gpui::Application, Http) {
+    moonglass::platform::web_init();
     // One thread: shared memory would need cross-origin isolation headers on every page that embeds this.
-    let platform = std::rc::Rc::new(gpui_kit::web::WebPlatform::new(false));
+    let platform = std::rc::Rc::new(moonglass::web::WebPlatform::new(false));
     let http = std::sync::Arc::new(platform.fetch_http_client());
-    (gpui_kit::Application::with_platform(platform), Some(http))
+    (gpui::Application::with_platform(platform), Some(http))
 }
 
 #[cfg(not(target_family = "wasm"))]
-fn application() -> (gpui_kit::Application, Http) {
-    (gpui_kit::application(), None)
+fn application() -> (gpui::Application, Http) {
+    (moonglass::application(), None)
 }
 
 fn load_font(cx: &mut App) {
@@ -60,7 +59,7 @@ fn open(cx: &mut App) {
         app_id: Some("riven-demo".into()),
         ..Default::default()
     };
-    let opened = gpui_kit::open_window(options, cx, |window, cx| {
+    let opened = moonglass::open_window(options, cx, |window, cx| {
         window.set_window_title("Riven Launcher");
         cx.new(|cx| app::Demo::new(window, cx))
     });

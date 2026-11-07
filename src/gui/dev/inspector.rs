@@ -1,5 +1,5 @@
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, Context, FontWeight, InteractiveElement as _, IntoElement, ParentElement as _,
     SharedString, StatefulInteractiveElement as _, Styled as _, div, px,
 };
@@ -39,7 +39,7 @@ fn configs<'a>(entry: &Entry, files: &'a [PackPath]) -> Vec<&'a PackPath> {
 }
 
 impl DevView {
-    fn inspector_section(&self, title: SharedString, cx: &Context<Self>) -> gpui_kit::Div {
+    fn inspector_section(&self, title: SharedString, cx: &Context<Self>) -> gpui::Div {
         let c = cx.theme().colors;
         div()
             .flex_none()

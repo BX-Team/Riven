@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use gpui_kit::App;
+use gpui::App;
 
 /// Puts the image file at `path` on the clipboard.
 pub fn copy_image(path: &Path, cx: &mut App) {
@@ -19,11 +19,11 @@ pub fn copy_image(path: &Path, cx: &mut App) {
     #[cfg(not(windows))]
     {
         let format = match image::guess_format(&bytes) {
-            Ok(image::ImageFormat::Jpeg) => gpui_kit::ImageFormat::Jpeg,
-            _ => gpui_kit::ImageFormat::Png,
+            Ok(image::ImageFormat::Jpeg) => gpui::ImageFormat::Jpeg,
+            _ => gpui::ImageFormat::Png,
         };
-        let image = gpui_kit::Image::from_bytes(format, bytes);
-        cx.write_to_clipboard(gpui_kit::ClipboardItem::new_image(&image));
+        let image = gpui::Image::from_bytes(format, bytes);
+        cx.write_to_clipboard(gpui::ClipboardItem::new_image(&image));
     }
 }
 

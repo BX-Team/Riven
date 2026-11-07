@@ -1,12 +1,12 @@
 use std::rc::Rc;
 use std::time::Duration;
 
-use gpui_kit::base::input::{InputEvent, InputState};
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, FontWeight, IntoElement, ParentElement as _,
     Render, SharedString, Styled as _, Subscription, Window, div, px, relative,
 };
+use gpui_base::input::{InputEvent, InputState};
 use riven_format::LoaderKind;
 use riven_sources::Cache;
 use rust_i18n::t;
@@ -155,7 +155,7 @@ fn shell(
         .into_any_element()
 }
 
-pub(super) fn open(view: gpui_kit::AnyView, width: f32, cx: &mut App) {
+pub(super) fn open(view: gpui::AnyView, width: f32, cx: &mut App) {
     AppState::global(cx).update(cx, |s, cx| s.open_modal(view, px(width), cx));
 }
 
@@ -301,7 +301,7 @@ pub struct AddMicrosoft {
     code: Option<riven_launch::accounts::DeviceCode>,
     error: Option<SharedString>,
     back: Option<Back>,
-    _task: Option<gpui_kit::Task<()>>,
+    _task: Option<gpui::Task<()>>,
 }
 
 impl AddMicrosoft {

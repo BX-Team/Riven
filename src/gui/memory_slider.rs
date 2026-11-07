@@ -1,11 +1,11 @@
 use std::rc::Rc;
 
-use gpui_kit::base::slider::{SliderEvent, SliderState, SliderValue};
-use gpui_kit::base::{Slider, SliderIndicator, SliderThumb, SliderTrack};
-use gpui_kit::{
+use gpui::{
     App, AppContext as _, Context, DefiniteLength, Entity, IntoElement, ParentElement as _, Render,
     Styled as _, Subscription, Window, div, px, relative,
 };
+use gpui_base::slider::{SliderEvent, SliderState, SliderValue};
+use gpui_base::{Slider, SliderIndicator, SliderThumb, SliderTrack};
 use riven_format::MemoryMb;
 use rust_i18n::t;
 

@@ -1,5 +1,5 @@
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, ClickEvent, Context, FontWeight, InteractiveElement as _, IntoElement, MouseButton,
     MouseDownEvent, ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _,
     Window, canvas, div, px, uniform_list,
@@ -28,7 +28,7 @@ const COLUMN_GAP: f32 = 12.;
 pub(super) const COLUMN_GAPS: f32 = COLUMN_GAP * 4.;
 
 /// The list's columns side by side, each as wide as [`DevView::column_widths`] gives.
-fn columns(cells: [AnyElement; 5]) -> gpui_kit::Div {
+fn columns(cells: [AnyElement; 5]) -> gpui::Div {
     h_flex()
         .relative()
         .flex_1()

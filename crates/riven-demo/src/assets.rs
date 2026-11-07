@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use gpui_kit::{AssetSource, Result, SharedString};
+use gpui::{AssetSource, Result, SharedString};
 
 pub const LOGO: &str = "brand/riven-128.png";
 pub const FABRIC: &str = "icons/loader-fabric.svg";

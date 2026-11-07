@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 
-use gpui_kit::base::input::{InputEvent, InputState};
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, InteractiveElement as _, IntoElement,
     ParentElement as _, PathPromptOptions, Render, SharedString, StatefulInteractiveElement as _,
     Styled as _, Subscription, WeakEntity, Window, div, px, relative,
 };
+use gpui_base::input::{InputEvent, InputState};
 use riven_build::author::{self, AuthorError};
 use riven_build::import::{ImportKind, ImportStage, Scope, import_pack};
 use riven_build::pull::Drift;

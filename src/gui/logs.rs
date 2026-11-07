@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     App, ClipboardItem, Context, Entity, Hsla, InteractiveElement as _, IntoElement,
     ListHorizontalSizingBehavior, ParentElement as _, Render, ScrollStrategy, SharedString,
     StatefulInteractiveElement as _, Styled as _, Subscription, UniformListScrollHandle, Window,
@@ -516,6 +516,6 @@ impl Render for LogsView {
 }
 
 pub fn view(id: String, game_dir: PathBuf, cx: &mut App) -> Entity<LogsView> {
-    use gpui_kit::AppContext as _;
+    use gpui::AppContext as _;
     cx.new(|cx| LogsView::new(id, game_dir, cx))
 }
