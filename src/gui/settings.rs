@@ -1,12 +1,12 @@
 use std::path::{Path, PathBuf};
 
-use gpui_kit::base::input::{InputEvent, InputState, TextareaState};
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, FontWeight, InteractiveElement as _,
     IntoElement, ParentElement as _, Render, SharedString, StatefulInteractiveElement as _,
     Styled as _, Subscription, Window, div, px,
 };
+use gpui_base::input::{InputEvent, InputState, TextareaState};
 use riven_format::{AccountKind, Settings as Prefs, ThemeMode};
 use rust_i18n::t;
 
@@ -951,7 +951,7 @@ impl SettingsView {
         vec![
             h_flex()
                 .gap(px(16.))
-                .child(gpui_kit::img(super::assets::LOGO).size(px(56.)).flex_none())
+                .child(gpui::img(super::assets::LOGO).size(px(56.)).flex_none())
                 .child(
                     v_flex()
                         .gap(px(2.))
@@ -1062,11 +1062,7 @@ fn build_facts(window: &Window) -> Vec<(String, String)> {
         ),
         (
             t!("about.toolkit").into(),
-            format!(
-                "gpui-kit {} · moonglass {}",
-                env!("RIVEN_GPUI_KIT"),
-                moonglass::VERSION
-            ),
+            format!("moonglass {}", moonglass::VERSION),
         ),
         (t!("about.renderer").into(), renderer),
         (t!("about.license").into(), env!("CARGO_PKG_LICENSE").into()),

@@ -5,7 +5,6 @@ fn main() {
     println!("cargo:rerun-if-changed=locales");
     println!("cargo:rerun-if-changed=.git/HEAD");
     println!("cargo:rerun-if-changed=.git/refs/heads");
-    println!("cargo:rerun-if-changed=Cargo.lock");
     println!("cargo:rerun-if-env-changed=RIVEN_REV");
 
     let rev = std::env::var("RIVEN_REV").ok().or_else(|| {
@@ -20,10 +19,6 @@ fn main() {
     println!(
         "cargo:rustc-env=RIVEN_REV={}",
         rev.unwrap_or_else(|| "unknown".into())
-    );
-    println!(
-        "cargo:rustc-env=RIVEN_GPUI_KIT={}",
-        locked_version("gpui-kit")
     );
     #[cfg(windows)]
     windows_resources();
@@ -42,18 +37,4 @@ fn windows_resources() {
     if let Err(e) = res.compile() {
         println!("cargo:warning=cannot embed the Windows resources: {e}");
     }
-}
-
-/// The version Cargo.lock pins for `name`, so the About page names what was really built.
-fn locked_version(name: &str) -> String {
-    let lock = std::fs::read_to_string("Cargo.lock").unwrap_or_default();
-    let mut lines = lock.lines();
-    while let Some(line) = lines.next() {
-        if line == format!("name = \"{name}\"")
-            && let Some(v) = lines.next().and_then(|l| l.strip_prefix("version = \""))
-        {
-            return v.trim_end_matches('"').to_owned();
-        }
-    }
-    "?".into()
 }
