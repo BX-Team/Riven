@@ -87,7 +87,7 @@ indicatif = { version = "0.18", optional = true }
 moonglass = { version = "0.1.2", optional = true }
 notify = { version = "8", optional = true }
 reqwest.workspace = true
-rfd = { version = "0.17", default-features = false, features = ["xdg-portal"], optional = true }
+rfd = { version = "0.18", default-features = false, features = ["xdg-portal"], optional = true }
 rust-i18n = { version = "4", optional = true }
 riven-build.workspace = true
 riven-format.workspace = true
