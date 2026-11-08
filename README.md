@@ -6,25 +6,26 @@
 
 A native Minecraft launcher and modpack toolkit in pure Rust — install, update and build packs from one app or one CLI.
 
-[![Chat on Discord](https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/social/discord-plural_vector.svg)](https://discord.gg/qNyybSSPm5)
+[![discord](https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/social/discord-plural_vector.svg)](https://discord.gg/qNyybSSPm5)
 [![github](https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/available/github_vector.svg)](https://github.com/BX-Team/Riven)
+[![documentation](https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/documentation/generic_vector.svg)](https://bxteam.org/docs/riven)
 
 </div>
 
 ## 🖼️ Showcase
 
-<details>
-<summary>Screenshots</summary>
+**[Try it in your browser](https://bxteam.org/riven)** - project page has a working demo of the launcher that runs completely in your browser. You can look through instances, add mods, change the theme, and press Play.
 
-![Instances and mods](.github/showcase/showcase-instance.png)
-
-![Developer mode](.github/showcase/showcase-developer.png)
-
-![Config editor](.github/showcase/showcase-editor.png)
-
-![Releases](.github/showcase/showcase-releases.png)
-
-</details>
+<table>
+  <tr>
+    <td width="50%"><img src=".github/showcase/showcase-instance.png" alt="Instances and mods" /></td>
+    <td width="50%"><img src=".github/showcase/showcase-modrinth.png" alt="Modpacks from Modrinth" /></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src=".github/showcase/showcase-developer.png" alt="Developer mode" /></td>
+    <td width="50%"><img src=".github/showcase/showcase-editor.png" alt="Config editor" /></td>
+  </tr>
+</table>
 
 ## ✨ Features
 
@@ -136,7 +137,7 @@ This project is licensed under the GPL-3.0-or-later License — see the [LICENSE
 
 ## 💛 Credits
 
-- [zed-industries/zed](https://github.com/zed-industries/zed): Home of the [gpui](https://www.gpui.rs/) GPU-accelerated UI framework Riven is built on.
-- [BX-Team/moonglass](https://github.com/BX-Team/moonglass): BX Team's gpui design system, the look of Riven.
+- [zed-industries/zed](https://github.com/zed-industries/zed): Home of the [gpui](https://www.gpui.rs) GPU-accelerated UI framework Riven is built on.
+- [BX-Team/moonglass](https://github.com/BX-Team/moonglass): Our gpui design system, which provides the look and feel of Riven.
 - [longbridge/gpui-kit](https://github.com/longbridge/gpui-kit): GPUI Base, the behavior under moonglass: text input, popovers, focus, scrollbars.
 - [Modrinth](https://modrinth.com): The content platform Riven searches and installs from.
