@@ -14,6 +14,7 @@ mod instance;
 mod instance_settings;
 mod java_picker;
 mod launch_bar;
+mod licenses;
 mod links;
 mod logs;
 mod markdown;

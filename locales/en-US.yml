@@ -382,7 +382,24 @@ about:
   license: License
   software: software
   source: Source code
+  website: Website
+  docs: Documentation
+  discord: Discord
   copy: Copy details
+  licenses: Licenses
+  website_hint: bxteam.org/riven
+  docs_hint: Guides and the CLI
+  discord_hint: Questions, ideas and news
+  source_hint: github.com/BX-Team/Riven
+  licenses_hint: "%{n} components"
+  copy_hint: For a bug report
+  copied: Details copied
+  disclaimer: Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.
+licenses:
+  title: Third-party licenses
+  description: "Riven is built on %{n} open-source components. Pick one to read its license."
+  search: Search by name or license
+  pick: Pick a component to read its license
 logs:
   current: Current
   crashes: Crash reports
@@ -766,6 +783,12 @@ dev:
   view_updates: Updates available
   views: Views
 update:
+  whats_new: "What's new in %{version}"
+  whats_new_hint: The release notes of the version you have
+  notes_show: Show
+  notes_loading: Loading the release notes…
+  notes_missing: This build has no release on GitHub yet
+  notes_failed: "Cannot load the release notes: %{error}"
   title: Updates
   button: Update
   percent: "%{percent}%"
