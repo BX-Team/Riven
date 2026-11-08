@@ -279,7 +279,7 @@ new_instance:
   install: Install
   files: "%{n} files"
   no_data_dir: Cannot locate the data directory
-  subtitle: A modpack from Modrinth, your own setup, or a pack from a link or file.
+  subtitle: A modpack from Modrinth, your own setup, a pack from a link or file, or an instance from another launcher.
   search_packs: Search modpacks on Modrinth
   pick_pack: Pick a modpack on the left to see what it is
   version: Version
@@ -306,6 +306,18 @@ new_instance:
   pick_icon: Choose an image…
   clear_icon: Remove the icon
   bad_icon: That file is not an image
+  from_launchers: Other launchers
+  launchers_found: Instances in other launchers
+  rescan: Look again
+  add_launcher: Launcher folder…
+  pick_launcher: "Pick the launcher's folder"
+  not_launcher: This is not a Prism Launcher, MultiMC, CurseForge or Modrinth App folder
+  scanning: Looking for other launchers…
+  no_foreign: No instances found. If a launcher keeps its data elsewhere, pick its folder.
+  pick_foreign: Pick an instance on the left to copy it
+  foreign_copy: "Mods, configs and worlds are copied into a new instance; the original stays in %{launcher}."
+  copy: Import
+  copying: "Copying files: %{done} of %{total}"
 instance_settings:
   icon_from_pack: Set by the pack
   loader_pick: Minecraft, the loader and its build

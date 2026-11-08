@@ -15,6 +15,7 @@ use gpui::{
 use gpui_base::Scrollbar;
 use gpui_base::input::{InputEvent, InputState};
 use riven_format::{Loader, LoaderKind, Release};
+use riven_launch::launchers::{self, Foreign, Launcher};
 use riven_sources::{Cache, Hit, Modrinth, Version};
 use riven_sync::update::{self, Request};
 use rust_i18n::t;
@@ -51,9 +52,10 @@ pub enum Mode {
     Modrinth,
     Custom,
     Import,
+    Launchers,
 }
 
-const MODES: [Mode; 3] = [Mode::Modrinth, Mode::Custom, Mode::Import];
+const MODES: [Mode; 4] = [Mode::Modrinth, Mode::Custom, Mode::Import, Mode::Launchers];
 
 /// Something fetched for a project the first time it is shown.
 #[derive(Clone)]
@@ -74,7 +76,7 @@ struct Prepared {
     github: Option<riven_format::GitHubPack>,
 }
 
-/// "New instance": a Modrinth modpack, an empty game, or a pack from a link or file.
+/// "New instance": a Modrinth modpack, an empty game, a pack from a link or file, or another launcher's instance.
 pub struct NewInstance {
     mode: Mode,
     query: Entity<InputState>,
@@ -108,6 +110,14 @@ pub struct NewInstance {
     link: Entity<InputState>,
     prepared: Option<Prepared>,
     groups: BTreeMap<String, bool>,
+
+    /// Instances of other launchers; none until they are first looked for.
+    foreign: Option<Vec<Foreign>>,
+    /// Launcher folders the player picked, looked through along with the usual places.
+    foreign_roots: Vec<(Launcher, PathBuf)>,
+    foreign_pick: Option<usize>,
+    /// The new name; empty keeps the picked instance's, shown as the hint.
+    foreign_name: Entity<InputState>,
 
     /// What is running, shown with a spinner; actions wait for it.
     busy: Option<SharedString>,
@@ -235,6 +245,7 @@ impl NewInstance {
         let name = input(t!("new_instance.name_hint").into(), window, cx);
         let mc_search = input(t!("new_instance.find_version").into(), window, cx);
         let link = input(t!("new_instance.link_hint").into(), window, cx);
+        let foreign_name = input(SharedString::default(), window, cx);
         let subs = vec![
             cx.subscribe(&query, |this, _, event: &InputEvent, cx| {
                 if let InputEvent::Change = event {
@@ -298,12 +309,19 @@ impl NewInstance {
             link,
             prepared: None,
             groups: BTreeMap::new(),
+            foreign: None,
+            foreign_roots: Vec::new(),
+            foreign_pick: None,
+            foreign_name,
             busy: None,
             abort: None,
             error: None,
             _subs: subs,
         };
         this.search(cx);
+        if mode == Mode::Launchers {
+            this.scan_foreign(cx);
+        }
         this.focus_input(window, cx);
         this
     }
@@ -312,6 +330,7 @@ impl NewInstance {
         let input = match self.mode {
             Mode::Modrinth => &self.query,
             Mode::Custom => &self.name,
+            Mode::Launchers => &self.foreign_name,
             Mode::Import => &self.link,
         };
         input.update(cx, |s, cx| s.focus(window, cx));
@@ -708,6 +727,145 @@ impl NewInstance {
                 cx.notify();
             }
         }
+    }
+
+    /// Looks for instances in other launchers' usual folders and the ones the player picked.
+    fn scan_foreign(&mut self, cx: &mut Context<Self>) {
+        let picked = self.foreign_roots.clone();
+        self.run(
+            t!("new_instance.scanning").into(),
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let mut roots = launchers::installed();
+                    for root in picked {
+                        if !roots.contains(&root) {
+                            roots.push(root);
+                        }
+                    }
+                    let mut found = Vec::new();
+                    for (launcher, root) in roots {
+                        match launchers::scan(launcher, &root) {
+                            Ok(more) => found.extend(more),
+                            Err(e) => tracing::warn!("{}: {e}", launcher.name()),
+                        }
+                    }
+                    found
+                })
+                .await
+                .map_err(|e| e.to_string())
+            },
+            None,
+            |this, found, _| {
+                this.foreign = Some(found);
+                this.foreign_pick = None;
+            },
+            cx,
+        );
+    }
+
+    fn pick_launcher_dir(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let paths = cx.prompt_for_paths(gpui::PathPromptOptions {
+            files: false,
+            directories: true,
+            multiple: false,
+            prompt: Some(t!("new_instance.pick_launcher").into()),
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let Ok(Ok(Some(paths))) = paths.await else {
+                return;
+            };
+            let Some(dir) = paths.into_iter().next() else {
+                return;
+            };
+            let _ = this.update(cx, |this, cx| {
+                match launchers::identify(&dir) {
+                    Some(launcher) => {
+                        this.foreign_roots.push((launcher, dir));
+                        this.scan_foreign(cx);
+                    }
+                    None => this.error = Some(t!("new_instance.not_launcher").into()),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    fn pick_foreign(&mut self, ix: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(found) = self.foreign.as_ref().and_then(|f| f.get(ix)) else {
+            return;
+        };
+        let name = found.name.clone();
+        self.foreign_pick = Some(ix);
+        self.error = None;
+        // A hint, not a value: a value set before the field is first drawn is measured in gpui's default font.
+        self.foreign_name.update(cx, |s, cx| {
+            if !s.value().is_empty() {
+                s.set_value("", window, cx);
+            }
+            s.set_placeholder(name, window, cx);
+        });
+        cx.notify();
+    }
+
+    /// Copies the picked instance of another launcher into a new one.
+    fn import_foreign(&mut self, cx: &mut Context<Self>) {
+        let Some(found) = self
+            .foreign_pick
+            .and_then(|ix| self.foreign.as_ref()?.get(ix).cloned())
+        else {
+            return;
+        };
+        let Some(store) = AppState::global(cx).read(cx).store.clone() else {
+            return;
+        };
+        let typed = self.foreign_name.read(cx).value().trim().to_string();
+        let name = if typed.is_empty() {
+            found.name.clone()
+        } else {
+            typed
+        };
+        let (tx, rx) = mpsc::unbounded_channel();
+        self.run(
+            t!("new_instance.importing").into(),
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let mut shown = 0;
+                    let id = launchers::import(&store, &found, &name, |done, total| {
+                        let percent = done * 100 / total.max(1);
+                        if percent != shown || done == 0 {
+                            shown = percent;
+                            let _ = tx.send(
+                                t!("new_instance.copying", done = done, total = total).into(),
+                            );
+                        }
+                    })
+                    .map_err(|e| e.to_string())?;
+                    let png = found
+                        .icon
+                        .as_ref()
+                        .and_then(|p| std::fs::read(p).ok())
+                        .and_then(|b| mods::instance_icon(&b));
+                    if let Some(png) = png
+                        && let Err(e) = store.set_icon(&id, &png)
+                    {
+                        tracing::warn!("cannot keep the icon of `{id}`: {e}");
+                    }
+                    Ok(id)
+                })
+                .await
+                .map_err(|e| e.to_string())?
+            },
+            Some(rx),
+            |_, id, cx| {
+                AppState::global(cx).update(cx, |s, cx| {
+                    s.reload_instances(cx);
+                    s.navigate(Route::Instance(id), cx);
+                    s.close_modal(cx);
+                })
+            },
+            cx,
+        );
     }
 
     /// Creates an instance for a checked pack and starts installing it into the launch bar.
@@ -1619,6 +1777,185 @@ impl NewInstance {
             .into_any_element()
     }
 
+    fn render_launchers(&self, height: f32, cx: &mut Context<Self>) -> AnyElement {
+        let c = cx.theme().colors;
+        let busy = self.busy.is_some();
+        let header = h_flex()
+            .gap(px(8.))
+            .child(
+                div()
+                    .flex_1()
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child(t!("new_instance.launchers_found").to_string()),
+            )
+            .child(
+                Button::new("rescan-launchers")
+                    .ghost()
+                    .icon(IconName::Refresh)
+                    .tooltip(t!("new_instance.rescan"))
+                    .disabled(busy)
+                    .on_click(cx.listener(|this, _, _, cx| this.scan_foreign(cx))),
+            )
+            .child(
+                Button::new("pick-launcher-dir")
+                    .icon(IconName::Folder)
+                    .label(t!("new_instance.add_launcher"))
+                    .disabled(busy)
+                    .on_click(
+                        cx.listener(|this, _, window, cx| this.pick_launcher_dir(window, cx)),
+                    ),
+            );
+        let rows: Vec<AnyElement> = self
+            .foreign
+            .iter()
+            .flatten()
+            .enumerate()
+            .map(|(ix, found)| {
+                let picked = self.foreign_pick == Some(ix);
+                h_flex()
+                    .id(("foreign", ix))
+                    .w_full()
+                    .h(px(HIT_HEIGHT))
+                    .flex_none()
+                    .gap(px(12.))
+                    .px(px(10.))
+                    .rounded(px(8.))
+                    .cursor_pointer()
+                    .map(|r| {
+                        if picked {
+                            r.bg(c.sel)
+                        } else {
+                            r.hover(|s| s.bg(c.row))
+                        }
+                    })
+                    .on_click(
+                        cx.listener(move |this, _, window, cx| this.pick_foreign(ix, window, cx)),
+                    )
+                    .child(logo(found.icon.as_ref(), 36., cx))
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .min_w_0()
+                            .child(
+                                div()
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .truncate()
+                                    .child(found.name.clone()),
+                            )
+                            .child(
+                                div()
+                                    .text_size(px(12.))
+                                    .text_color(c.text2)
+                                    .truncate()
+                                    .child(foreign_target(found)),
+                            ),
+                    )
+                    .child(chips([found.launcher.name()], cx).flex_none())
+                    .into_any_element()
+            })
+            .collect();
+        let list: AnyElement = match &self.foreign {
+            Some(found) if !found.is_empty() => v_flex()
+                .id("foreign-list")
+                .flex_1()
+                .min_h_0()
+                .overflow_y_scroll()
+                .gap(px(2.))
+                .children(rows)
+                .into_any_element(),
+            Some(_) => v_flex()
+                .flex_1()
+                .items_center()
+                .justify_center()
+                .gap(px(10.))
+                .text_center()
+                .text_color(c.muted)
+                .child(t!("new_instance.no_foreign").to_string())
+                .child(chips(Launcher::ALL.map(Launcher::name), cx).justify_center())
+                .into_any_element(),
+            None => div().flex_1().into_any_element(),
+        };
+        let left = v_flex()
+            .flex_1()
+            .min_w_0()
+            .h(px(height))
+            .gap(px(10.))
+            .child(header)
+            .child(list);
+        let picked = self
+            .foreign_pick
+            .and_then(|ix| self.foreign.as_ref()?.get(ix));
+        let right = side_panel(height, cx).gap(px(14.)).map(|col| match picked {
+            Some(found) => col
+                .child(
+                    v_flex()
+                        .gap(px(12.))
+                        .p(px(14.))
+                        .rounded(px(10.))
+                        .border_1()
+                        .border_color(c.border)
+                        .bg(c.bg)
+                        .child(
+                            h_flex()
+                                .gap(px(12.))
+                                .child(logo(found.icon.as_ref(), 40., cx))
+                                .child(
+                                    v_flex()
+                                        .min_w_0()
+                                        .child(
+                                            div()
+                                                .font_weight(FontWeight::BOLD)
+                                                .truncate()
+                                                .child(found.name.clone()),
+                                        )
+                                        .child(
+                                            div()
+                                                .mt(px(2.))
+                                                .text_size(px(12.))
+                                                .text_color(c.muted)
+                                                .child(foreign_target(found)),
+                                        ),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .text_size(px(12.))
+                                .text_color(c.muted)
+                                .line_height(relative(1.4))
+                                .child(
+                                    t!(
+                                        "new_instance.foreign_copy",
+                                        launcher = found.launcher.name()
+                                    )
+                                    .to_string(),
+                                ),
+                        ),
+                )
+                .child(field(
+                    t!("new_instance.name"),
+                    TextField::new(&self.foreign_name),
+                    cx,
+                )),
+            None => col.child(
+                div()
+                    .flex_1()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .text_center()
+                    .text_color(c.muted)
+                    .child(t!("new_instance.pick_foreign").to_string()),
+            ),
+        });
+        h_flex()
+            .items_start()
+            .gap(px(16.))
+            .h(px(height))
+            .child(left)
+            .child(right)
+            .into_any_element()
+    }
+
     /// A checked release: name, version, game and its optional parts as switches.
     fn render_release(&self, release: &Release, cx: &mut Context<Self>) -> AnyElement {
         let c = cx.theme().colors;
@@ -1715,6 +2052,19 @@ impl NewInstance {
     }
 }
 
+/// `Minecraft 1.21.1 · Fabric 0.16.5` for an instance of another launcher.
+fn foreign_target(found: &Foreign) -> String {
+    match &found.loader {
+        Some(l) => format!(
+            "Minecraft {} · {} {}",
+            found.minecraft,
+            loader_display(l.kind),
+            l.version
+        ),
+        None => format!("Minecraft {}", found.minecraft),
+    }
+}
+
 /// Small tags naming what a field or drop area takes.
 fn chips<const N: usize>(names: [&'static str; N], cx: &App) -> gpui::Div {
     let c = cx.theme().colors;
@@ -1779,12 +2129,16 @@ impl Render for NewInstance {
                 "Modrinth".into(),
                 t!("new_instance.empty").into(),
                 t!("new_instance.from_pack").into(),
+                t!("new_instance.from_launchers").into(),
             ],
             selected,
             move |ix, window, cx| {
                 let _ = view.update(cx, |this, cx| {
                     this.mode = MODES[ix];
                     this.error = None;
+                    if this.mode == Mode::Launchers && this.foreign.is_none() {
+                        this.scan_foreign(cx);
+                    }
                     this.focus_input(window, cx);
                     cx.notify();
                 });
@@ -1794,6 +2148,7 @@ impl Render for NewInstance {
             Mode::Modrinth => self.render_modrinth(height, cx),
             Mode::Custom => self.render_custom(height, cx),
             Mode::Import => self.render_import(height, cx),
+            Mode::Launchers => self.render_launchers(height, cx),
         };
         let status: AnyElement = match (&self.busy, &self.error) {
             (Some(text), _) => h_flex()
@@ -1861,6 +2216,13 @@ impl Render for NewInstance {
                         None => this.check_link(cx),
                     }))
             }
+            Mode::Launchers => Button::new("import-foreign")
+                .primary()
+                .size(ButtonSize::Md)
+                .icon(IconName::Download)
+                .label(t!("new_instance.copy"))
+                .disabled(busy || self.foreign_pick.is_none())
+                .on_click(cx.listener(|this, _, _, cx| this.import_foreign(cx))),
         };
         dialog_shell(
             t!("new_instance.title"),

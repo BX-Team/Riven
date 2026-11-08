@@ -3,6 +3,7 @@ pub mod crash;
 pub mod game;
 pub mod instances;
 pub mod java;
+pub mod launchers;
 pub mod logs;
 pub mod modpack;
 pub mod mods;
@@ -71,6 +72,8 @@ pub enum LaunchError {
     },
     #[error("cannot upload: {0}")]
     Upload(String),
+    #[error("cannot read another launcher's instances: {0}")]
+    Foreign(String),
     #[error("not a pack archive: {0}")]
     BadArchive(String),
     #[error("`{0}` was not added by the player")]

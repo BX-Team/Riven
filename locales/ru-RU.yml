@@ -279,7 +279,7 @@ new_instance:
   install: Установить
   files: "файлов: %{n}"
   no_data_dir: Не найден каталог данных
-  subtitle: Сборка с Modrinth, своя настройка или пак по ссылке или из файла.
+  subtitle: Сборка с Modrinth, своя настройка, пак по ссылке или из файла либо инстанс из другого лаунчера.
   search_packs: Поиск сборок на Modrinth
   pick_pack: Выберите сборку слева, чтобы увидеть описание
   version: Версия
@@ -306,6 +306,18 @@ new_instance:
   pick_icon: Выбрать изображение…
   clear_icon: Убрать иконку
   bad_icon: Этот файл не изображение
+  from_launchers: Другие лаунчеры
+  launchers_found: Инстансы других лаунчеров
+  rescan: Поискать снова
+  add_launcher: Папка лаунчера…
+  pick_launcher: Выберите папку лаунчера
+  not_launcher: Это не папка Prism Launcher, MultiMC, CurseForge или Modrinth App
+  scanning: Ищем другие лаунчеры…
+  no_foreign: Инстансы не найдены. Если лаунчер хранит данные в другом месте, укажите его папку.
+  pick_foreign: Выберите инстанс слева, чтобы скопировать его
+  foreign_copy: "Моды, настройки и миры копируются в новый инстанс; оригинал остаётся в %{launcher}."
+  copy: Импортировать
+  copying: "Копируем файлы: %{done} из %{total}"
 instance_settings:
   icon_from_pack: Задаёт пак
   loader_pick: Minecraft, загрузчик и его версия

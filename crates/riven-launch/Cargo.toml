@@ -18,6 +18,7 @@ keyring = "4.2"
 md-5 = "0.11"
 percent-encoding.workspace = true
 reqwest.workspace = true
+rusqlite = { version = "0.41", features = ["bundled"] }
 riven-format.workspace = true
 riven-game.workspace = true
 riven-build.workspace = true
