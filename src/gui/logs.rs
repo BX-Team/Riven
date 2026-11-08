@@ -4,20 +4,22 @@ use std::time::Duration;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     App, ClipboardItem, Context, Entity, Hsla, InteractiveElement as _, IntoElement,
-    ListHorizontalSizingBehavior, ParentElement as _, Render, ScrollStrategy, SharedString,
-    StatefulInteractiveElement as _, Styled as _, Subscription, UniformListScrollHandle, Window,
-    div, px, uniform_list,
+    ListHorizontalSizingBehavior, ParentElement as _, Render, ScrollHandle, ScrollStrategy,
+    SharedString, StatefulInteractiveElement as _, Styled as _, Subscription,
+    UniformListScrollHandle, Window, div, px, uniform_list,
 };
 use rust_i18n::t;
 
 use super::runtime;
 use super::state::AppState;
 use moonglass::theme::{ActiveTheme as _, Palette};
-use moonglass::{Button, IconName, h_flex, icon, scrollbars, v_flex};
+use moonglass::{Button, IconName, h_flex, icon, scrollbar, scrollbars, v_flex};
 use riven_launch::logs::{LogFile, LogKind};
 
 const ROW_HEIGHT: f32 = 20.;
 const LIST_WIDTH: f32 = 230.;
+/// Room on the file list's right for its scrollbar.
+const GUTTER: f32 = 14.;
 /// How often the logs and crash-reports folders are listed again.
 const RESCAN: Duration = Duration::from_secs(2);
 
@@ -34,6 +36,7 @@ pub struct LogsView {
     id: String,
     game_dir: PathBuf,
     scroll: UniformListScrollHandle,
+    list_scroll: ScrollHandle,
     source: Source,
     files: Vec<LogFile>,
     /// Lines of the file shown, or of `latest.log` when no launch from this session has output.
@@ -78,6 +81,7 @@ impl LogsView {
             id,
             game_dir,
             scroll: UniformListScrollHandle::new(),
+            list_scroll: ScrollHandle::new(),
             source: Source::Current,
             files: Vec::new(),
             file: None,
@@ -297,18 +301,27 @@ impl LogsView {
                 );
             }
         }
-        v_flex()
-            .id("log-files")
+        div()
+            .relative()
             .w(px(LIST_WIDTH))
             .flex_none()
             .h_full()
-            .overflow_y_scroll()
-            .p(px(8.))
-            .gap(px(1.))
             .border_r_1()
             .border_color(c.border)
-            .text_size(px(12.))
-            .children(items)
+            .child(
+                v_flex()
+                    .id("log-files")
+                    .size_full()
+                    .overflow_y_scroll()
+                    .track_scroll(&self.list_scroll)
+                    .py(px(8.))
+                    .pl(px(8.))
+                    .pr(px(GUTTER))
+                    .gap(px(1.))
+                    .text_size(px(12.))
+                    .children(items),
+            )
+            .child(scrollbar(&self.list_scroll))
     }
 }
 
