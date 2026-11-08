@@ -382,7 +382,24 @@ about:
   license: Лицензия
   software: программная
   source: Исходный код
+  website: Сайт
+  docs: Документация
+  discord: Discord
   copy: Скопировать сведения
+  licenses: Лицензии
+  website_hint: bxteam.org/riven
+  docs_hint: Руководства и CLI
+  discord_hint: Вопросы, идеи и новости
+  source_hint: github.com/BX-Team/Riven
+  licenses_hint: "Компонентов: %{n}"
+  copy_hint: Для отчёта об ошибке
+  copied: Сведения скопированы
+  disclaimer: Не является официальным продуктом Minecraft. Не одобрено Mojang или Microsoft и не связано с ними.
+licenses:
+  title: Сторонние лицензии
+  description: "Riven собран из %{n} компонентов с открытым кодом. Выберите один, чтобы прочитать его лицензию."
+  search: Поиск по имени или лицензии
+  pick: Выберите компонент, чтобы прочитать его лицензию
 logs:
   current: Текущий
   crashes: Отчёты о сбоях
@@ -766,6 +783,12 @@ dev:
   view_updates: Есть обновления
   views: Представления
 update:
+  whats_new: "Что нового в %{version}"
+  whats_new_hint: Заметки к релизу вашей версии
+  notes_show: Показать
+  notes_loading: Загружаем заметки к релизу…
+  notes_missing: У этой сборки ещё нет релиза на GitHub
+  notes_failed: "Не удалось загрузить заметки к релизу: %{error}"
   title: Обновления
   button: Обновить
   percent: "%{percent}%"

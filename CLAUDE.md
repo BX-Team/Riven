@@ -49,6 +49,8 @@ RIVEN_LOG=debug cargo run -- <subcommand>          # verbose logs
 
 `nix develop` gives the toolchain from `rust-toolchain.toml` plus the gpui system libraries.
 
+After dependency updates, `scripts/licenses.sh` regenerates `assets/licenses.json` (cargo-about + jq, policy in `about.toml`), which the About page lists.
+
 Before every commit, the same checks CI runs must pass: `cargo fmt --all --check`, clippy for **both** feature sets (default and `--no-default-features --features cli`), and `cargo test --workspace --locked`. CI runs on Linux, Windows **and** macOS, so a `cfg`-gated branch that only compiles on one of them fails there and not locally.
 
 ## Code Guidelines

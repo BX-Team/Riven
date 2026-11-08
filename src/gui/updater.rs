@@ -196,7 +196,7 @@ impl UpdateDialog {
             .read(cx)
             .update
             .release()
-            .map(|r| markdown::blocks(&r.notes))
+            .map(|r| markdown::blocks(&changelog(&r.notes)))
             .unwrap_or_default();
         Self {
             install: Install::detect(),
@@ -332,6 +332,25 @@ fn close_button(label: impl Into<SharedString>) -> Button {
         .on_click(|_, _, cx| AppState::global(cx).update(cx, |s, cx| s.close_modal(cx)))
 }
 
+/// Release notes without their "Downloads" section: the file table is for the website.
+fn changelog(notes: &str) -> String {
+    let mut out = Vec::new();
+    let mut downloads = false;
+    for line in notes.lines() {
+        let heading = line.trim_start();
+        if heading.starts_with('#') {
+            let title = heading
+                .trim_start_matches(|c: char| !c.is_alphanumeric())
+                .trim();
+            downloads = title.eq_ignore_ascii_case("downloads");
+        }
+        if !downloads {
+            out.push(line);
+        }
+    }
+    out.join("\n")
+}
+
 /// Shows the dialog for a known update, else looks for one.
 pub fn check_or_open(cx: &mut App) {
     let state = AppState::global(cx);
@@ -339,5 +358,118 @@ pub fn check_or_open(cx: &mut App) {
         open(cx);
     } else {
         state.update(cx, |s, cx| s.check_update(true, cx));
+    }
+}
+
+/// The notes of the running version, fetched when the dialog opens.
+enum Notes {
+    Loading,
+    Ready { blocks: Vec<Block>, page: String },
+    Missing,
+    Failed(String),
+}
+
+/// "What's new" in the version that is running.
+pub struct NotesDialog {
+    notes: Notes,
+}
+
+impl NotesDialog {
+    fn new(cx: &mut Context<Self>) -> Self {
+        cx.spawn(async move |this, cx| {
+            let found = runtime::spawn(update::release(update::CURRENT))
+                .await
+                .unwrap_or_else(|_| Err(riven_launch::LaunchError::Update("cancelled".into())));
+            let _ = this.update(cx, |this, cx| {
+                this.notes = match found {
+                    Ok(Some(release)) => Notes::Ready {
+                        blocks: markdown::blocks(&changelog(&release.notes)),
+                        page: release.page,
+                    },
+                    Ok(None) => Notes::Missing,
+                    Err(e) => Notes::Failed(e.to_string()),
+                };
+                cx.notify();
+            });
+        })
+        .detach();
+        Self {
+            notes: Notes::Loading,
+        }
+    }
+}
+
+impl Render for NotesDialog {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let c = cx.theme().colors;
+        let line = |text: String, color| div().text_color(color).child(text).into_any_element();
+        let (body, page) = match &self.notes {
+            Notes::Loading => (
+                vec![line(t!("update.notes_loading").to_string(), c.muted)],
+                None,
+            ),
+            Notes::Ready { blocks, page } if blocks.is_empty() => (
+                vec![line(t!("update.no_notes").to_string(), c.muted)],
+                Some(page.clone()),
+            ),
+            Notes::Ready { blocks, page } => (markdown::view(blocks, cx), Some(page.clone())),
+            Notes::Missing => (
+                vec![line(t!("update.notes_missing").to_string(), c.muted)],
+                None,
+            ),
+            Notes::Failed(error) => (
+                vec![line(
+                    t!("update.notes_failed", error = error).to_string(),
+                    c.warn,
+                )],
+                None,
+            ),
+        };
+        let mut buttons = Vec::new();
+        if let Some(page) = page {
+            buttons.push(
+                Button::new("notes-page")
+                    .outline()
+                    .size(ButtonSize::Md)
+                    .icon(IconName::ExternalLink)
+                    .label(t!("update.release_page"))
+                    .on_click(move |_, _, cx| cx.open_url(&page)),
+            );
+        }
+        buttons.push(close_button(t!("common.close")));
+        dialogs::dialog_shell(
+            t!("update.whats_new", version = update::CURRENT),
+            t!("update.whats_new_hint"),
+            div()
+                .id("notes")
+                .max_h(px(360.))
+                .overflow_y_scroll()
+                .flex()
+                .flex_col()
+                .gap(px(8.))
+                .children(body),
+            buttons,
+            cx,
+        )
+    }
+}
+
+pub fn open_notes(cx: &mut App) {
+    let view = cx.new(NotesDialog::new);
+    dialogs::open(view.into(), 560., cx);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::changelog;
+
+    #[test]
+    fn notes_lose_the_downloads_section_only() {
+        let notes = "## 🐛 Fixes\n\n- a fix\n\n## 📦 Downloads\n\n| System | File |\n| --- | --- |\n\
+                     | Arch | `x.pkg` |\n\nThe macOS app is not notarized.\n\n## ✨ Features\n\n- a feature";
+        assert_eq!(
+            changelog(notes),
+            "## 🐛 Fixes\n\n- a fix\n\n## ✨ Features\n\n- a feature"
+        );
     }
 }

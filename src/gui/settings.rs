@@ -1,12 +1,12 @@
 use std::path::{Path, PathBuf};
 
-use gpui_kit::base::input::{InputEvent, InputState, TextareaState};
-use gpui_kit::prelude::FluentBuilder as _;
-use gpui_kit::{
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, FontWeight, InteractiveElement as _,
     IntoElement, ParentElement as _, Render, SharedString, StatefulInteractiveElement as _,
-    Styled as _, Subscription, Window, div, px,
+    Styled as _, Subscription, Window, div, px, relative,
 };
+use gpui_base::input::{InputEvent, InputState, TextareaState};
 use riven_format::{AccountKind, Settings as Prefs, ThemeMode};
 use rust_i18n::t;
 
@@ -22,6 +22,38 @@ use moonglass::{
 };
 
 const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
+
+/// The About page's link tiles: id, icon, title key, hint key, address.
+const LINKS: [(&str, IconName, &str, &str, &str); 4] = [
+    (
+        "website",
+        IconName::Globe,
+        "about.website",
+        "about.website_hint",
+        "https://bxteam.org/riven",
+    ),
+    (
+        "docs",
+        IconName::BookOpen,
+        "about.docs",
+        "about.docs_hint",
+        "https://bxteam.org/docs/riven",
+    ),
+    (
+        "discord",
+        IconName::Link,
+        "about.discord",
+        "about.discord_hint",
+        "https://discord.gg/qNyybSSPm5",
+    ),
+    (
+        "source",
+        IconName::Code,
+        "about.source",
+        "about.source_hint",
+        REPOSITORY,
+    ),
+];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Page {
@@ -951,7 +983,7 @@ impl SettingsView {
         vec![
             h_flex()
                 .gap(px(16.))
-                .child(gpui_kit::img(super::assets::LOGO).size(px(56.)).flex_none())
+                .child(gpui::img(super::assets::LOGO).size(px(56.)).flex_none())
                 .child(
                     v_flex()
                         .gap(px(2.))
@@ -970,23 +1002,96 @@ impl SettingsView {
                 .into_any_element(),
             updates(cx),
             section.into_any_element(),
-            h_flex()
-                .gap(px(8.))
+            div()
+                .grid()
+                .grid_cols(3)
+                .gap(px(10.))
+                .children(LINKS.iter().map(|&(id, icon, title, hint, url)| {
+                    about_tile(id, icon, t!(title).into(), t!(hint).into(), cx)
+                        .on_click(move |_, _, cx| cx.open_url(url))
+                }))
                 .child(
-                    Button::new("source")
-                        .size(ButtonSize::Md)
-                        .icon(IconName::Code)
-                        .label(t!("about.source"))
-                        .on_click(|_, _, cx| cx.open_url(REPOSITORY)),
+                    about_tile(
+                        "licenses",
+                        IconName::FileText,
+                        t!("about.licenses").into(),
+                        t!("about.licenses_hint", n = super::licenses::count()).into(),
+                        cx,
+                    )
+                    .on_click(|_, window, cx| super::licenses::open(window, cx)),
                 )
                 .child(
-                    moonglass::copy_button("copy-info", move |_| report.clone(), cx)
-                        .size(ButtonSize::Md)
-                        .label(t!("about.copy")),
+                    about_tile(
+                        "copy-info",
+                        IconName::Copy,
+                        t!("about.copy").into(),
+                        t!("about.copy_hint").into(),
+                        cx,
+                    )
+                    .on_click(move |_, _, cx| {
+                        cx.write_to_clipboard(gpui::ClipboardItem::new_string(report.clone()));
+                        moonglass::toast::show(
+                            moonglass::toast::ToastKind::Success,
+                            t!("about.copied"),
+                            cx,
+                        );
+                    }),
                 )
+                .into_any_element(),
+            div()
+                .text_size(px(12.))
+                .text_color(c.muted)
+                .line_height(relative(1.5))
+                .child(t!("about.disclaimer").to_string())
                 .into_any_element(),
         ]
     }
+}
+
+/// A clickable card of the About page: an icon, a title and one line under it.
+fn about_tile(
+    id: &'static str,
+    icon_name: IconName,
+    title: SharedString,
+    hint: SharedString,
+    cx: &App,
+) -> gpui::Stateful<gpui::Div> {
+    let c = cx.theme().colors;
+    h_flex()
+        .id(id)
+        .min_w_0()
+        .gap(px(12.))
+        .px(px(14.))
+        .py(px(12.))
+        .rounded(px(10.))
+        .border_1()
+        .border_color(c.border)
+        .bg(c.panel)
+        .cursor_pointer()
+        .hover(|t| t.bg(c.row))
+        .child(
+            div()
+                .size(px(32.))
+                .flex_none()
+                .rounded(px(8.))
+                .bg(c.sel)
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(icon(icon_name, c.accent).size(px(16.))),
+        )
+        .child(
+            v_flex()
+                .min_w_0()
+                .child(div().font_weight(W_SEMIBOLD).truncate().child(title))
+                .child(
+                    div()
+                        .text_size(px(12.))
+                        .text_color(c.muted)
+                        .truncate()
+                        .child(hint),
+                ),
+        )
 }
 
 /// Where the update check stands, the button that runs it, and whether it runs at startup.
@@ -1020,6 +1125,16 @@ fn updates(cx: &App) -> AnyElement {
                 .label(button)
                 .disabled(checking)
                 .on_click(|_, _, cx| super::updater::check_or_open(cx)),
+            cx,
+        ))
+        .row(setting_row(
+            t!("update.whats_new", version = env!("CARGO_PKG_VERSION")).to_string(),
+            Some(t!("update.whats_new_hint").into()),
+            Button::new("whats-new")
+                .size(ButtonSize::Md)
+                .icon(IconName::BookOpen)
+                .label(t!("update.notes_show"))
+                .on_click(|_, _, cx| super::updater::open_notes(cx)),
             cx,
         ))
         .row(setting_row(
@@ -1062,11 +1177,7 @@ fn build_facts(window: &Window) -> Vec<(String, String)> {
         ),
         (
             t!("about.toolkit").into(),
-            format!(
-                "gpui-kit {} · moonglass {}",
-                env!("RIVEN_GPUI_KIT"),
-                moonglass::VERSION
-            ),
+            format!("moonglass {}", moonglass::VERSION),
         ),
         (t!("about.renderer").into(), renderer),
         (t!("about.license").into(), env!("CARGO_PKG_LICENSE").into()),

@@ -7,6 +7,7 @@ use sha2::{Digest, Sha256};
 
 use crate::LaunchError;
 
+const RELEASES: &str = "https://api.github.com/repos/BX-Team/Riven/releases";
 const LATEST: &str = "https://api.github.com/repos/BX-Team/Riven/releases/latest";
 pub const CURRENT: &str = env!("CARGO_PKG_VERSION");
 const BUNDLE: &str = "Riven Launcher.app";
@@ -152,8 +153,21 @@ pub fn is_newer(version: &str) -> bool {
 
 /// The newest stable release on GitHub, if there is one yet.
 pub async fn latest() -> Result<Option<Release>, LaunchError> {
+    fetch(LATEST).await
+}
+
+/// The GitHub release of `version`, for its notes; `None` for a build that was never released.
+pub async fn release(version: &str) -> Result<Option<Release>, LaunchError> {
+    fetch(&format!(
+        "{RELEASES}/tags/v{}",
+        version.trim_start_matches('v')
+    ))
+    .await
+}
+
+async fn fetch(url: &str) -> Result<Option<Release>, LaunchError> {
     let response = riven_sources::client()
-        .get(LATEST)
+        .get(url)
         .header(reqwest::header::ACCEPT, "application/vnd.github+json")
         .send()
         .await

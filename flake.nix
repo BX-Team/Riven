@@ -224,6 +224,8 @@
               rustToolchain
               pkg-config
               git
+              cargo-about
+              jq
             ]
             ++ gameTools;
 
