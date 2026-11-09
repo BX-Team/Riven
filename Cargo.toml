@@ -81,14 +81,14 @@ clap_complete = { version = "4.6", features = ["unstable-dynamic"], optional = t
 console = { version = "0.16", optional = true }
 dirs.workspace = true
 futures-util.workspace = true
-gpui = { package = "gpui-pre", version = "=0.3.11", optional = true }
-gpui-base = { version = "0.9.0", optional = true }
+gpui = { package = "gpui-pre", version = "=0.3.12", optional = true }
+gpui-base = { version = "0.9.1", optional = true }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"], optional = true }
 indicatif = { version = "0.18", optional = true }
-moonglass = { version = "0.2.0", optional = true }
+moonglass = { version = "0.2.1", optional = true }
 notify = { version = "8", optional = true }
 reqwest.workspace = true
-rfd = { version = "0.17", default-features = false, features = ["xdg-portal"], optional = true }
+rfd = { version = "0.18", default-features = false, features = ["xdg-portal"], optional = true }
 rust-i18n = { version = "4", optional = true }
 riven-build.workspace = true
 riven-format.workspace = true
