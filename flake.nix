@@ -124,7 +124,11 @@
               pkgs.installShellFiles
             ]
             ++ lib.optionals (!cli) [ pkgs.autoPatchelfHook ];
-            buildInputs = lib.optionals (!cli) (runtimeLibs ++ [ pkgs.stdenv.cc.cc.lib ]);
+            buildInputs = [
+              pkgs.aws-lc
+              pkgs.sqlite
+            ]
+            ++ lib.optionals (!cli) (runtimeLibs ++ [ pkgs.stdenv.cc.cc.lib ]);
             # gpui dlopens Vulkan, Wayland and X11 at runtime; autoPatchelf bakes them into the rpath.
             runtimeDependencies = lib.optionals (!cli) runtimeLibs;
             # The workspace tests run in CI; here they would only repeat it.
