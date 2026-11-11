@@ -331,7 +331,7 @@ impl DevView {
             .into_any_element()
     }
 
-    /// The narrow bar of sidebar switches, with the launcher settings at the bottom.
+    /// The narrow bar of sidebar switches, with the launcher settings at the bottom; without a project only the way out.
     pub(super) fn render_activity(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let c = cx.theme().colors;
         let updates = self.updatable().len();
@@ -361,46 +361,48 @@ impl DevView {
                         })
                     }),
             )
-            .child(div().w(px(20.)).h(px(1.)).my(px(2.)).bg(c.border))
-            .child(self.activity_button(
-                Activity::Content,
-                IconName::LayoutGrid,
-                t!("dev.content").into(),
-                Some((updates, c.accent)),
-                cx,
-            ))
-            .child(self.activity_button(
-                Activity::Files,
-                IconName::File,
-                t!("dev.files").into(),
-                None,
-                cx,
-            ))
-            .child(
-                self.activity_button(
-                    Activity::Search,
-                    IconName::Search,
-                    format!(
-                        "{} ({})",
-                        t!("dev.search"),
-                        if cfg!(target_os = "macos") {
-                            "⌘K"
-                        } else {
-                            "Ctrl K"
-                        }
+            .when(self.project.is_some(), |bar| {
+                bar.child(div().w(px(20.)).h(px(1.)).my(px(2.)).bg(c.border))
+                    .child(self.activity_button(
+                        Activity::Content,
+                        IconName::LayoutGrid,
+                        t!("dev.content").into(),
+                        Some((updates, c.accent)),
+                        cx,
+                    ))
+                    .child(self.activity_button(
+                        Activity::Files,
+                        IconName::File,
+                        t!("dev.files").into(),
+                        None,
+                        cx,
+                    ))
+                    .child(
+                        self.activity_button(
+                            Activity::Search,
+                            IconName::Search,
+                            format!(
+                                "{} ({})",
+                                t!("dev.search"),
+                                if cfg!(target_os = "macos") {
+                                    "⌘K"
+                                } else {
+                                    "Ctrl K"
+                                }
+                            )
+                            .into(),
+                            None,
+                            cx,
+                        ),
                     )
-                    .into(),
-                    None,
-                    cx,
-                ),
-            )
-            .child(self.activity_button(
-                Activity::Git,
-                IconName::GitBranch,
-                "Git".into(),
-                Some((changes, c.warn)),
-                cx,
-            ))
+                    .child(self.activity_button(
+                        Activity::Git,
+                        IconName::GitBranch,
+                        "Git".into(),
+                        Some((changes, c.warn)),
+                        cx,
+                    ))
+            })
             .child(div().flex_1())
             .child(
                 Button::new("dev-open-settings")

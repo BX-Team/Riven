@@ -1034,9 +1034,14 @@ impl Render for DevView {
                 .size_full()
                 .bg(c.bg);
         if self.project.is_none() {
-            return root
-                .child(self.render_top(cx))
-                .child(div().flex_1().min_h_0().child(self.render_empty(cx)));
+            return root.child(self.render_top(cx)).child(
+                h_flex()
+                    .flex_1()
+                    .min_h_0()
+                    .items_start()
+                    .child(self.render_activity(cx))
+                    .child(div().flex_1().h_full().child(self.render_empty(cx))),
+            );
         }
         let body = self.render_body(cx);
         let tab = SharedString::from(format!("dev-tab-body-{}", self.active.key()));
