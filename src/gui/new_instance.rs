@@ -7,7 +7,7 @@ use super::markdown::{self, Described};
 use futures_util::{StreamExt as _, stream};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, App, AppContext as _, Context, Entity, ExternalPaths, FontWeight,
+    AnyElement, App, AppContext as _, Axis, Context, Entity, ExternalPaths, FontWeight,
     InteractiveElement as _, IntoElement, ParentElement as _, Render, SharedString,
     StatefulInteractiveElement as _, Styled as _, Subscription, UniformListScrollHandle, Window,
     div, img, px, relative, uniform_list,
@@ -29,7 +29,7 @@ use super::state::{AppState, Route};
 use moonglass::theme::ActiveTheme as _;
 use moonglass::{
     Button, ButtonSize, Dropdown, IconName, MenuItem, Switch, Tabs, TextField, h_flex, icon,
-    motion, scrollbar, v_flex,
+    motion, scrollbar, scrollbar_overlay, v_flex,
 };
 
 const WIDTH: f32 = 1080.;
@@ -1389,10 +1389,10 @@ impl NewInstance {
             )
             .child(
                 // Both lists come from this one call site, so each bar needs an id of its own.
-                div().absolute().inset_0().child(
-                    Scrollbar::vertical(scroll)
-                        .id(SharedString::from(format!("{id}-bar")))
-                        .viewport_from_layout(),
+                scrollbar_overlay(
+                    scroll,
+                    Scrollbar::vertical(scroll).id(SharedString::from(format!("{id}-bar"))),
+                    &[Axis::Vertical],
                 ),
             )
             .into_any_element()
