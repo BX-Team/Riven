@@ -13,8 +13,8 @@ publish = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-gpui = { package = "gpui-pre", version = "=0.3.12" }
-gpui-base = "0.9.1"
+gpui = { package = "gpui-pre", version = "=0.3.13" }
+gpui-base = "0.10.0"
 moonglass = "0.2.2"
 tracing.workspace = true
 
