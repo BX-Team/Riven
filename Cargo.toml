@@ -86,7 +86,7 @@ gpui-base = { version = "0.9.1", optional = true }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"], optional = true }
 indicatif = { version = "0.18", optional = true }
 moonglass = { version = "0.2.2", optional = true }
-notify = { version = "8", optional = true }
+notify = { version = "9", optional = true }
 reqwest.workspace = true
 rfd = { version = "0.18", default-features = false, features = ["xdg-portal"], optional = true }
 rust-i18n = { version = "4", optional = true }
