@@ -213,6 +213,10 @@ impl InstanceView {
             revision: 0,
             _search,
             _state: cx.observe_in(&AppState::global(cx), window, |this, state, window, cx| {
+                if state.read(cx).show_worlds.as_ref() == Some(&this.id) {
+                    state.update(cx, |s, _| s.show_worlds = None);
+                    this.select(Tab::Worlds, window, cx);
+                }
                 let revision = state.read(cx).revisions.get(&this.id).copied().unwrap_or(0);
                 if revision != this.revision {
                     this.revision = revision;

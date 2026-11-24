@@ -150,6 +150,7 @@ fn committed_schemas_are_current() {
     golden(dir.join("instance.json"), &schema::<Instance>());
     golden(dir.join("accounts.json"), &schema::<Accounts>());
     golden(dir.join("running.json"), &schema::<Running>());
+    golden(dir.join("joins.json"), &schema::<Joins>());
 }
 
 #[test]

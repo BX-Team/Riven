@@ -15,7 +15,7 @@ mod version;
 use std::path::{Path, PathBuf};
 
 pub use install::install;
-pub use launch::{Game, Launch, Session, Window, launch};
+pub use launch::{Game, Launch, QuickPlay, Session, Window, launch, split_address};
 pub use process::{alive, kill, started};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -96,6 +96,11 @@ impl Prepared {
         self.version.assets.as_deref() == Some("pre-1.6")
     }
 
+    /// Whether the game takes Quick Play arguments, which open a world or join a server (1.20+).
+    pub fn quick_play(&self) -> bool {
+        self.version.quick_play()
+    }
+
     /// Whether the game needs an x86-64 Java even on an ARM Mac: it ships no arm64 natives.
     pub fn needs_x64_java(&self) -> bool {
         cfg!(all(target_os = "macos", target_arch = "aarch64"))
@@ -106,6 +111,16 @@ impl Prepared {
                         .is_some_and(|n| n.get("osx").is_some_and(|c| c.contains("arm64")))
             })
     }
+}
+
+/// Whether `minecraft` opens worlds through Quick Play, from cached metadata; `None` before its first launch.
+pub fn quick_play(dirs: &Dirs, minecraft: &str) -> Option<bool> {
+    let path = dirs
+        .versions()
+        .join(minecraft)
+        .join(format!("{minecraft}.json"));
+    let json: version::VersionJson = serde_json::from_slice(&std::fs::read(path).ok()?).ok()?;
+    Some(json.quick_play())
 }
 
 /// Reads the metadata of `game`, fetching what is not cached yet; the cache keeps working offline.

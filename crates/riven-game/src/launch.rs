@@ -64,11 +64,23 @@ pub struct Launch {
     pub max_memory_mb: u32,
     /// Extra JVM arguments, one per element.
     pub jvm_args: Vec<String>,
+    /// JVM options the launcher adds itself, such as its agent; apart from `jvm_args`, which are the player's.
+    pub launcher_jvm_args: Vec<String>,
     pub window: Window,
     /// Commands the game starts through, such as `gamemoderun`; empty starts Java directly.
     pub wrapper: Vec<String>,
     pub launcher_name: String,
     pub launcher_version: String,
+    pub quick_play: Option<QuickPlay>,
+}
+
+/// Where the game goes straight after it starts, skipping the title screen.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QuickPlay {
+    /// A folder under `saves/`; only games since 1.20 open one.
+    World(String),
+    /// A server address as `servers.dat` keeps it: `host`, `host:port` or `[v6]:port`.
+    Server(String),
 }
 
 #[derive(Debug)]
@@ -176,6 +188,8 @@ pub fn arguments(dirs: &Dirs, prepared: &Prepared, launch: &Launch) -> Vec<Strin
     let version = &prepared.version;
     let features = Features {
         custom_resolution: !launch.window.fullscreen,
+        quick_play_world: matches!(launch.quick_play, Some(QuickPlay::World(_))),
+        quick_play_server: matches!(launch.quick_play, Some(QuickPlay::Server(_))),
     };
     let index_id = version
         .asset_index
@@ -232,6 +246,7 @@ pub fn arguments(dirs: &Dirs, prepared: &Prepared, launch: &Launch) -> Vec<Strin
             jvm.insert(2, format!("{property}{var}"));
         }
     }
+    jvm.extend(launch.launcher_jvm_args.iter().cloned());
     jvm.extend(user);
 
     let mut game: Vec<String> = match (&version.arguments, &version.minecraft_arguments) {
@@ -260,6 +275,12 @@ pub fn arguments(dirs: &Dirs, prepared: &Prepared, launch: &Launch) -> Vec<Strin
     };
     if launch.window.fullscreen {
         game.push("--fullscreen".into());
+    }
+    if let Some(QuickPlay::Server(address)) = &launch.quick_play
+        && !prepared.quick_play()
+    {
+        let (host, port) = split_address(address);
+        game.extend(["--server".into(), host, "--port".into(), port.to_string()]);
     }
 
     let session = &launch.session;
@@ -296,6 +317,11 @@ pub fn arguments(dirs: &Dirs, prepared: &Prepared, launch: &Launch) -> Vec<Strin
         ("resolution_width", launch.window.width.to_string()),
         ("resolution_height", launch.window.height.to_string()),
     ]);
+    match &launch.quick_play {
+        Some(QuickPlay::World(folder)) => vars.insert("quickPlaySingleplayer", folder.clone()),
+        Some(QuickPlay::Server(address)) => vars.insert("quickPlayMultiplayer", address.clone()),
+        None => None,
+    };
 
     let mut classpath = install::libraries(dirs, prepared).classpath;
     classpath.push(prepared.client_jar(dirs));
@@ -326,6 +352,24 @@ pub fn arguments(dirs: &Dirs, prepared: &Prepared, launch: &Launch) -> Vec<Strin
         .chain([main_class])
         .chain(game.iter().map(|a| substitute(a, &vars)))
         .collect()
+}
+
+/// Splits a `servers.dat` address into host and port, 25565 when it names none.
+pub fn split_address(address: &str) -> (String, u16) {
+    let parsed = match address.strip_prefix('[') {
+        Some(rest) => rest
+            .split_once(']')
+            .map(|(host, port)| (host, port.strip_prefix(':'))),
+        None => Some(match address.rsplit_once(':') {
+            Some((host, port)) if !host.contains(':') => (host, Some(port)),
+            _ => (address, None),
+        }),
+    };
+    let (host, port) = parsed.unwrap_or((address, None));
+    (
+        host.to_owned(),
+        port.and_then(|p| p.parse().ok()).unwrap_or(25565),
+    )
 }
 
 /// A path in one spelling: on Windows library paths mix `\\` and the `/` of Maven paths.
@@ -429,6 +473,7 @@ mod tests {
             min_memory_mb: 1024,
             max_memory_mb: 2048,
             jvm_args: jvm_args.iter().map(|a| a.to_string()).collect(),
+            launcher_jvm_args: vec![],
             window: Window {
                 width: 854,
                 height: 480,
@@ -437,6 +482,7 @@ mod tests {
             wrapper: vec![],
             launcher_name: "riven".into(),
             launcher_version: "1.0".into(),
+            quick_play: None,
         }
     }
 
@@ -504,7 +550,11 @@ mod tests {
                     "game":["--uuid","${auth_uuid}","--xuid","${auth_xuid}"]},
                 "libraries":[{"name":"cpw.mods:bootstraplauncher:1.1.2"},{"name":"com.google.guava:guava:32.1.2"}]}"#,
         );
-        let args = arguments(&dirs, &p, &launch(&[]));
+        // The launcher's own options must not count as the player's, which would drop the defaults.
+        let mut with_agent = launch(&[]);
+        with_agent.launcher_jvm_args = vec!["-javaagent:/agent.jar".into()];
+        let args = arguments(&dirs, &p, &with_agent);
+        assert!(args.contains(&"-javaagent:/agent.jar".to_owned()));
         assert!(args.contains(&"-DignoreList=1.20.1.jar".to_owned()));
         assert!(args.contains(&"-XX:+UseZGC".to_owned()));
         assert!(!args.contains(&"-Xmx4G".to_owned()));
@@ -526,5 +576,45 @@ mod tests {
         assert_eq!(after(&args, "--uuid"), "b50ad385829d3141a2167e7d7539ba7f");
         assert_eq!(after(&args, "--xuid"), "42");
         assert!(!args.iter().any(|a| a.contains("--width")));
+    }
+
+    #[test]
+    fn quick_play_uses_the_version_arguments_or_falls_back_to_server_and_port() {
+        let dirs = Dirs::new("/data");
+        let modern = prepared(
+            "1.21.1",
+            r#"{"arguments":{"game":["--version","${version_name}",
+                {"rules":[{"action":"allow","features":{"has_quick_plays_support":true}}],"value":["--quickPlayPath","${quickPlayPath}"]},
+                {"rules":[{"action":"allow","features":{"is_quick_play_singleplayer":true}}],"value":["--quickPlaySingleplayer","${quickPlaySingleplayer}"]},
+                {"rules":[{"action":"allow","features":{"is_quick_play_multiplayer":true}}],"value":["--quickPlayMultiplayer","${quickPlayMultiplayer}"]}]}}"#,
+        );
+        let mut world = launch(&[]);
+        world.quick_play = Some(QuickPlay::World("New World".into()));
+        let args = arguments(&dirs, &modern, &world);
+        assert_eq!(after(&args, "--quickPlaySingleplayer"), "New World");
+        assert!(
+            !args
+                .iter()
+                .any(|a| a == "--quickPlayMultiplayer" || a == "--quickPlayPath")
+        );
+        let mut server = launch(&[]);
+        server.quick_play = Some(QuickPlay::Server("play.example.org".into()));
+        let args = arguments(&dirs, &modern, &server);
+        assert_eq!(after(&args, "--quickPlayMultiplayer"), "play.example.org");
+        assert!(!args.iter().any(|a| a == "--server"));
+
+        let old = prepared(
+            "1.19.4",
+            r#"{"arguments":{"game":["--version","${version_name}"]}}"#,
+        );
+        server.quick_play = Some(QuickPlay::Server("[::1]:25570".into()));
+        let args = arguments(&dirs, &old, &server);
+        assert_eq!(after(&args, "--server"), "::1");
+        assert_eq!(after(&args, "--port"), "25570");
+        assert_eq!(
+            split_address("mc.example.org"),
+            ("mc.example.org".into(), 25565)
+        );
+        assert_eq!(split_address("10.0.0.2:25566"), ("10.0.0.2".into(), 25566));
     }
 }

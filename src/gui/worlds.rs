@@ -9,6 +9,7 @@ use gpui::{
 use riven_launch::worlds::{self, Backup, Difficulty, GameMode, World};
 use rust_i18n::t;
 
+use super::quick_play::{ServerRow, read_servers};
 use super::runtime;
 use super::state::AppState;
 use moonglass::theme::ActiveTheme as _;
@@ -16,6 +17,7 @@ use moonglass::{
     ActionMenu, Button, ButtonSize, IconName, MenuEntry, Tone, W_SEMIBOLD, chip, h_flex, icon,
     motion, tooltip, v_flex,
 };
+use riven_launch::game::QuickPlay;
 
 const ICON: f32 = 56.;
 const MENU_WIDTH: f32 = 260.;
@@ -31,6 +33,9 @@ pub struct WorldsView {
     game_dir: PathBuf,
     instance_dir: PathBuf,
     rows: Vec<Row>,
+    servers: Vec<ServerRow>,
+    /// Whether the game opens a world straight away; `None` before its first launch.
+    opens_worlds: Option<bool>,
     loading: bool,
     /// The world being zipped, restored, copied or deleted.
     working: Option<String>,
@@ -82,6 +87,8 @@ impl WorldsView {
             game_dir,
             instance_dir,
             rows: Vec::new(),
+            servers: Vec::new(),
+            opens_worlds: None,
             loading: false,
             working: None,
             busy: None,
@@ -92,12 +99,26 @@ impl WorldsView {
         self.loading = true;
         cx.notify();
         let (game, instance) = (self.game_dir.clone(), self.instance_dir.clone());
+        let minecraft = AppState::global(cx)
+            .read(cx)
+            .instance(&self.id)
+            .map(|i| i.minecraft.clone())
+            .unwrap_or_default();
         cx.spawn(async move |this, cx| {
-            let rows = runtime::blocking(move || read_rows(&game, &instance))
-                .await
-                .unwrap_or_default();
+            let read = runtime::blocking(move || {
+                (
+                    read_rows(&game, &instance),
+                    read_servers(&instance, &game),
+                    riven_launch::game::opens_worlds(&minecraft),
+                )
+            })
+            .await;
             let _ = this.update(cx, |this, cx| {
-                this.rows = rows;
+                if let Ok((rows, servers, opens_worlds)) = read {
+                    this.rows = rows;
+                    this.servers = servers;
+                    this.opens_worlds = opens_worlds;
+                }
                 this.loading = false;
                 cx.notify();
             });
@@ -460,6 +481,22 @@ impl WorldsView {
                     let _ = backup_view.update(cx, |this, cx| this.backup(folder, cx));
                 })
         };
+        let play = (self.opens_worlds != Some(false)).then(|| {
+            let (id, folder) = (self.id.clone(), world.folder.clone());
+            Button::new(("world-play", ix))
+                .outline()
+                .icon(IconName::Play)
+                .label(t!("worlds.play"))
+                .disabled(self.running(cx) || self.busy.is_some())
+                .on_click(move |_, window, cx| {
+                    super::launch_bar::launch(
+                        &id,
+                        Some(QuickPlay::World(folder.clone())),
+                        window,
+                        cx,
+                    )
+                })
+        });
         hover
             .track(h_flex().id(("world", ix)))
             .gap(px(14.))
@@ -501,6 +538,7 @@ impl WorldsView {
                 h_flex()
                     .flex_none()
                     .gap(px(6.))
+                    .children(play)
                     .child(backup_button)
                     .child(backups_button)
                     .child(
@@ -517,6 +555,103 @@ impl WorldsView {
             )
             .into_any_element()
     }
+}
+
+impl WorldsView {
+    fn render_server(&self, ix: usize, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let c = cx.theme().colors;
+        let (server, image) = &self.servers[ix];
+        let hover = motion::hover(SharedString::from(format!("server:{ix}:hover")), window, cx);
+        let border = motion::animate(
+            SharedString::from(format!("server:{ix}:border")),
+            if hover.on { c.border } else { c.row },
+            window,
+            cx,
+        );
+        let picture = match image {
+            Some(image) => img(image.clone())
+                .size(px(ICON))
+                .flex_none()
+                .rounded(px(9.))
+                .into_any_element(),
+            None => div()
+                .size(px(ICON))
+                .flex_none()
+                .rounded(px(9.))
+                .bg(c.sel)
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(icon(IconName::Server, c.muted).size(px(22.)))
+                .into_any_element(),
+        };
+        let (id, address) = (self.id.clone(), server.address.clone());
+        hover
+            .track(h_flex().id(("server", ix)))
+            .gap(px(14.))
+            .mx(px(18.))
+            .px(px(14.))
+            .py(px(12.))
+            .rounded(px(10.))
+            .border_1()
+            .border_color(border)
+            .bg(c.panel)
+            .child(picture)
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .gap(px(5.))
+                    .child(
+                        div()
+                            .font_weight(W_SEMIBOLD)
+                            .text_size(px(14.))
+                            .truncate()
+                            .child(server.name.clone()),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(12.))
+                            .text_color(c.muted)
+                            .truncate()
+                            .child(match server.joined {
+                                Some(at) => t!(
+                                    "worlds.joined",
+                                    address = server.address.clone(),
+                                    time = super::time::since(at)
+                                )
+                                .to_string(),
+                                None => server.address.clone(),
+                            }),
+                    ),
+            )
+            .child(
+                Button::new(("server-play", ix))
+                    .outline()
+                    .icon(IconName::Play)
+                    .label(t!("worlds.join"))
+                    .disabled(self.running(cx))
+                    .on_click(move |_, window, cx| {
+                        super::launch_bar::launch(
+                            &id,
+                            Some(QuickPlay::Server(address.clone())),
+                            window,
+                            cx,
+                        )
+                    }),
+            )
+            .into_any_element()
+    }
+}
+
+fn section_caption(text: String, cx: &App) -> gpui::Div {
+    div()
+        .px(px(18.))
+        .pt(px(6.))
+        .text_size(px(12.))
+        .font_weight(W_SEMIBOLD)
+        .text_color(cx.theme().colors.muted)
+        .child(text)
 }
 
 fn difficulty_label(d: Difficulty) -> String {
@@ -580,7 +715,7 @@ impl Render for WorldsView {
                         cx.open_with_system(&saves)
                     }),
             );
-        let body: AnyElement = if self.rows.is_empty() {
+        let body: AnyElement = if self.rows.is_empty() && self.servers.is_empty() {
             div()
                 .flex_1()
                 .flex()
@@ -594,9 +729,17 @@ impl Render for WorldsView {
                 })
                 .into_any_element()
         } else {
-            let rows: Vec<AnyElement> = (0..self.rows.len())
+            let mut rows: Vec<AnyElement> = (0..self.rows.len())
                 .map(|ix| self.render_row(ix, window, cx))
                 .collect();
+            if !self.servers.is_empty() {
+                rows.push(
+                    section_caption(t!("worlds.servers").to_string(), cx)
+                        .when(!self.rows.is_empty(), |c| c.pt(px(12.)))
+                        .into_any_element(),
+                );
+                rows.extend((0..self.servers.len()).map(|ix| self.render_server(ix, window, cx)));
+            }
             div()
                 .id("worlds")
                 .flex_1()

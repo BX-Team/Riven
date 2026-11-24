@@ -41,6 +41,20 @@ pub enum GameMode {
     Hardcore,
 }
 
+/// A server from the game's multiplayer list, `servers.dat`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Server {
+    pub name: String,
+    /// As the player typed it: `host`, `host:port` or `[v6]:port`.
+    pub address: String,
+    /// The PNG the server sent last time the list pinged it.
+    pub icon: Option<Vec<u8>>,
+    /// When Riven last started the game straight onto it.
+    pub joined: Option<SystemTime>,
+}
+
+const JOINS: &str = "joins.json";
+
 /// A zipped copy of a world, kept in the instance folder out of the game's sight.
 #[derive(Debug, Clone)]
 pub struct Backup {
@@ -51,8 +65,7 @@ pub struct Backup {
 
 const BACKUPS: &str = "backups/worlds";
 
-/// The worlds of a game folder, last played first.
-pub fn list(game_dir: &Path) -> Vec<World> {
+fn read_worlds(game_dir: &Path, sized: bool) -> Vec<World> {
     let Ok(entries) = std::fs::read_dir(game_dir.join("saves")) else {
         return Vec::new();
     };
@@ -64,14 +77,58 @@ pub fn list(game_dir: &Path) -> Vec<World> {
             if folder.starts_with('.') || !path.join("level.dat").is_file() {
                 return None;
             }
-            Some(read_world(&path, folder))
+            Some(read_world(&path, folder, sized))
         })
         .collect();
     worlds.sort_by_key(|w| std::cmp::Reverse(w.last_played));
     worlds
 }
 
-fn read_world(path: &Path, folder: String) -> World {
+/// The worlds of a game folder, last played first.
+pub fn list(game_dir: &Path) -> Vec<World> {
+    read_worlds(game_dir, true)
+}
+
+/// Like [`list`] but quick: sizes are left at zero instead of walking every world.
+pub fn list_unsized(game_dir: &Path) -> Vec<World> {
+    read_worlds(game_dir, false)
+}
+
+/// The servers in the game's multiplayer list, in its order; ones the game hides are left out.
+pub fn servers(instance_dir: &Path, game_dir: &Path) -> Vec<Server> {
+    let mut servers = std::fs::read(game_dir.join("servers.dat"))
+        .ok()
+        .and_then(|bytes| read_servers(&bytes))
+        .unwrap_or_default();
+    let joins: riven_format::Joins =
+        crate::load_or_default(&instance_dir.join(JOINS)).unwrap_or_default();
+    for server in &mut servers {
+        server.joined = joins
+            .servers
+            .get(&server.address)
+            .and_then(|at| crate::parse_rfc3339(at))
+            .map(|secs| SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(secs));
+    }
+    servers
+}
+
+/// Notes that Riven starts the game onto `address`, when it is one of the multiplayer list's.
+pub fn record_join(instance_dir: &Path, game_dir: &Path, address: &str) -> Result<(), LaunchError> {
+    if !servers(instance_dir, game_dir)
+        .iter()
+        .any(|s| s.address == address)
+    {
+        return Ok(());
+    }
+    let path = instance_dir.join(JOINS);
+    let mut joins: riven_format::Joins = crate::load_or_default(&path)?;
+    joins
+        .servers
+        .insert(address.to_owned(), crate::now_rfc3339());
+    crate::save(&path, &joins)
+}
+
+fn read_world(path: &Path, folder: String, sized: bool) -> World {
     let level = std::fs::read(path.join("level.dat"))
         .ok()
         .and_then(|bytes| read_level(&bytes))
@@ -103,7 +160,7 @@ fn read_world(path: &Path, folder: String) -> World {
             .map(|t| t / 24_000 + 1),
         version: level.version,
         last_played,
-        size: dir_size(path),
+        size: if sized { dir_size(path) } else { 0 },
     }
 }
 
@@ -407,6 +464,64 @@ fn read_level(gzipped: &[u8]) -> Option<Level> {
     Some(level)
 }
 
+/// `servers.dat`: an uncompressed compound whose `servers` list holds one compound per server.
+fn read_servers(bytes: &[u8]) -> Option<Vec<Server>> {
+    use base64::Engine as _;
+    let mut r = Nbt { bytes };
+    if r.u8()? != COMPOUND {
+        return None;
+    }
+    r.string()?;
+    let mut servers = Vec::new();
+    r.compound(&mut |r, kind, name| match (name, kind) {
+        ("servers", LIST) => {
+            let inner = r.u8()?;
+            let len = usize::try_from(r.i32()?).ok()?;
+            for _ in 0..len {
+                if inner != COMPOUND {
+                    r.skip(inner)?;
+                    continue;
+                }
+                let (mut name, mut address, mut icon, mut hidden) = (None, None, None, false);
+                r.compound(&mut |r, kind, field| match (field, kind) {
+                    ("name", STRING) => {
+                        name = Some(r.string()?);
+                        Some(())
+                    }
+                    ("ip", STRING) => {
+                        address = Some(r.string()?);
+                        Some(())
+                    }
+                    ("icon", STRING) => {
+                        icon = base64::engine::general_purpose::STANDARD
+                            .decode(r.string()?.trim())
+                            .ok();
+                        Some(())
+                    }
+                    ("hidden", BYTE) => {
+                        hidden = r.u8()? != 0;
+                        Some(())
+                    }
+                    _ => r.skip(kind),
+                })?;
+                if let Some(address) = address.filter(|a| !hidden && !a.trim().is_empty()) {
+                    servers.push(Server {
+                        name: name
+                            .filter(|n| !n.trim().is_empty())
+                            .unwrap_or_else(|| address.clone()),
+                        address,
+                        icon,
+                        joined: None,
+                    });
+                }
+            }
+            Some(())
+        }
+        _ => r.skip(kind),
+    })?;
+    Some(servers)
+}
+
 const END: u8 = 0;
 const BYTE: u8 = 1;
 const INT: u8 = 3;
@@ -552,6 +667,58 @@ mod tests {
         let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
         gz.write_all(&nbt).unwrap();
         gz.finish().unwrap()
+    }
+
+    #[test]
+    fn servers_dat_keeps_the_list_order_and_skips_hidden_entries() {
+        let server = |nbt: &mut Vec<u8>, name: &str, ip: &str, hidden: bool| {
+            tag(nbt, STRING, "name");
+            string(nbt, name);
+            tag(nbt, STRING, "ip");
+            string(nbt, ip);
+            tag(nbt, STRING, "icon");
+            string(nbt, "iVBORw0KGgo=");
+            tag(nbt, BYTE, "hidden");
+            nbt.push(hidden as u8);
+            nbt.push(END);
+        };
+        let mut nbt = Vec::new();
+        tag(&mut nbt, COMPOUND, "");
+        tag(&mut nbt, LIST, "servers");
+        nbt.push(COMPOUND);
+        nbt.extend(3i32.to_be_bytes());
+        server(&mut nbt, "Сервер", "play.example.org", false);
+        server(&mut nbt, "", "127.0.0.1:41234", true);
+        server(&mut nbt, "", "[::1]:25570", false);
+        nbt.push(END);
+        let servers = read_servers(&nbt).unwrap();
+        assert_eq!(
+            servers
+                .iter()
+                .map(|s| (s.name.as_str(), s.address.as_str()))
+                .collect::<Vec<_>>(),
+            [
+                ("Сервер", "play.example.org"),
+                ("[::1]:25570", "[::1]:25570")
+            ]
+        );
+        assert_eq!(servers[0].icon.as_deref(), Some(&b"\x89PNG\r\n\x1a\n"[..]));
+
+        // Lobby tunnels and other one-off addresses stay out of the join log.
+        let root = std::env::temp_dir().join(format!("riven-joins-{}", std::process::id()));
+        let game = root.join("minecraft");
+        std::fs::create_dir_all(&game).unwrap();
+        std::fs::write(game.join("servers.dat"), &nbt).unwrap();
+        record_join(&root, &game, "play.example.org").unwrap();
+        record_join(&root, &game, "127.0.0.1:41234").unwrap();
+        let joined: Vec<bool> = super::servers(&root, &game)
+            .iter()
+            .map(|s| s.joined.is_some())
+            .collect();
+        assert_eq!(joined, [true, false]);
+        let log: riven_format::Joins = crate::load_or_default(&root.join(JOINS)).unwrap();
+        assert_eq!(log.servers.keys().collect::<Vec<_>>(), ["play.example.org"]);
+        std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

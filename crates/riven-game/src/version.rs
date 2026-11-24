@@ -144,9 +144,20 @@ pub struct JavaVersion {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Features {
     pub custom_resolution: bool,
+    pub quick_play_world: bool,
+    pub quick_play_server: bool,
 }
 
 impl VersionJson {
+    /// Whether its game arguments carry Quick Play, which Mojang added in 1.20.
+    pub fn quick_play(&self) -> bool {
+        self.arguments.iter().flat_map(|a| &a.game).any(|a| {
+            matches!(a, Argument::Ruled { rules, .. } if rules.iter().any(|r| {
+                r.features.as_ref().is_some_and(|f| f.contains_key("is_quick_play_singleplayer"))
+            }))
+        })
+    }
+
     /// Fills what this version leaves out from the one it inherits from, the way Mojang's launcher does.
     pub fn inherit(self, parent: VersionJson) -> VersionJson {
         let arguments = match (parent.arguments, self.arguments) {
@@ -213,6 +224,8 @@ impl Rule {
         self.features.iter().flatten().all(|(name, wanted)| {
             let have = match name.as_str() {
                 "has_custom_resolution" => features.custom_resolution,
+                "is_quick_play_singleplayer" => features.quick_play_world,
+                "is_quick_play_multiplayer" => features.quick_play_server,
                 _ => false,
             };
             have == *wanted
@@ -267,6 +280,7 @@ mod tests {
         assert!(arg.values(Features::default()).is_empty());
         let on = Features {
             custom_resolution: true,
+            ..Features::default()
         };
         assert_eq!(arg.values(on), ["--width", "${resolution_width}"]);
         let demo: Argument = serde_json::from_str(

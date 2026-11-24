@@ -1,0 +1,25 @@
+{
+  "$id": "https://raw.githubusercontent.com/BX-Team/Riven/master/schema/v1/joins.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Joins",
+  "description": "`<data>/riven/instances/<id>/joins.json` — when Riven last started the game straight onto each server.",
+  "type": "object",
+  "properties": {
+    "servers": {
+      "description": "RFC 3339 by the address as `servers.dat` keeps it.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "$schema": {
+      "type": "string"
+    },
+    "format": {
+      "const": 1
+    }
+  },
+  "required": [
+    "format"
+  ]
+}
