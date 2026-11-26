@@ -7,10 +7,12 @@ use riven_format::{
     Account, AccountKind, Instance, JavaChoice, LaunchCommands, LaunchSettings, LoaderKind,
     Release, Running,
 };
+pub use riven_game::QuickPlay;
 use riven_game::{Event, GameVersion, Loader, Step};
 use riven_sync::install;
 use riven_sync::update::{self, Check, Pending, Request};
 
+use crate::agent::SkinsAgent;
 use crate::instances::Instances;
 use crate::{LaunchError, io};
 
@@ -109,6 +111,47 @@ fn game_version(instance: &Instance) -> GameVersion {
 
 fn data_dir() -> Result<PathBuf, LaunchError> {
     riven_sync::data_dir().ok_or(LaunchError::NoDir("data"))
+}
+
+/// Where the `_minecraft._tcp` SRV record of a port-less address points; the address itself otherwise.
+/// Games before 1.20 take `--server` and `--port` as they are, without the lookup their server list does.
+async fn srv(address: &str) -> String {
+    let (host, port) = riven_game::split_address(address);
+    if port != 25565 || host.parse::<std::net::IpAddr>().is_ok() {
+        return address.to_owned();
+    }
+    let lookup = async {
+        let resolver = hickory_resolver::TokioResolver::builder_tokio()?.build()?;
+        let found = resolver
+            .srv_lookup(format!("_minecraft._tcp.{host}"))
+            .await?;
+        Ok::<_, Box<dyn std::error::Error + Send + Sync>>(found.answers().iter().find_map(
+            |record| match &record.data {
+                hickory_resolver::proto::rr::RData::SRV(srv) => Some((
+                    srv.target.to_string().trim_end_matches('.').to_owned(),
+                    srv.port,
+                )),
+                _ => None,
+            },
+        ))
+    };
+    match tokio::time::timeout(Duration::from_secs(5), lookup).await {
+        Ok(Ok(Some((target, port)))) => format!("{target}:{port}"),
+        Ok(Ok(None)) => address.to_owned(),
+        Ok(Err(e)) => {
+            tracing::debug!("no SRV record for {host}: {e}");
+            address.to_owned()
+        }
+        Err(_) => {
+            tracing::warn!("SRV lookup for {host} timed out");
+            address.to_owned()
+        }
+    }
+}
+
+/// Whether `minecraft` opens a world straight away (1.20+); `None` until it has been launched once.
+pub fn opens_worlds(minecraft: &str) -> Option<bool> {
+    riven_game::quick_play(&riven_game::Dirs::new(data_dir().ok()?), minecraft)
 }
 
 /// What the game starts through: `gamemoderun mangohud java …`; Linux only, as the tools are.
@@ -286,11 +329,14 @@ pub fn adopt_release(
 }
 
 /// Updates a pack instance, installs what the game needs, starts it and reports until it exits.
+/// `quick_play` opens a world or joins a server right away; `agent` shows BX ID skins in the game.
 pub async fn play(
     store: &Instances,
     id: &str,
     account: &Account,
     defaults: &LaunchSettings,
+    quick_play: Option<QuickPlay>,
+    agent: Option<SkinsAgent>,
     report: impl Fn(Progress) + Send + Sync + 'static,
 ) -> Result<(), LaunchError> {
     let report: Report = Arc::new(report);
@@ -298,7 +344,23 @@ pub async fn play(
     if account.kind == AccountKind::Microsoft {
         report(Progress::Stage(Stage::SignIn));
     }
-    let session = crate::accounts::session(account).await?;
+    let mut session = crate::accounts::session(account).await?;
+    let offline = account.kind == AccountKind::Offline;
+    let launcher_jvm_args = match &agent {
+        Some(agent) => match agent.jvm_args(&data_dir()?, offline) {
+            Ok(args) => {
+                if offline && let Some(token) = &agent.game_token {
+                    session.access_token = token.clone();
+                }
+                args
+            }
+            Err(e) => {
+                tracing::warn!("starting without the skins agent: {e}");
+                vec![]
+            }
+        },
+        None => vec![],
+    };
     update_pack(store, id, &mut instance, &report).await?;
 
     let settings = instance.overrides.resolve(defaults);
@@ -358,6 +420,7 @@ pub async fn play(
         min_memory_mb: settings.memory.min,
         max_memory_mb: settings.memory.max,
         jvm_args: settings.jvm_args.clone(),
+        launcher_jvm_args,
         window: riven_game::Window {
             width: settings.window.width,
             height: settings.window.height,
@@ -366,6 +429,20 @@ pub async fn play(
         wrapper: wrapper(&settings.commands),
         launcher_name: "riven".into(),
         launcher_version: env!("CARGO_PKG_VERSION").into(),
+        quick_play: match quick_play {
+            Some(QuickPlay::World(_)) if !prepared.quick_play() => None,
+            Some(QuickPlay::Server(address)) => {
+                if let Err(e) = crate::worlds::record_join(&store.dir(id), &game_dir, &address) {
+                    tracing::warn!("{e}");
+                }
+                Some(QuickPlay::Server(if prepared.quick_play() {
+                    address
+                } else {
+                    srv(&address).await
+                }))
+            }
+            other => other,
+        },
     };
     riven_game::install(&http, &dirs, &prepared, &launch, &progress).await?;
 

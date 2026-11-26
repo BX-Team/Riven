@@ -2,11 +2,12 @@ use std::time::Duration;
 
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, App, AppContext as _, Context, Entity, FontWeight, InteractiveElement as _,
+    Anchor, AnyElement, App, AppContext as _, Context, Entity, FontWeight, InteractiveElement as _,
     IntoElement, ParentElement as _, Render, SharedString, StatefulInteractiveElement as _,
     Styled as _, Subscription, Window, div, img, px, relative,
 };
 use gpui_base::input::{InputEvent, InputState};
+use gpui_base::{Popover, PopoverState, box_shadow};
 use moonglass::theme::ActiveTheme as _;
 use moonglass::toast::ToastKind;
 use moonglass::{
@@ -42,6 +43,11 @@ const TABS: [&str; 7] = [
 const MODS_TAB: usize = 0;
 const LOGS_TAB: usize = 4;
 const WORLDS_TAB: usize = 5;
+/// The made-up multiplayer list every demo instance shows.
+const SERVERS: &[(&str, &str)] = &[
+    ("Survival SMP", "smp.example.org"),
+    ("Home server", "192.168.1.20:25565"),
+];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Route {
@@ -913,6 +919,14 @@ impl Demo {
                         .flex_none()
                         .gap(px(6.))
                         .child(
+                            Button::new(("world-play", w))
+                                .outline()
+                                .icon(IconName::Play)
+                                .label("Play")
+                                .disabled(running)
+                                .on_click(cx.listener(move |this, _, _, cx| this.play(ix, cx))),
+                        )
+                        .child(
                             Button::new(("world-backup", w))
                                 .outline()
                                 .icon(IconName::Plus)
@@ -961,6 +975,59 @@ impl Demo {
                     .child(format!("Worlds: {}", worlds.len())),
             )
             .children(cards)
+            .child(
+                div()
+                    .px(px(18.))
+                    .pt(px(6.))
+                    .text_size(px(12.))
+                    .font_weight(W_SEMIBOLD)
+                    .text_color(c.muted)
+                    .child("Servers"),
+            )
+            .children(SERVERS.iter().enumerate().map(|(n, (name, address))| {
+                h_flex()
+                    .id(("server", n))
+                    .gap(px(14.))
+                    .mx(px(18.))
+                    .px(px(14.))
+                    .py(px(12.))
+                    .rounded(px(10.))
+                    .border_1()
+                    .border_color(c.row)
+                    .bg(c.panel)
+                    .child(
+                        div()
+                            .size(px(48.))
+                            .flex_none()
+                            .rounded(px(9.))
+                            .bg(c.sel)
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(icon(IconName::Server, c.muted).size(px(22.))),
+                    )
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .min_w_0()
+                            .gap(px(5.))
+                            .child(
+                                div()
+                                    .font_weight(W_SEMIBOLD)
+                                    .text_size(px(14.))
+                                    .child(*name),
+                            )
+                            .child(div().text_size(px(12.)).text_color(c.muted).child(*address)),
+                    )
+                    .child(
+                        Button::new(("server-play", n))
+                            .outline()
+                            .icon(IconName::Play)
+                            .label("Join")
+                            .disabled(running)
+                            .on_click(cx.listener(move |this, _, _, cx| this.play(ix, cx))),
+                    )
+            }))
             .into_any_element()
     }
 
@@ -997,10 +1064,6 @@ impl Demo {
     fn render_bar(&self, ix: usize, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let c = cx.theme().colors;
         let instance = &INSTANCES[ix];
-        let loader = match instance.loader {
-            Some((name, version)) => format!("{} · {name} {version}", instance.minecraft),
-            None => format!("{} · Vanilla", instance.minecraft),
-        };
         let line = |text: String, color| {
             div()
                 .text_size(px(12.))
@@ -1036,13 +1099,51 @@ impl Demo {
             }
         };
         let button = match phase {
-            Phase::Idle => Button::new("play")
-                .primary()
-                .size(ButtonSize::Lg)
-                .icon(IconName::Play)
-                .label("Play")
-                .disabled(self.launch.is_some())
-                .on_click(cx.listener(move |this, _, _, cx| this.play(ix, cx))),
+            Phase::Idle => {
+                let busy = self.launch.is_some();
+                let this = cx.entity();
+                let quick = Popover::new("quick-play-popover")
+                    .anchor(Anchor::BottomRight)
+                    .offset(px(10.))
+                    .trigger(
+                        Button::new("quick-play")
+                            .primary()
+                            .size(ButtonSize::Lg)
+                            .w(px(34.))
+                            .px(px(0.))
+                            .rounded_l(px(0.))
+                            .icon(IconName::ChevronUp)
+                            .tooltip("Open a world or join a server")
+                            .disabled(busy),
+                    )
+                    .content(move |_, window, cx| {
+                        let popover = cx.entity();
+                        let panel = quick_menu(&this, ix, popover, window, cx);
+                        motion::enter("quick-play-in", panel, 10., window, cx)
+                    });
+                return self
+                    .bar_frame(
+                        ix,
+                        status,
+                        h_flex()
+                            .flex_none()
+                            .child(
+                                Button::new("play")
+                                    .primary()
+                                    .size(ButtonSize::Lg)
+                                    .rounded_r(px(0.))
+                                    .icon(IconName::Play)
+                                    .label("Play")
+                                    .disabled(busy)
+                                    .on_click(cx.listener(move |this, _, _, cx| this.play(ix, cx))),
+                            )
+                            .child(div().w(px(1.)).h(px(44.)).bg(c.on_accent.opacity(0.25)))
+                            .child(quick)
+                            .into_any_element(),
+                        cx,
+                    )
+                    .into_any_element();
+            }
             Phase::Working { .. } => Button::new("cancel")
                 .outline()
                 .size(ButtonSize::Lg)
@@ -1055,6 +1156,23 @@ impl Demo {
                 .icon(IconName::Stop)
                 .label("Stop")
                 .on_click(cx.listener(|this, _, _, cx| this.stop(cx))),
+        };
+        self.bar_frame(ix, status, button.into_any_element(), cx)
+            .into_any_element()
+    }
+
+    fn bar_frame(
+        &self,
+        ix: usize,
+        status: AnyElement,
+        button: AnyElement,
+        cx: &mut Context<Self>,
+    ) -> gpui::Div {
+        let c = cx.theme().colors;
+        let instance = &INSTANCES[ix];
+        let loader = match instance.loader {
+            Some((name, version)) => format!("{} · {name} {version}", instance.minecraft),
+            None => format!("{} · Vanilla", instance.minecraft),
         };
         let mark = if instance.loader.is_some() {
             assets::FABRIC
@@ -1111,6 +1229,7 @@ impl Demo {
                 h_flex()
                     .flex_none()
                     .gap(px(10.))
+                    .child(friends_stack(cx))
                     .child(
                         Button::new("account")
                             .outline()
@@ -1138,6 +1257,136 @@ impl Demo {
                     .child(button),
             )
     }
+}
+
+/// The menu behind the arrow on Play: recent worlds and servers, each a pretend launch.
+fn quick_menu(
+    app: &Entity<Demo>,
+    ix: usize,
+    popover: Entity<PopoverState>,
+    window: &mut Window,
+    cx: &mut App,
+) -> gpui::Div {
+    let c = cx.theme().colors;
+    let worlds = INSTANCES[ix].worlds;
+    let target = |key: String,
+                  glyph: IconName,
+                  name: &'static str,
+                  detail: &'static str,
+                  window: &mut Window,
+                  cx: &mut App| {
+        let hover = motion::hover(SharedString::from(format!("{key}:hover")), window, cx);
+        let bg = motion::animate(
+            SharedString::from(format!("{key}:bg")),
+            if hover.on { c.row } else { c.row.opacity(0.) },
+            window,
+            cx,
+        );
+        let (app, popover) = (app.clone(), popover.clone());
+        hover
+            .track(h_flex().id(SharedString::from(key)))
+            .flex_none()
+            .h(px(40.))
+            .px(px(6.))
+            .gap(px(10.))
+            .rounded(px(6.))
+            .bg(bg)
+            .cursor_pointer()
+            .on_click(move |_, window, cx| {
+                popover.update(cx, |p, cx| p.dismiss(window, cx));
+                app.update(cx, |this, cx| this.play(ix, cx));
+            })
+            .child(
+                div()
+                    .size(px(28.))
+                    .flex_none()
+                    .rounded(px(6.))
+                    .bg(c.sel)
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(icon(glyph, c.muted).size(px(14.))),
+            )
+            .child(div().flex_1().min_w_0().truncate().child(name))
+            .child(
+                div()
+                    .flex_none()
+                    .text_size(px(12.))
+                    .text_color(c.muted)
+                    .child(detail),
+            )
+            .into_any_element()
+    };
+    let caption = |text: &'static str| {
+        div()
+            .px(px(8.))
+            .pt(px(6.))
+            .pb(px(2.))
+            .text_size(px(11.))
+            .text_color(c.muted)
+            .child(text)
+            .into_any_element()
+    };
+    let mut rows = Vec::new();
+    if !worlds.is_empty() {
+        rows.push(caption("Worlds"));
+        for (w, world) in worlds.iter().take(4).enumerate() {
+            rows.push(target(
+                format!("quick-world:{w}"),
+                IconName::Globe,
+                world.name,
+                world.played,
+                window,
+                cx,
+            ));
+        }
+    }
+    rows.push(caption("Servers"));
+    for (n, (name, address)) in SERVERS.iter().enumerate() {
+        rows.push(target(
+            format!("quick-server:{n}"),
+            IconName::Server,
+            name,
+            address,
+            window,
+            cx,
+        ));
+    }
+    let all = {
+        let (app, popover) = (app.clone(), popover.clone());
+        div()
+            .id("quick-all")
+            .h(px(32.))
+            .px(px(8.))
+            .flex()
+            .items_center()
+            .gap(px(10.))
+            .rounded(px(6.))
+            .cursor_pointer()
+            .hover(|s| s.bg(c.row))
+            .child(icon(IconName::LayoutGrid, c.muted).size(px(14.)))
+            .child("All worlds and servers")
+            .on_click(move |_, window, cx| {
+                popover.update(cx, |p, cx| p.dismiss(window, cx));
+                app.update(cx, |this, cx| {
+                    this.tab = WORLDS_TAB;
+                    cx.notify();
+                });
+            })
+    };
+    v_flex()
+        .ui_text(cx)
+        .w(px(300.))
+        .p(px(4.))
+        .gap(px(1.))
+        .rounded(px(8.))
+        .border_1()
+        .border_color(c.border)
+        .bg(c.panel)
+        .shadow(popup_shadow(cx))
+        .children(rows)
+        .child(div().my(px(4.)).mx(px(4.)).h(px(1.)).bg(c.border))
+        .child(all)
 }
 
 /// A screen the demo has no data for, with the way to the real thing.
@@ -1238,4 +1487,59 @@ impl Render for Demo {
             .children(modal)
             .child(moonglass::toast::render(toast_bottom, window, cx))
     }
+}
+
+/// The app's popover shadow (`src/gui/dialogs.rs`): faint and short on dark themes.
+fn popup_shadow(cx: &App) -> Vec<gpui::BoxShadow> {
+    if cx.theme().dark {
+        vec![box_shadow(0., 4., 14., 0., gpui::hsla(0., 0., 0., 0.22))]
+    } else {
+        vec![box_shadow(0., 20., 50., 0., gpui::hsla(0., 0., 0., 0.5))]
+    }
+}
+
+/// The app's friends button in the launch bar (`src/gui/play.rs`): two made-up friends online,
+/// one of them with a world open to join.
+fn friends_stack(cx: &App) -> gpui::Stateful<gpui::Div> {
+    let c = cx.theme().colors;
+    h_flex()
+        .id("friends-stack")
+        .h(px(40.))
+        .px(px(12.))
+        .rounded(px(8.))
+        .border_1()
+        .border_color(c.border)
+        .cursor_pointer()
+        .hover(|s| s.bg(c.row))
+        .gap(px(6.))
+        .child(
+            div()
+                .relative()
+                .child(icon(IconName::Custom(crate::assets::USERS), c.text2).size(px(16.)))
+                .child(
+                    div()
+                        .absolute()
+                        .top(px(-3.))
+                        .right(px(-4.))
+                        .size(px(9.))
+                        .rounded(px(5.))
+                        .border_2()
+                        .border_color(c.panel)
+                        .bg(c.ok),
+                ),
+        )
+        .child(
+            div()
+                .text_size(px(12.))
+                .font_weight(FontWeight::BOLD)
+                .text_color(c.ok)
+                .child("2"),
+        )
+        .on_click(|_, _, cx| {
+            moonglass::toast::show(
+                ToastKind::Info,
+                "Friends and playing together need a BX ID, so they are only in the app.",
+                cx,
+            )
+        })
 }

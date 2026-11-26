@@ -5,6 +5,7 @@ use gpui::{AssetSource, Result, SharedString};
 pub const LOGO: &str = "brand/riven-128.png";
 pub const FABRIC: &str = "icons/loader-fabric.svg";
 pub const VANILLA: &str = "icons/loader-vanilla.svg";
+pub const USERS: &str = "icons/users.svg";
 
 const OWN: &[(&str, &[u8])] = &[
     (LOGO, include_bytes!("../../../assets/brand/riven-128.png")),
@@ -16,6 +17,7 @@ const OWN: &[(&str, &[u8])] = &[
         VANILLA,
         include_bytes!("../../../assets/icons/loader-vanilla.svg"),
     ),
+    (USERS, include_bytes!("../../../assets/icons/users.svg")),
 ];
 
 pub fn font() -> Cow<'static, [u8]> {

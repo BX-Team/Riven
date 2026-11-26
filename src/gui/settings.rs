@@ -332,6 +332,7 @@ impl SettingsView {
         let mut subs = Vec::new();
         // On Linux the desktop's light or dark mode arrives from the portal after startup.
         subs.push(cx.observe_window_appearance(window, |_, _, cx| reapply_theme(cx)));
+        subs.push(cx.observe(&super::play::PlayState::global(cx), |_, _, cx| cx.notify()));
         for kind in FIELDS {
             let value = kind.read(prefs(cx));
             let input = cx.new(|cx| InputState::new(window, cx).default_value(value));
@@ -745,8 +746,13 @@ impl SettingsView {
             let select_id = a.id.clone();
             let remove_id = a.id.clone();
             let remove_name = a.name.clone();
+            let taken = a.kind == AccountKind::Offline
+                && super::play::PlayState::global(cx)
+                    .read(cx)
+                    .is_taken(&a.name);
             let kind = match a.kind {
                 AccountKind::Microsoft => t!("accounts.microsoft"),
+                AccountKind::Offline if taken => t!("accounts.taken"),
                 AccountKind::Offline => t!("accounts.offline"),
             };
             section = section.row(
@@ -755,8 +761,14 @@ impl SettingsView {
                     .px(px(18.))
                     .py(px(12.))
                     .child(
-                        super::launch_bar::account_tile(&a.name, Some(&a.id), 36., 6., cx)
-                            .text_color(c.accent),
+                        super::launch_bar::account_tile(
+                            &a.name,
+                            super::launch_bar::account_head(a, cx).as_deref(),
+                            36.,
+                            6.,
+                            cx,
+                        )
+                        .text_color(c.accent),
                     )
                     .child(
                         v_flex()
@@ -767,7 +779,7 @@ impl SettingsView {
                                 div()
                                     .mt(px(2.))
                                     .text_size(px(12.))
-                                    .text_color(c.muted)
+                                    .text_color(if taken { c.warn } else { c.muted })
                                     .child(kind.to_string()),
                             ),
                     )
@@ -806,7 +818,63 @@ impl SettingsView {
                     ),
             );
         }
+        let bxid = super::play::PlayState::enabled(cx);
         vec![
+            Section::new()
+                .row(setting_row(
+                    t!("bxid.enabled").to_string(),
+                    Some(t!("bxid.enabled_hint").into()),
+                    Switch::new("bxid-enabled", bxid)
+                        .large()
+                        .accessible(t!("bxid.enabled").to_string())
+                        .on_change(|v, _, cx| write(cx, |s| s.bxid_off = !v)),
+                    cx,
+                ))
+                .when(bxid, |section| {
+                    let (skins, sound) = {
+                        let p = prefs(cx);
+                        (!p.skins_agent_off, !p.alert_sound_off)
+                    };
+                    section
+                        .row(setting_row(
+                            t!("bxid.skins").to_string(),
+                            Some(t!("bxid.skins_hint").into()),
+                            Switch::new("bxid-skins", skins)
+                                .large()
+                                .accessible(t!("bxid.skins").to_string())
+                                .on_change(|v, _, cx| write(cx, |s| s.skins_agent_off = !v)),
+                            cx,
+                        ))
+                        .row(setting_row(
+                            t!("bxid.sound").to_string(),
+                            Some(t!("bxid.sound_hint").into()),
+                            h_flex()
+                                .gap(px(8.))
+                                .child(
+                                    Button::new("bxid-sound-test")
+                                        .ghost()
+                                        .size(ButtonSize::Md)
+                                        .icon(IconName::Play)
+                                        .tooltip(t!("bxid.sound_test"))
+                                        .on_click(|_, _, _| super::sound::chime()),
+                                )
+                                .child(
+                                    Switch::new("bxid-sound", sound)
+                                        .large()
+                                        .accessible(t!("bxid.sound").to_string())
+                                        .on_change(|v, _, cx| {
+                                            write(cx, |s| s.alert_sound_off = !v)
+                                        }),
+                                ),
+                            cx,
+                        ))
+                })
+                .into_any_element(),
+            if bxid {
+                super::play::accounts_card(cx)
+            } else {
+                div().into_any_element()
+            },
             section.into_any_element(),
             h_flex()
                 .gap(px(8.))

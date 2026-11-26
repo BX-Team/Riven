@@ -50,10 +50,29 @@ configs:
   pick: Pick a file on the left to edit it
   binary: This file is not text; open it in another app from its menu
   too_big: This file is too large to edit here
+quick:
+  open_private: Open a private lobby
+  make_private: Make the lobby private
+  make_open: Let every friend in
+  friends: With friends
+  open_world: Open the world to all friends
+  close_world: Close the world to friends
+  join_friend: "Join %{name}"
+  title: Open a world or join a server
+  loading: Reading worlds and servers…
+  worlds: Worlds
+  servers: Servers
+  worlds_unsupported: This Minecraft version can't open a world straight away
+  empty: No worlds or servers yet; they appear after the first game
+  all: All worlds and servers
 worlds:
   count: "Worlds: %{n}"
   loading: Reading worlds…
   none: No worlds yet; they appear after the first game
+  play: Play
+  join: Join
+  joined: "%{address} · joined %{time}"
+  servers: Servers
   backup: Back up
   backed_up: Backed up
   backup_hint: Save a backup of the world; the game may be running
@@ -177,6 +196,8 @@ launch:
   update_pack: Update
   cancel: Cancel
   cancelled: Cancelled
+  cancelled_launch: "Launch of %{name} cancelled"
+  cancelled_install: "Install of %{name} cancelled"
   first_install_hint: Mods, resource packs and shaders show up here once they are installed
   game_files_hint: Game libraries and assets download once, later launches start right away
   preparing: Preparing…
@@ -203,16 +224,38 @@ launch:
   played_last: "%{total} played · last %{last}"
   replaced: "The pack now ships %{names}; your copies were removed"
 accounts:
+  taken: Nick of another BX ID
   bad_name: "3–16 Latin letters, digits or _"
   player_name: Player name
   offline_hint: Plays on servers in offline mode and in single player
   ms_hint: The code is already copied; paste it on the Microsoft page that opened in your browser.
+  ms_about: Sign in with the Microsoft account that owns Minecraft Java Edition.
   ms_requesting: Asking Microsoft for a code…
   ms_waiting: Waiting for you to sign in…
   ms_copy: Copy code
   ms_copied: Copied
   ms_open: Open the page again
   ms_retry: Try again
+  ms_failed:
+    declined: Sign-in declined
+    declined_hint: You declined the sign-in on the Microsoft page. Press Try again for a new code.
+    expired: The code expired
+    expired_hint: The time to enter the code ran out. Press Try again for a new one.
+    no_xbox: No Xbox profile
+    no_xbox_hint: Sign in to xbox.com once with this account, then try again.
+    region: Xbox Live is unavailable
+    region_hint: Xbox Live does not work in the country set on this Microsoft account.
+    adult: Age verification needed
+    adult_hint: Verify your age on xbox.com, then try again.
+    child: Child account
+    child_hint: An adult has to add this account to their Microsoft family first.
+    not_approved: The launcher is not approved yet
+    not_approved_hint: Microsoft has not yet allowed Riven to sign in to Minecraft. Use an offline account for now.
+    no_minecraft: No Minecraft on this account
+    no_minecraft_hint: This Microsoft account does not own Minecraft Java Edition.
+    offline: No connection
+    offline_hint: Riven cannot reach Microsoft. Check your internet connection and try again.
+    other: Could not sign in
   title: Accounts
   none: No accounts yet
   add: Add account
@@ -223,6 +266,119 @@ accounts:
   remove: Remove account
   active: Active
   use: Use
+bxid:
+  sound: Launcher sound
+  sound_hint: A short sound for friend requests and invites; silent while you are set to Do not disturb
+  sound_test: Play the sound
+  skins: BX ID skins in the game
+  skins_hint: Riven players see each other's skins, and offline accounts can join a friend's LAN world. From the next start of the game
+  enabled: Friends and playing together
+  enabled_hint: BX ID sign-in, friends, presence and shared worlds. Off, Riven connects to none of it and only plays
+  sign_in: Sign in with BX ID
+  sign_out: Sign out
+  hint: Check that bxteam.org shows the same code, then approve the sign-in there.
+  requesting: Asking BX ID for a code…
+  waiting: Waiting for you to approve it on bxteam.org…
+  open_again: Open the page again
+  pitch: One account for friends, playing together and bxteam.org. No password needed.
+  failed:
+    denied: Sign-in declined
+    denied_hint: The sign-in was declined on bxteam.org. Press Try again for a new code.
+    expired: The code expired
+    expired_hint: The time to confirm ran out. Press Try again for a new code.
+    offline: No connection
+    offline_hint: Riven cannot reach BX Team. Check your internet connection and try again.
+    other: Could not sign in
+friends:
+  access:
+    title: Who can join your world
+    me: Only me
+    invited: Invite only
+    friends: All friends
+    me_hint: Friends do not see the world
+    invited_hint: Only friends you invite can join
+    friends_hint: Any friend can join without an invite
+  in_world: "In your world — %{n}"
+  in_your_world: Playing with you
+  in_their_world: You are in this world
+  copy_address: Copy the address
+  copy_address_hint: "%{address}; the world is also listed under LAN in Multiplayer"
+  group_playing: "Playing · %{n}"
+  group_launcher: "In the launcher · %{n}"
+  your_id: "ID: %{code}"
+  copy_id: "Your friend code: send it to a friend so they can add you"
+  hide_invite: Hide; the invite stays in Friends
+  asks_you: "%{name} wants to add you"
+  world_to_join: A friend opened their world
+  sent_n: "Waiting for an answer — %{n}"
+  add_placeholder: Friend code, like K7F2-9QXM
+  group_offline: "Offline · %{n}"
+  last_seen: "Online %{time}"
+  status:
+    online: Online
+    busy: Do not disturb
+    invisible: Invisible
+  title: Friends
+  signed_out_hint: Sign in with BX ID to see which friends are online, what they play, and to add new ones.
+  connecting: Connecting…
+  add: Add
+  already: "You have already asked %{name}, or you are friends"
+  accept: Accept
+  decline: Decline
+  none: No friends yet
+  none_hint: Send a friend your code from below, or add theirs.
+  add_friend: Add a friend
+  online: Online in Riven
+  offline: Offline
+  playing: "Playing %{name} · %{version}"
+  remove: Remove friend
+  remove_title: "Remove %{name} from friends?"
+  remove_body: You will stop seeing each other online. Either of you can ask again later.
+  waiting: Request sent
+  cancel: Cancel
+  toast_request: "%{name} wants to be friends"
+  toast_added: "You and %{name} are friends now"
+  invite: Invite
+  invited: Invited
+  invites_you: "%{name} invites you to %{world}"
+  join: Join
+  connecting_to: "Connecting to %{name}…"
+  lobby_gone: "%{name} has already closed"
+  copied: Address copied
+  leave: Leave
+  toast_joined: "%{name} joined your world"
+  toast_closed: "%{name} was closed by its host"
+  toast_lost: "The connection to %{name} was lost"
+  toast_kicked: "The host removed you from %{name}"
+  kick: Remove from the world
+  kick_short: Remove
+  kick_title: "Remove %{name} from the world?"
+  kick_body: They are disconnected from the world and can come back only if you invite them again.
+skin:
+  nick_taken: "%{name} is taken by another BX ID or a Minecraft account, so it cannot wear a skin from yours."
+  nick_not_held: "%{name} is not on your BX ID: you hold as many nicks as allowed, or you removed it on bxteam.org. Free a nick there, then add this account again."
+  change: Change skin
+  title: "Skin · %{name}"
+  microsoft_hint: A Microsoft account's skin is changed on Mojang's servers and shows everywhere you play.
+  nick_hint: The skin of this nick, kept on your BX ID. For now only you see it, here in the launcher.
+  sign_in_first: Sign in with BX ID to keep this nick for yourself and give it a skin.
+  loading: Reading the current skin…
+  none: No skin yet
+  arms: Arms
+  classic: Classic · 4 px
+  slim: Slim · 3 px
+  choose_file: Choose a PNG…
+  png_files: Skins
+  cloud: On BX ID
+  library: On this computer
+  apply: Apply
+  reset_microsoft: Default skin
+  reset_nick: Remove skin
+  changed: Skin changed
+  reset_done: Skin reset
+  not_png: That file is not a PNG image
+  bad_size: "A skin is 64×64 or 64×32 pixels, not %{w}×%{h}"
+  no_dir: Riven has no data folder to keep skins in
 settings:
   general: General
   language: Language
@@ -428,6 +584,7 @@ logs:
   empty_title: No log yet
   empty_hint: Start the game and its output appears here
 confirm:
+  remove_offline_body: "The account leaves the launcher and %{name} leaves your BX ID. For a few days only you can take the nick back."
   stop_title: Stop the game?
   delete_pack_mod_body: The file leaves the instance and stays out through pack updates. "Bring back removed from the pack" returns it.
   stop_body: The game is closed at once; progress since the last save is lost.
@@ -898,3 +1055,32 @@ changes:
   removed: "Removed"
   other: "%{n} other files changed: configs and the like"
   nothing: "The author did not change any content"
+errors:
+  GENERIC: Something went wrong. Try again.
+  NETWORK: Riven cannot reach BX Team. Check your internet connection and try again.
+  UNAUTHORIZED: Your BX ID session ended. Sign in again.
+  CONNECT: Could not connect to the other player. Try again.
+  TOO_MANY_REQUESTS: Too many attempts. Wait a minute and try again.
+  SERVICE_UNAVAILABLE: BX Team is not answering right now. Try again in a minute.
+  FRIEND_CODE_UNKNOWN: No one has that friend code.
+  FRIEND_LIMIT: "A BX ID can have at most %{max} friends."
+  FRIEND_REQUESTS_PENDING: Too many of your friend requests are still waiting for an answer.
+  FRIEND_REQUEST_UNKNOWN: That friend request is gone.
+  FRIEND_UNKNOWN: That person is no longer your friend.
+  INVITE_NOT_FRIEND: Only friends can be invited.
+  OPEN_LOBBIES_OFF: Worlds open to all friends are off for now; invite friends one by one.
+  LOBBY_UNKNOWN: That world is closed.
+  LOBBY_FULL: That world is full.
+  LOBBY_HOST_ONLY: Only the player who opened the world can do that.
+  LOBBY_KICK_HOST: You cannot remove yourself; close the world instead.
+  APP_UNKNOWN: Riven is not connected to this BX ID.
+  NICK_MINECRAFT: "%{name} is a Minecraft account name, so it cannot be taken as a nick."
+  NICK_LIMIT: "A BX ID can hold at most %{max} nicks. Remove one first."
+  NICK_TAKEN: "%{name} belongs to another BX ID."
+  NICK_UNKNOWN: This nick is no longer yours.
+  MOJANG_UNAVAILABLE: Mojang is not answering, so the nick cannot be checked. Try again later.
+  SKIN_UPLOAD_OFF: Skin uploads are off for now. Try again later.
+  SKIN_TOO_LARGE: "A skin is at most %{kib} KB."
+  SKIN_NOT_PNG: A skin has to be a PNG image.
+  SKIN_SIZE: "A skin is 64×64 or 64×32 pixels, not %{width}×%{height}."
+  SKIN_UNKNOWN: That skin is gone.

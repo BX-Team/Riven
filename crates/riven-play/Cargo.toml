@@ -1,0 +1,36 @@
+[package]
+name = "riven-play"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+bytes = "1"
+futures-util.workspace = true
+getrandom.workspace = true
+hex.workspace = true
+hmac = "0.13"
+if-addrs = "0.15"
+md-5 = "0.11"
+quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-aws-lc-rs"] }
+rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs"] }
+reqwest.workspace = true
+riven-format.workspace = true
+riven-game.workspace = true
+riven-launch.workspace = true
+riven-sources.workspace = true
+rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std"] }
+rustls-platform-verifier = "0.7"
+serde.workspace = true
+serde_json.workspace = true
+sha1.workspace = true
+sha2.workspace = true
+socket2 = "0.6"
+thiserror.workspace = true
+tokio.workspace = true
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
+tracing.workspace = true

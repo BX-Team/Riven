@@ -8,6 +8,14 @@ use gpui::App;
 
 /// The loopback port the running launcher listens on for links from later launches.
 const PORT: u16 = 47655;
+
+/// `RIVEN_LINK_PORT` lets a second, sandboxed launcher run beside the first instead of handing off to it.
+fn port() -> u16 {
+    std::env::var("RIVEN_LINK_PORT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(PORT)
+}
 const HELLO: &str = "riven-open";
 
 /// What the system asked Riven to open.
@@ -76,15 +84,16 @@ pub fn claim(open: Option<&Open>) -> Claim {
         Duration::ZERO
     };
     let deadline = Instant::now() + wait;
+    let port = port();
     loop {
-        match TcpListener::bind(("127.0.0.1", PORT)) {
+        match TcpListener::bind(("127.0.0.1", port)) {
             Ok(listener) => return Claim::Primary(listener),
             Err(_) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(150)),
             Err(e) => {
-                if forward(open.unwrap_or(&Open::Show)) {
+                if forward(port, open.unwrap_or(&Open::Show)) {
                     return Claim::Forwarded;
                 }
-                tracing::warn!("cannot hold port {PORT} for links: {e}");
+                tracing::warn!("cannot hold port {port} for links: {e}");
                 return Claim::Alone;
             }
         }
@@ -92,8 +101,8 @@ pub fn claim(open: Option<&Open>) -> Claim {
 }
 
 /// `true` when a running launcher took the request.
-fn forward(open: &Open) -> bool {
-    let Ok(mut stream) = TcpStream::connect(("127.0.0.1", PORT)) else {
+fn forward(port: u16, open: &Open) -> bool {
+    let Ok(mut stream) = TcpStream::connect(("127.0.0.1", port)) else {
         return false;
     };
     let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));

@@ -53,6 +53,9 @@ pub struct Prefs {
     language: SharedString,
     java: SharedString,
     fullscreen: bool,
+    bxid: bool,
+    skins: bool,
+    alert_sound: bool,
     memory: Entity<MemorySlider>,
     width: Entity<InputState>,
     height: Entity<InputState>,
@@ -71,6 +74,9 @@ impl Prefs {
             language: "en-US".into(),
             java: "auto".into(),
             fullscreen: false,
+            bxid: true,
+            skins: true,
+            alert_sound: true,
             memory: cx.new(MemorySlider::new),
             width: field("1280", window, cx),
             height: field("720", window, cx),
@@ -527,7 +533,76 @@ impl Demo {
                     .child(icon(IconName::Check, c.ok).size(px(14.)))
                     .child("Active"),
             );
+        let bxid = h_flex()
+            .gap(px(12.))
+            .px(px(18.))
+            .py(px(14.))
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .child(div().font_weight(W_SEMIBOLD).child("BX ID"))
+                    .child(
+                        div()
+                            .mt(px(2.))
+                            .text_size(px(12.))
+                            .text_color(c.muted)
+                            .child("One account for friends, playing together and bxteam.org. No password needed."),
+                    ),
+            )
+            .child(
+                Button::new("bxid-sign-in")
+                    .primary()
+                    .label("Sign in with BX ID")
+                    .on_click(|_, _, cx| {
+                        moonglass::toast::show(
+                            ToastKind::Info,
+                            "Signing in with BX ID happens in the app, with a code you approve on bxteam.org.",
+                            cx,
+                        )
+                    }),
+            );
+        let view = cx.entity();
+        let toggle = |id: &'static str, on: bool, set: fn(&mut Prefs, bool)| {
+            let view = view.clone();
+            Switch::new(id, on).large().on_change(move |on, _, cx| {
+                view.update(cx, |this, cx| {
+                    set(&mut this.prefs, on);
+                    cx.notify();
+                })
+            })
+        };
+        let mut switches = Section::new().row(setting_row(
+            "Friends and playing together",
+            Some("BX ID sign-in, friends, presence and shared worlds. Off, Riven connects to none of it and only plays".into()),
+            toggle("bxid-enabled", self.prefs.bxid, |p, on| p.bxid = on)
+                .accessible("Friends and playing together"),
+            cx,
+        ));
+        if self.prefs.bxid {
+            switches = switches
+                .row(setting_row(
+                    "BX ID skins in the game",
+                    Some("Riven players see each other's skins, and offline accounts can join a friend's LAN world. From the next start of the game".into()),
+                    toggle("bxid-skins", self.prefs.skins, |p, on| p.skins = on)
+                        .accessible("BX ID skins in the game"),
+                    cx,
+                ))
+                .row(setting_row(
+                    "Launcher sound",
+                    Some("A short sound for friend requests and invites; silent while you are set to Do not disturb".into()),
+                    toggle("bxid-sound", self.prefs.alert_sound, |p, on| p.alert_sound = on)
+                        .accessible("Launcher sound"),
+                    cx,
+                ));
+        }
         vec![
+            switches.into_any_element(),
+            if self.prefs.bxid {
+                Section::new().row(bxid).into_any_element()
+            } else {
+                div().into_any_element()
+            },
             Section::new().row(account).into_any_element(),
             h_flex()
                 .gap(px(10.))

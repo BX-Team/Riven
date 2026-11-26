@@ -4,11 +4,13 @@ use gpui::prelude::FluentBuilder as _;
 use gpui::{
     Anchor, Animation, AnimationExt as _, AnyElement, App, Entity, InteractiveElement as _,
     IntoElement, ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _,
-    Window, div, ease_in_out, hsla, px, relative,
+    Window, div, ease_in_out, px, relative,
 };
-use gpui_base::{Popover, box_shadow};
+use gpui_base::Popover;
+
+use super::quick_play::QuickMenu;
 use riven_format::{Account, AccountKind, Instance};
-use riven_launch::game::Stage;
+use riven_launch::game::{QuickPlay, Stage};
 use rust_i18n::t;
 
 use super::session::{Phase, Session};
@@ -39,6 +41,41 @@ pub fn account_tile(name: &str, id: Option<&str>, size: f32, radius: f32, cx: &A
             .overflow_hidden()
             .child(gpui::img(path).size_full()),
         None => tile(initials(name), size, radius, cx),
+    }
+}
+
+/// A BX ID's picture as picked on the site, once fetched, or its initials on a tile.
+pub fn picture_tile(name: &str, url: Option<&str>, size: f32, radius: f32, cx: &App) -> gpui::Div {
+    let picture = url.and_then(|url| AppState::global(cx).read(cx).pictures.get(url).cloned());
+    match picture {
+        // Rounded on the image itself: a parent's overflow_hidden does not clip an img to its corners.
+        Some(path) => div().size(px(size)).flex_none().child(
+            gpui::img(super::sharp::image(path, size))
+                .size(px(size))
+                .rounded(px(radius)),
+        ),
+        None => tile(initials(name), size, radius, cx),
+    }
+}
+
+/// Which head an account shows: a Microsoft one its own, an offline one its nick's skin while this BX ID holds it.
+pub fn account_head(account: &Account, cx: &App) -> Option<String> {
+    match account.kind {
+        AccountKind::Microsoft => Some(account.id.clone()),
+        AccountKind::Offline => {
+            if !super::play::PlayState::global(cx)
+                .read(cx)
+                .owns(&account.name)
+            {
+                return None;
+            }
+            let key = format!("nick:{}", account.name.to_ascii_lowercase());
+            AppState::global(cx)
+                .read(cx)
+                .skins
+                .contains_key(&key)
+                .then_some(key)
+        }
     }
 }
 
@@ -116,14 +153,14 @@ pub(super) fn selected_account(st: &AppState) -> Option<Account> {
 }
 
 /// Starts an instance with the selected account, or asks for one when there is none.
-pub fn launch(id: &str, window: &mut Window, cx: &mut App) {
+pub fn launch(id: &str, quick_play: Option<QuickPlay>, window: &mut Window, cx: &mut App) {
     let state = AppState::global(cx);
     let st = state.read(cx);
     if st.sessions.get(id).is_some_and(Session::busy) {
         return;
     }
     match selected_account(st) {
-        Some(account) => state.update(cx, |s, cx| s.play(id, account, cx)),
+        Some(account) => state.update(cx, |s, cx| s.play(id, account, quick_play, cx)),
         None => super::dialogs::open_add_offline(window, cx),
     }
 }
@@ -434,22 +471,22 @@ fn phase_key(phase: &Phase) -> &'static str {
 fn play_button(
     state: &Entity<AppState>,
     id: &str,
-    session: Option<&Session>,
-    cx: &App,
+    phase: Option<&Phase>,
+    cancellable: bool,
+    window: &mut Window,
+    cx: &mut App,
 ) -> AnyElement {
     let c = cx.theme().colors;
     let id = id.to_owned();
     let state = state.clone();
-    match session.map(|s| &s.phase) {
-        Some(Phase::Working { .. }) if session.is_some_and(Session::cancellable) => {
-            Button::new("cancel")
-                .outline()
-                .size(ButtonSize::Lg)
-                .icon(IconName::Close)
-                .label(t!("launch.cancel"))
-                .on_click(move |_, _, cx| state.update(cx, |s, _| s.cancel(&id)))
-                .into_any_element()
-        }
+    match phase {
+        Some(Phase::Working { .. }) if cancellable => Button::new("cancel")
+            .outline()
+            .size(ButtonSize::Lg)
+            .icon(IconName::Close)
+            .label(t!("launch.cancel"))
+            .on_click(move |_, _, cx| state.update(cx, |s, _| s.cancel(&id)))
+            .into_any_element(),
         Some(Phase::Working { .. }) => Button::new("play")
             .primary()
             .size(ButtonSize::Lg)
@@ -477,13 +514,50 @@ fn play_button(
                 );
             })
             .into_any_element(),
-        _ => Button::new("play")
-            .primary()
-            .size(ButtonSize::Lg)
-            .icon(IconName::Play)
-            .label(t!("launch.play"))
-            .on_click(move |_, window, cx| launch(&id, window, cx))
-            .into_any_element(),
+        _ => {
+            let menu = window.use_keyed_state("quick-play-menu", cx, |_, _| QuickMenu::default());
+            let play_id = id.clone();
+            let more = Button::new("quick-play")
+                .primary()
+                .size(ButtonSize::Lg)
+                .w(px(34.))
+                .px(px(0.))
+                .rounded_l(px(0.))
+                .icon(IconName::ChevronUp)
+                .tooltip(t!("quick.title"));
+            let quick = Popover::new("quick-play-popover")
+                .anchor(Anchor::BottomRight)
+                .offset(px(10.))
+                .trigger(more)
+                .content(move |_, window, cx| {
+                    let popover = cx.entity();
+                    menu.update(cx, |m, cx| {
+                        m.popover = Some(popover);
+                        m.refresh(&id, cx);
+                    });
+                    moonglass::motion::enter(
+                        "quick-play-in",
+                        div().child(menu.clone()),
+                        10.,
+                        window,
+                        cx,
+                    )
+                });
+            h_flex()
+                .flex_none()
+                .child(
+                    Button::new("play")
+                        .primary()
+                        .size(ButtonSize::Lg)
+                        .rounded_r(px(0.))
+                        .icon(IconName::Play)
+                        .label(t!("launch.play"))
+                        .on_click(move |_, window, cx| launch(&play_id, None, window, cx)),
+                )
+                .child(div().w(px(1.)).h(px(44.)).bg(c.on_accent.opacity(0.25)))
+                .child(quick)
+                .into_any_element()
+        }
     }
 }
 
@@ -515,21 +589,32 @@ pub fn render(
     let busy = phase
         .as_ref()
         .is_some_and(|p| matches!(p, Phase::Working { .. } | Phase::Running { .. }));
-    let status = match scan {
-        Some((done, total)) if !busy => scanning(id, done, total, window, cx),
-        _ => status(
-            id,
-            phase,
-            (notice, crash),
-            pack.map(|p| (p, newer.clone(), changes)),
-            played(&instance),
-            window,
-            cx,
-        ),
+    let working = matches!(phase, Some(Phase::Working { .. }));
+    let shared = super::play::session_status(id, cx).filter(|_| !working);
+    let status = if let Some(shared) = shared {
+        shared
+    } else {
+        match scan {
+            Some((done, total)) if !busy => scanning(id, done, total, window, cx),
+            _ => status(
+                id,
+                phase,
+                (notice, crash),
+                pack.map(|p| (p, newer.clone(), changes)),
+                played(&instance),
+                window,
+                cx,
+            ),
+        }
     };
+
+    let session = state.read(cx).sessions.get(id);
+    let (phase, cancellable) = (
+        session.map(|s| s.phase.clone()),
+        session.is_some_and(Session::cancellable),
+    );
+    let button = play_button(state, id, phase.as_ref(), cancellable, window, cx);
     let st = state.read(cx);
-    let session = st.sessions.get(id);
-    let button = play_button(state, id, session, cx);
 
     h_flex()
         .flex_none()
@@ -543,6 +628,7 @@ pub fn render(
         .child(
             h_flex()
                 .flex_1()
+                .flex_basis(px(0.))
                 .min_w_0()
                 .gap(px(12.))
                 .child(instance_tile(&instance.name, st.icons.get(id), 44., 9., cx))
@@ -566,10 +652,20 @@ pub fn render(
                         ),
                 ),
         )
-        .child(div().flex_1().min_w_0().child(status))
+        // Three equal columns keep the status in the middle of the bar; the progress bar takes the full column.
+        .child(
+            div()
+                .flex_1()
+                .flex_basis(px(0.))
+                .min_w_0()
+                .when(!working, |d| d.flex().justify_center())
+                .child(status),
+        )
         .child(
             h_flex()
-                .flex_none()
+                .flex_1()
+                .flex_basis(px(0.))
+                .justify_end()
                 .gap(px(10.))
                 .when(newer.is_some() && !busy, |row| {
                     let state = state.clone();
@@ -586,6 +682,7 @@ pub fn render(
                             }),
                     )
                 })
+                .children(super::play::friends_stack(cx))
                 .child(account_button(state, account.as_ref(), cx))
                 .child(button),
         )
@@ -609,9 +706,15 @@ fn account_button(
         .rounded(px(8.))
         .gap(px(8.))
         .child(
-            account_tile(&name, account.map(|a| a.id.as_str()), 22., 5., cx)
-                .text_size(px(11.))
-                .font_weight(gpui::FontWeight::BOLD),
+            account_tile(
+                &name,
+                account.and_then(|a| account_head(a, cx)).as_deref(),
+                22.,
+                5.,
+                cx,
+            )
+            .text_size(px(11.))
+            .font_weight(gpui::FontWeight::BOLD),
         )
         .child(div().child(name))
         .child(icon(IconName::ChevronUp, c.muted).size(px(12.)));
@@ -646,7 +749,7 @@ fn accounts_panel(
         .bg(c.row)
         .text_color(c.text)
         .overflow_hidden()
-        .shadow(vec![box_shadow(0., 20., 50., 0., hsla(0., 0., 0., 0.5))])
+        .shadow(super::dialogs::popup_shadow(cx))
         .child(
             h_flex()
                 .px(px(16.))
@@ -715,13 +818,17 @@ fn accounts_panel(
                             });
                             picked.update(cx, |p, cx| p.dismiss(window, cx));
                         })
-                        .child(account_tile(&a.name, Some(&a.id), 36., 6., cx).map(|t| {
-                            if active {
-                                t.bg(c.muted.opacity(0.3))
-                            } else {
-                                t.text_color(c.text2)
-                            }
-                        }))
+                        .child(
+                            account_tile(&a.name, account_head(a, cx).as_deref(), 36., 6., cx).map(
+                                |t| {
+                                    if active {
+                                        t.bg(c.muted.opacity(0.3))
+                                    } else {
+                                        t.text_color(c.text2)
+                                    }
+                                },
+                            ),
+                        )
                         .child(
                             v_flex()
                                 .flex_1()
@@ -747,6 +854,20 @@ fn accounts_panel(
                                         }),
                                 ),
                         )
+                        .child({
+                            let account = a.clone();
+                            let dismiss = popover.clone();
+                            Button::new(SharedString::from(format!("skin-{i}")))
+                                .ghost()
+                                .size(ButtonSize::Xs)
+                                .icon(super::assets::SHIRT)
+                                .tooltip(t!("skin.change"))
+                                .on_click(move |_, window, cx| {
+                                    cx.stop_propagation();
+                                    dismiss.update(cx, |p, cx| p.dismiss(window, cx));
+                                    super::skin::open_skin(account.clone(), cx);
+                                })
+                        })
                         .map(|r| {
                             if active {
                                 r.child(icon(IconName::Check, c.ok).size(px(16.)))

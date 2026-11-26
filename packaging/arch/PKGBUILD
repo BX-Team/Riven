@@ -9,6 +9,7 @@ arch=('x86_64')
 url="https://github.com/BX-Team/Riven"
 license=('GPL-3.0-or-later')
 depends=(
+  'alsa-lib'
   'gcc-libs'
   'glibc'
   'libxcb'

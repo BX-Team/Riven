@@ -29,6 +29,15 @@ pub struct Settings {
     /// Riven looks for a new version only when asked, not at startup.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub manual_updates: bool,
+    /// BX ID, friends and playing together are off: the launcher only plays.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub bxid_off: bool,
+    /// Friend requests and invites come without the launcher's sound.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub alert_sound_off: bool,
+    /// The game starts without Riven's agent: only Mojang's skins, and offline accounts cannot join LAN worlds.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub skins_agent_off: bool,
     /// The first-run setup was finished or skipped.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub onboarded: bool,
@@ -239,6 +248,14 @@ pub struct Running {
     /// When the OS says the process started, in its own unit; tells a reused pid apart.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub process: Option<u64>,
+}
+
+/// `<data>/riven/instances/<id>/joins.json` — when Riven last started the game straight onto each server.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Joins {
+    /// RFC 3339 by the address as `servers.dat` keeps it.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub servers: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

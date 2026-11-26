@@ -18,6 +18,10 @@ icons!(
     "loader-neoforge",
     "loader-quilt",
     "loader-vanilla",
+    "mail",
+    "shirt",
+    "user-plus",
+    "users",
 );
 
 /// The launcher's own picture, drawn in lists and the About page.
@@ -43,6 +47,12 @@ pub fn loader_icon(kind: Option<LoaderKind>) -> IconName {
         Some(LoaderKind::Quilt) => "icons/loader-quilt.svg",
     })
 }
+
+/// Friends and BX ID; moonglass has no such icon.
+pub const USERS: IconName = IconName::Custom("icons/users.svg");
+pub const USER_PLUS: IconName = IconName::Custom("icons/user-plus.svg");
+pub const MAIL: IconName = IconName::Custom("icons/mail.svg");
+pub const SHIRT: IconName = IconName::Custom("icons/shirt.svg");
 
 /// The launcher's own icons and pictures, then moonglass's.
 pub struct Assets;

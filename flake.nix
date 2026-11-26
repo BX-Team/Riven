@@ -49,8 +49,9 @@
           ];
         };
 
-        # gpui dlopens these at runtime (GUI build only).
+        # gpui dlopens these at runtime; rodio links alsa-lib for the friend chime (GUI build only).
         runtimeLibs = with pkgs; [
+          alsa-lib
           wayland
           libxkbcommon
           libx11

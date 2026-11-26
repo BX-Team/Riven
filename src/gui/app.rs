@@ -68,6 +68,10 @@ impl RivenApp {
             cx.notify();
         });
         let settings = cx.new(|cx| SettingsView::new(window, cx));
+        super::play::FriendsPanel::init(window, cx);
+        // The launch bar shows the shared world and the friend's world the player is in.
+        cx.observe(&super::play::PlayState::global(cx), |_, _, cx| cx.notify())
+            .detach();
         let mut app = Self {
             state,
             instance: None,
@@ -244,7 +248,7 @@ impl RivenApp {
                     move |event, window, cx| {
                         Self::navigate(&handle, target.clone(), cx);
                         if event.standard_click() && event.click_count() == 2 {
-                            launch_bar::launch(&id, window, cx);
+                            launch_bar::launch(&id, None, window, cx);
                         }
                     }
                 })
@@ -356,7 +360,7 @@ fn instance_menu(id: &str, name: &str, cx: &App) -> Vec<MenuEntry> {
     let name = name.to_owned();
     let mut entries = vec![
         MenuEntry::action(t!("launch.play"), move |window, cx| {
-            launch_bar::launch(&play, window, cx)
+            launch_bar::launch(&play, None, window, cx)
         })
         .icon(IconName::Play)
         .disabled(busy),
@@ -592,7 +596,8 @@ impl Render for RivenApp {
             });
         }
         let toast_bottom = if bar.is_some() { 88. } else { 16. };
-        let toasts = moonglass::toast::render(toast_bottom, window, cx);
+        let (invites, invites_room) = super::play::invite_cards(window, cx);
+        let toasts = moonglass::toast::render(toast_bottom + invites_room, window, cx);
         let state = self.state.clone();
         let back = self.state.clone();
         let edges = moonglass::chrome::resize_edges(window);
@@ -624,6 +629,16 @@ impl Render for RivenApp {
                     ))
             })
             .child(toasts)
+            .when_some(invites, |root, invites| {
+                root.child(
+                    div()
+                        .absolute()
+                        .right(px(16.))
+                        .bottom(px(toast_bottom))
+                        .occlude()
+                        .child(invites),
+                )
+            })
             .child(drop_zone(cx))
             .child(back_button(back, self.dev.clone()))
             .when_some(context, |root, menu| {

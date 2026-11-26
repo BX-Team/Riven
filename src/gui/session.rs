@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use gpui::{AppContext as _, Context, SharedString};
 use riven_format::Account;
 use riven_launch::LaunchError;
-use riven_launch::game::{self, Progress, Stage};
+use riven_launch::game::{self, Progress, QuickPlay, Stage};
 use riven_sync::SyncError;
 use riven_sync::update::Request;
 use tokio::sync::mpsc;
@@ -36,6 +36,8 @@ pub struct Session {
     abort: Option<runtime::Abort>,
     /// The instance's first pack install, which leaves nothing worth keeping when cancelled.
     fresh: bool,
+    /// The work ends in starting the game, so cancelling it cancels a launch, not an install.
+    launching: bool,
 }
 
 impl Session {
@@ -51,6 +53,7 @@ impl Session {
             crash: None,
             abort: None,
             fresh: false,
+            launching: false,
         }
     }
 
@@ -110,8 +113,13 @@ impl Session {
 
 impl AppState {
     /// Starts `job` on tokio and folds its progress into the instance's session.
-    fn run_session<F, Fut>(&mut self, id: &str, fresh: bool, job: F, cx: &mut Context<Self>)
-    where
+    fn run_session<F, Fut>(
+        &mut self,
+        id: &str,
+        (fresh, launching): (bool, bool),
+        job: F,
+        cx: &mut Context<Self>,
+    ) where
         F: FnOnce(mpsc::UnboundedSender<Progress>) -> Fut + Send + 'static,
         Fut: Future<Output = Result<(), LaunchError>>,
     {
@@ -120,6 +128,7 @@ impl AppState {
         let mut session = Session::new();
         session.abort = Some(abort);
         session.fresh = fresh;
+        session.launching = launching;
         self.sessions.insert(id.to_owned(), session);
         let id = id.to_owned();
         cx.spawn(async move |this, cx| {
@@ -239,11 +248,21 @@ impl AppState {
 
     fn cancelled(&mut self, id: &str, cx: &mut Context<Self>) {
         let fresh = self.sessions.get(id).is_some_and(|s| s.fresh);
+        let mut launching = false;
         if let Some(session) = self.sessions.get_mut(id) {
             session.abort = None;
             session.phase = Phase::Finished { code: None };
-            session.notice = Some(rust_i18n::t!("launch.cancelled").into());
+            launching = session.launching;
         }
+        let name = self
+            .instance(id)
+            .map_or_else(|| id.to_owned(), |i| i.name.clone());
+        let text = if launching {
+            rust_i18n::t!("launch.cancelled_launch", name = name)
+        } else {
+            rust_i18n::t!("launch.cancelled_install", name = name)
+        };
+        moonglass::toast::show(ToastKind::Info, text.to_string(), cx);
         if fresh {
             self.delete_instance(id, cx);
             return;
@@ -279,7 +298,13 @@ impl AppState {
         .detach();
     }
 
-    pub fn play(&mut self, id: &str, account: Account, cx: &mut Context<Self>) {
+    pub fn play(
+        &mut self,
+        id: &str,
+        account: Account,
+        quick_play: Option<QuickPlay>,
+        cx: &mut Context<Self>,
+    ) {
         if self.sessions.get(id).is_some_and(Session::busy) {
             return;
         }
@@ -287,18 +312,33 @@ impl AppState {
             return;
         };
         let defaults = self.settings.launch.clone();
+        let agent_on = self.skins_agent_on();
         let instance = id.to_owned();
         self.run_session(
             id,
-            false,
+            (false, true),
             move |tx| async move {
-                game::play(&store, &instance, &account, &defaults, move |p| {
-                    let _ = tx.send(p);
-                })
+                let agent = skins_agent(agent_on, &account).await;
+                game::play(
+                    &store,
+                    &instance,
+                    &account,
+                    &defaults,
+                    quick_play,
+                    agent,
+                    move |p| {
+                        let _ = tx.send(p);
+                    },
+                )
                 .await
             },
             cx,
         );
+    }
+
+    /// The agent needs BX ID, so it is off with it.
+    fn skins_agent_on(&self) -> bool {
+        !self.settings.bxid_off && !self.settings.skins_agent_off
     }
 
     /// Picks up the games an earlier launcher started that still run.
@@ -316,7 +356,7 @@ impl AppState {
             let instance = id.clone();
             self.run_session(
                 &id,
-                false,
+                (false, false),
                 move |tx| async move {
                     game::watch(&store, &instance, running, &defaults, move |p| {
                         let _ = tx.send(p);
@@ -338,7 +378,7 @@ impl AppState {
         let instance = id.to_owned();
         self.run_session(
             id,
-            fresh,
+            (fresh, false),
             move |tx| async move {
                 game::install_pack(&store, &instance, request, move |p| {
                     let _ = tx.send(p);
@@ -364,20 +404,30 @@ impl AppState {
             return;
         };
         let defaults = self.settings.launch.clone();
+        let agent_on = self.skins_agent_on();
         let fresh = !riven_launch::own::from_pack(&store.game_dir(id));
         let instance = id.to_owned();
         self.run_session(
             id,
-            fresh,
+            (fresh, true),
             move |tx| async move {
                 let report = tx.clone();
                 game::install_pack(&store, &instance, request, move |p| {
                     let _ = report.send(p);
                 })
                 .await?;
-                game::play(&store, &instance, &account, &defaults, move |p| {
-                    let _ = tx.send(p);
-                })
+                let agent = skins_agent(agent_on, &account).await;
+                game::play(
+                    &store,
+                    &instance,
+                    &account,
+                    &defaults,
+                    None,
+                    agent,
+                    move |p| {
+                        let _ = tx.send(p);
+                    },
+                )
                 .await
             },
             cx,
@@ -436,7 +486,7 @@ impl AppState {
         let instance = id.to_owned();
         self.run_session(
             id,
-            false,
+            (false, false),
             move |tx| async move {
                 riven_launch::modpack::update(&store, &instance, version, move |p| {
                     let _ = tx.send(p);
@@ -459,4 +509,17 @@ impl AppState {
         })
         .detach();
     }
+}
+
+/// The skins agent for this launch; when the skins service cannot be reached, the game starts without it.
+async fn skins_agent(on: bool, account: &Account) -> Option<riven_launch::agent::SkinsAgent> {
+    if !on {
+        return None;
+    }
+    let offline =
+        (account.kind == riven_format::AccountKind::Offline).then_some(account.name.as_str());
+    riven_play::skins::agent(offline)
+        .await
+        .inspect_err(|e| tracing::warn!("starting without the skins agent: {e}"))
+        .ok()
 }

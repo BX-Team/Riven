@@ -27,8 +27,11 @@ pub struct AppState {
     pub pack_changes: HashMap<String, riven_format::Changes>,
     /// Icon file per instance id, for instances that have one.
     pub icons: HashMap<String, std::path::PathBuf>,
-    /// The head of each Microsoft account's skin, by account id, once fetched.
+    /// Skin heads by Minecraft UUID (a Microsoft account's id is its UUID), once fetched.
     pub skins: HashMap<String, std::path::PathBuf>,
+    /// BX ID profile pictures by URL, as cached thumbnails once fetched.
+    pub pictures: HashMap<String, std::path::PathBuf>,
+    pictures_asked: std::collections::HashSet<String>,
     pub accounts: Accounts,
     pub route: Route,
     /// A load or save that failed, shown until the next success.
@@ -46,6 +49,8 @@ pub struct AppState {
     pub scans: HashMap<String, (usize, usize)>,
     pub(super) ticking: bool,
     pub update: super::updater::Update,
+    /// An instance whose view should switch to its Worlds tab; the view clears it.
+    pub show_worlds: Option<String>,
 }
 
 /// A skin head saved earlier for an account, `<id>-<hash>.png`.
@@ -61,11 +66,45 @@ fn cached_skin(dir: &std::path::Path, id: &str) -> Option<std::path::PathBuf> {
         })
 }
 
+/// Deletes the cached heads whose names start with `prefix`.
+fn forget_heads(dir: &std::path::Path, prefix: &str) {
+    for old in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        if old.file_name().to_string_lossy().starts_with(prefix) {
+            let _ = std::fs::remove_file(old.path());
+        }
+    }
+}
+
 /// A stable hash for file names that change with their contents.
 fn fnv(bytes: &[u8]) -> u64 {
     bytes.iter().fold(0xcbf29ce484222325, |h, b| {
         (h ^ u64::from(*b)).wrapping_mul(0x100000001b3)
     })
+}
+
+/// A profile picture as a small PNG, `<url hash>-<content hash>.png`, so a new picture gets a new path.
+async fn fetch_picture(dir: &std::path::Path, url: &str) -> Option<std::path::PathBuf> {
+    let bytes = riven_sources::client()
+        .get(url)
+        .send()
+        .await
+        .and_then(reqwest::Response::error_for_status)
+        .ok()?
+        .bytes()
+        .await
+        .ok()?;
+    let prefix = format!("{:016x}-", fnv(url.as_bytes()));
+    let path = dir.join(format!("{prefix}{:016x}.png", fnv(&bytes)));
+    if path.is_file() {
+        return Some(path);
+    }
+    let png = tokio::task::spawn_blocking(move || super::mods::picture(&bytes))
+        .await
+        .ok()??;
+    forget_heads(dir, &prefix);
+    std::fs::create_dir_all(dir).ok()?;
+    std::fs::write(&path, png).ok()?;
+    Some(path)
 }
 
 fn read_icons(
@@ -155,6 +194,8 @@ impl AppState {
             pack_changes,
             icons,
             skins: HashMap::new(),
+            pictures: HashMap::new(),
+            pictures_asked: Default::default(),
             accounts,
             route,
             error,
@@ -167,6 +208,7 @@ impl AppState {
             revisions: HashMap::new(),
             ticking: false,
             update: Default::default(),
+            show_worlds: None,
         }
     }
 
@@ -183,6 +225,12 @@ impl AppState {
         }
         self.route = route;
         cx.notify();
+    }
+
+    /// Opens an instance on its Worlds tab.
+    pub fn show_worlds(&mut self, id: &str, cx: &mut Context<Self>) {
+        self.show_worlds = Some(id.to_owned());
+        self.navigate(Route::Instance(id.to_owned()), cx);
     }
 
     /// Reads the instance list from disk again, keeping the selection when it still exists.
@@ -333,9 +381,6 @@ impl AppState {
 
     /// Shows the cached skin heads of Microsoft accounts, then fetches them again in the background.
     pub fn load_skins(&mut self, cx: &mut Context<Self>) {
-        let Some(dir) = super::mods::cache_dir().map(|d| d.join("skins")) else {
-            return;
-        };
         let ids: Vec<String> = self
             .accounts
             .accounts
@@ -343,6 +388,125 @@ impl AppState {
             .filter(|a| a.kind == riven_format::AccountKind::Microsoft)
             .map(|a| a.id.clone())
             .collect();
+        self.fetch_skins(ids, cx);
+    }
+
+    /// Heads of the offline nicks this BX ID holds, under `nick:<lower-cased name>` in `skins`.
+    pub fn show_nick_skins(
+        &mut self,
+        worn: Vec<(String, Option<riven_play::skins::Skin>)>,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(dir) = super::mods::cache_dir().map(|d| d.join("skins")) else {
+            return;
+        };
+        let worn: Vec<(String, Option<riven_play::skins::Skin>)> = worn
+            .into_iter()
+            .map(|(name, skin)| (name.to_ascii_lowercase(), skin))
+            .collect();
+        for (name, _) in &worn {
+            if let Some(path) = cached_skin(&dir, &format!("nick-{name}")) {
+                self.skins.insert(format!("nick:{name}"), path);
+            }
+        }
+        cx.notify();
+        let fetched = super::runtime::spawn(async move {
+            let mut heads = Vec::new();
+            for (name, skin) in worn {
+                let prefix = format!("nick-{name}-");
+                let path = match skin {
+                    Some(skin) => {
+                        let path = dir.join(format!(
+                            "{prefix}{}.png",
+                            &skin.hash[..16.min(skin.hash.len())]
+                        ));
+                        if path.is_file() {
+                            Some(path)
+                        } else {
+                            let png = riven_play::skins::download(&skin.url).await.ok();
+                            match png.as_deref().and_then(super::mods::skin_head) {
+                                Some(head) => {
+                                    forget_heads(&dir, &prefix);
+                                    let _ = std::fs::create_dir_all(&dir);
+                                    std::fs::write(&path, head).ok().map(|()| path)
+                                }
+                                None => None,
+                            }
+                        }
+                    }
+                    // The skin came off: the old head must go.
+                    None => {
+                        forget_heads(&dir, &prefix);
+                        None
+                    }
+                };
+                heads.push((name, path));
+            }
+            heads
+        });
+        cx.spawn(async move |this, cx| {
+            if let Ok(heads) = fetched.await {
+                let _ = this.update(cx, |s, cx| {
+                    for (name, path) in heads {
+                        match path {
+                            Some(path) => s.skins.insert(format!("nick:{name}"), path),
+                            None => s.skins.remove(&format!("nick:{name}")),
+                        };
+                    }
+                    cx.notify();
+                });
+            }
+        })
+        .detach();
+    }
+
+    /// Shows the cached pictures at `urls` at once, then fetches each once per run:
+    /// a GitHub avatar keeps its address when the picture behind it changes.
+    pub fn want_pictures(&mut self, urls: Vec<String>, cx: &mut Context<Self>) {
+        let Some(dir) = super::mods::cache_dir().map(|d| d.join("pictures")) else {
+            return;
+        };
+        let new: Vec<String> = urls
+            .into_iter()
+            .filter(|url| url.starts_with("https://") && self.pictures_asked.insert(url.clone()))
+            .collect();
+        if new.is_empty() {
+            return;
+        }
+        for url in &new {
+            if let Some(path) = cached_skin(&dir, &format!("{:016x}", fnv(url.as_bytes()))) {
+                self.pictures.insert(url.clone(), path);
+            }
+        }
+        cx.notify();
+        for url in new {
+            let dir = dir.clone();
+            let fetched = super::runtime::spawn(async move {
+                let path = fetch_picture(&dir, &url).await?;
+                Some((url, path))
+            });
+            cx.spawn(async move |this, cx| {
+                if let Ok(Some((url, path))) = fetched.await {
+                    let _ = this.update(cx, |s, cx| {
+                        s.pictures.insert(url, path);
+                        cx.notify();
+                    });
+                }
+            })
+            .detach();
+        }
+    }
+
+    /// Fetches a Microsoft account's head again, after its skin changed.
+    pub fn refresh_skin(&mut self, id: String, cx: &mut Context<Self>) {
+        self.fetch_skins(vec![id], cx);
+    }
+
+    /// Shows the cached heads of `ids` at once, then fetches them again in the background.
+    fn fetch_skins(&mut self, ids: Vec<String>, cx: &mut Context<Self>) {
+        let Some(dir) = super::mods::cache_dir().map(|d| d.join("skins")) else {
+            return;
+        };
         for id in &ids {
             if let Some(path) = cached_skin(&dir, id) {
                 self.skins.insert(id.clone(), path);
@@ -392,6 +556,30 @@ impl AppState {
         }
         self.update_settings(|s| s.selected_account = Some(id), cx);
         self.load_skins(cx);
+    }
+
+    /// Adds an offline account for each nick not here yet, leaving the selected account as it is.
+    pub fn adopt_nicks(&mut self, names: Vec<String>, cx: &mut Context<Self>) {
+        let mut added = false;
+        for name in names {
+            let known = self.accounts.accounts.iter().any(|a| {
+                a.kind == riven_format::AccountKind::Offline && a.name.eq_ignore_ascii_case(&name)
+            });
+            if known {
+                continue;
+            }
+            if let Ok(account) = riven_launch::accounts::offline(&name) {
+                self.accounts.accounts.push(account);
+                added = true;
+            }
+        }
+        if !added {
+            return;
+        }
+        if let Err(e) = riven_launch::accounts::save(&self.accounts) {
+            self.error = Some(e.to_string());
+        }
+        cx.notify();
     }
 
     pub fn remove_account(&mut self, id: &str, cx: &mut Context<Self>) {

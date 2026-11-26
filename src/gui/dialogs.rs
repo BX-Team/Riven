@@ -53,7 +53,7 @@ pub(super) fn field(
 /// What an account dialog opens when it is done, instead of closing: the first-run setup.
 pub type Back = Rc<dyn Fn(&mut App)>;
 
-fn leave(back: Option<&Back>, cx: &mut App) {
+pub(super) fn leave(back: Option<&Back>, cx: &mut App) {
     match back {
         Some(back) => back(cx),
         None => AppState::global(cx).update(cx, |s, cx| s.close_modal(cx)),
@@ -61,7 +61,7 @@ fn leave(back: Option<&Back>, cx: &mut App) {
 }
 
 /// A dialog's title and description, its body, then Cancel and the main action.
-fn dialog_frame(
+pub(super) fn dialog_frame(
     title: impl Into<SharedString>,
     description: impl Into<SharedString>,
     body: impl IntoElement,
@@ -163,6 +163,8 @@ pub(super) fn open(view: gpui::AnyView, width: f32, cx: &mut App) {
 pub struct AddOffline {
     name: Entity<InputState>,
     error: Option<SharedString>,
+    /// Claiming the nick on BX ID before the account is added.
+    busy: bool,
     back: Option<Back>,
     _name: Subscription,
 }
@@ -179,23 +181,63 @@ impl AddOffline {
         Self {
             name,
             error: None,
+            busy: false,
             back,
             _name,
         }
     }
 
+    /// Signed in to BX ID, the nick is claimed first: one another BX ID holds cannot be added.
     fn submit(&mut self, cx: &mut Context<Self>) {
-        let name = self.name.read(cx).value().trim().to_string();
-        match riven_launch::accounts::offline(&name) {
-            Ok(account) => {
-                AppState::global(cx).update(cx, |s, cx| s.add_account(account, cx));
-                leave(self.back.as_ref(), cx);
-            }
-            Err(_) => {
-                self.error = Some(t!("accounts.bad_name").into());
-                cx.notify();
-            }
+        if self.busy {
+            return;
         }
+        let name = self.name.read(cx).value().trim().to_string();
+        let Ok(account) = riven_launch::accounts::offline(&name) else {
+            self.error = Some(t!("accounts.bad_name").into());
+            cx.notify();
+            return;
+        };
+        let play = super::play::PlayState::global(cx).read(cx);
+        if play.me().is_none() || play.owns(&account.name) {
+            return self.add(account, cx);
+        }
+        self.busy = true;
+        self.error = None;
+        cx.notify();
+        let nick = account.name.clone();
+        let claimed = runtime::spawn(async move { riven_play::skins::claim(&nick).await });
+        cx.spawn(async move |this, cx| {
+            let Ok(claimed) = claimed.await else {
+                return;
+            };
+            let _ = this.update(cx, |this, cx| {
+                this.busy = false;
+                match claimed {
+                    Err(e @ riven_play::PlayError::Taken(_)) => {
+                        this.error = Some(super::problem::play_error(&e).into());
+                        cx.notify();
+                    }
+                    Ok(_) => this.add(account, cx),
+                    // The limit, or BX Team out of reach: the account plays, only without a skin.
+                    Err(e) => {
+                        moonglass::toast::show(
+                            moonglass::toast::ToastKind::Error,
+                            super::problem::play_error(&e),
+                            cx,
+                        );
+                        this.add(account, cx);
+                    }
+                }
+            });
+        })
+        .detach();
+    }
+
+    fn add(&mut self, account: riven_format::Account, cx: &mut Context<Self>) {
+        AppState::global(cx).update(cx, |s, cx| s.add_account(account, cx));
+        super::play::PlayState::global(cx).update(cx, |s, cx| s.sync_nicks(cx));
+        leave(self.back.as_ref(), cx);
     }
 }
 
@@ -209,7 +251,7 @@ impl Render for AddOffline {
                 cx,
             ))
             .when_some(self.error.clone(), |this, error| {
-                this.child(div().text_color(cx.theme().colors.warn).child(error))
+                this.child(super::problem::inline(error, cx))
             });
         dialog_frame(
             t!("accounts.add_offline"),
@@ -219,6 +261,7 @@ impl Render for AddOffline {
                 .primary()
                 .size(ButtonSize::Md)
                 .label(t!("accounts.add"))
+                .loading(self.busy)
                 .on_click(cx.listener(|this, _, _, cx| this.submit(cx))),
             self.back.clone(),
             cx,
@@ -283,14 +326,31 @@ pub fn confirm(
     open(view.into(), 420., cx);
 }
 
+/// An offline account takes its nick off BX ID with it; the nick stays this player's for a few days.
 pub fn confirm_remove_account(id: String, name: String, cx: &mut App) {
+    let offline = AppState::global(cx)
+        .read(cx)
+        .accounts
+        .accounts
+        .iter()
+        .any(|a| a.id == id && a.kind == riven_format::AccountKind::Offline);
+    let nick = offline && super::play::PlayState::global(cx).read(cx).owns(&name);
+    let body = if nick {
+        t!("confirm.remove_offline_body", name = name.clone())
+    } else {
+        t!("confirm.remove_account_body")
+    };
     confirm(
-        t!("confirm.remove_account_title", name = name),
-        t!("confirm.remove_account_body"),
+        t!("confirm.remove_account_title", name = name.clone()),
+        body,
         t!("accounts.remove"),
         move |_, cx| {
             let id = id.clone();
             AppState::global(cx).update(cx, |s, cx| s.remove_account(&id, cx));
+            if nick {
+                let name = name.clone();
+                super::play::PlayState::global(cx).update(cx, |s, cx| s.release_nick(name, cx));
+            }
         },
         cx,
     );
@@ -299,7 +359,7 @@ pub fn confirm_remove_account(id: String, name: String, cx: &mut App) {
 /// "Sign in with Microsoft": shows the device code, waits for the player to enter it.
 pub struct AddMicrosoft {
     code: Option<riven_launch::accounts::DeviceCode>,
-    error: Option<SharedString>,
+    error: Option<(SharedString, SharedString)>,
     back: Option<Back>,
     _task: Option<gpui::Task<()>>,
 }
@@ -346,7 +406,8 @@ impl AddMicrosoft {
                     leave(this.back.as_ref(), cx);
                 }
                 Ok(Err(e)) => {
-                    this.error = Some(e.to_string().into());
+                    tracing::warn!("{e}");
+                    this.error = Some(ms_failure(&e));
                     cx.notify();
                 }
                 Err(_) => {}
@@ -356,16 +417,92 @@ impl AddMicrosoft {
     }
 }
 
+/// A failed Microsoft sign-in in the player's language; anything unforeseen keeps its own text.
+fn ms_failure(e: &riven_launch::LaunchError) -> (SharedString, SharedString) {
+    use riven_launch::LaunchError;
+    use riven_launch::accounts::Refusal;
+    let (title, hint) = match e {
+        LaunchError::SignInRefused(Refusal::Declined) => (
+            t!("accounts.ms_failed.declined"),
+            t!("accounts.ms_failed.declined_hint"),
+        ),
+        LaunchError::SignInRefused(Refusal::Expired) => (
+            t!("accounts.ms_failed.expired"),
+            t!("accounts.ms_failed.expired_hint"),
+        ),
+        LaunchError::SignInRefused(Refusal::NoXbox) => (
+            t!("accounts.ms_failed.no_xbox"),
+            t!("accounts.ms_failed.no_xbox_hint"),
+        ),
+        LaunchError::SignInRefused(Refusal::Region) => (
+            t!("accounts.ms_failed.region"),
+            t!("accounts.ms_failed.region_hint"),
+        ),
+        LaunchError::SignInRefused(Refusal::Adult) => (
+            t!("accounts.ms_failed.adult"),
+            t!("accounts.ms_failed.adult_hint"),
+        ),
+        LaunchError::SignInRefused(Refusal::Child) => (
+            t!("accounts.ms_failed.child"),
+            t!("accounts.ms_failed.child_hint"),
+        ),
+        LaunchError::SignInRefused(Refusal::NotApproved) => (
+            t!("accounts.ms_failed.not_approved"),
+            t!("accounts.ms_failed.not_approved_hint"),
+        ),
+        LaunchError::SignInRefused(Refusal::NoMinecraft) => (
+            t!("accounts.ms_failed.no_minecraft"),
+            t!("accounts.ms_failed.no_minecraft_hint"),
+        ),
+        LaunchError::SignInOffline(_) => (
+            t!("accounts.ms_failed.offline"),
+            t!("accounts.ms_failed.offline_hint"),
+        ),
+        e => (t!("accounts.ms_failed.other"), e.to_string().into()),
+    };
+    (title.into(), hint.into())
+}
+
+/// A sign-in code in large type, with a button that copies it.
+pub(super) fn device_code<V: 'static>(
+    id: &'static str,
+    code: String,
+    cx: &Context<V>,
+) -> impl IntoElement {
+    let c = cx.theme().colors;
+    let copied = moonglass::copy::copied(id, cx);
+    let text = code.clone();
+    h_flex()
+        .relative()
+        .justify_center()
+        .py(px(14.))
+        .rounded(px(10.))
+        .bg(c.bg)
+        .border_1()
+        .border_color(c.border)
+        .font_family(cx.theme().mono.clone())
+        .text_size(px(26.))
+        .font_weight(FontWeight::BOLD)
+        .child(code)
+        .child(
+            div().absolute().right(px(10.)).child(
+                moonglass::copy_button(id, move |_| text.clone(), cx)
+                    .ghost()
+                    .size(ButtonSize::Sm)
+                    .tooltip(if copied {
+                        t!("accounts.ms_copied")
+                    } else {
+                        t!("accounts.ms_copy")
+                    }),
+            ),
+        )
+}
+
 impl Render for AddMicrosoft {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let c = cx.theme().colors;
-        let mono = cx.theme().mono.clone();
         let body = match (&self.error, &self.code) {
-            (Some(error), _) => div()
-                .text_color(c.warn)
-                .line_height(relative(1.5))
-                .child(error.clone())
-                .into_any_element(),
+            (Some(error), _) => super::problem::card(error, cx),
             (None, None) => h_flex()
                 .gap(px(10.))
                 .text_color(c.muted)
@@ -377,45 +514,16 @@ impl Render for AddMicrosoft {
                 .child(t!("accounts.ms_requesting").to_string())
                 .into_any_element(),
             (None, Some(code)) => {
-                let text = code.code.clone();
                 let url = code.url.clone();
                 v_flex()
                     .gap(px(12.))
+                    .child(device_code("ms-copy", code.code.clone(), cx))
                     .child(
-                        h_flex()
-                            .justify_center()
-                            .py(px(14.))
-                            .rounded(px(10.))
-                            .bg(c.bg)
-                            .border_1()
-                            .border_color(c.border)
-                            .font_family(mono.clone())
-                            .text_size(px(26.))
-                            .font_weight(FontWeight::BOLD)
-                            .child(code.code.clone()),
-                    )
-                    .child(
-                        h_flex()
-                            .gap(px(8.))
-                            .child(
-                                moonglass::copy_button("ms-copy", move |_| text.clone(), cx)
-                                    .outline()
-                                    .size(ButtonSize::Md)
-                                    .flex_1()
-                                    .label(if moonglass::copy::copied("ms-copy", cx) {
-                                        t!("accounts.ms_copied")
-                                    } else {
-                                        t!("accounts.ms_copy")
-                                    }),
-                            )
-                            .child(
-                                Button::new("ms-open")
-                                    .outline()
-                                    .size(ButtonSize::Md)
-                                    .flex_1()
-                                    .label(t!("accounts.ms_open"))
-                                    .on_click(move |_, _, cx| cx.open_url(&url)),
-                            ),
+                        Button::new("ms-open")
+                            .outline()
+                            .size(ButtonSize::Md)
+                            .label(t!("accounts.ms_open"))
+                            .on_click(move |_, _, cx| cx.open_url(&url)),
                     )
                     .child(
                         h_flex()
@@ -437,9 +545,14 @@ impl Render for AddMicrosoft {
             .label(t!("accounts.ms_retry"))
             .disabled(self.error.is_none())
             .on_click(cx.listener(|this, _, _, cx| this.start(cx)));
+        // "Already copied" only holds while a code is on screen.
+        let description = match (&self.error, &self.code) {
+            (None, Some(_)) => t!("accounts.ms_hint"),
+            _ => t!("accounts.ms_about"),
+        };
         dialog_frame(
             t!("accounts.add_microsoft"),
-            t!("accounts.ms_hint"),
+            description,
             body,
             retry,
             self.back.clone(),
@@ -455,4 +568,27 @@ pub fn open_add_microsoft(cx: &mut App) {
 pub fn open_add_microsoft_then(back: Option<Back>, cx: &mut App) {
     let form = cx.new(|cx| AddMicrosoft::new(back, cx));
     open(form.into(), 420., cx);
+}
+
+/// The shadow under popovers: a wide soft one on light themes; a short faint one on dark themes,
+/// where a wide one reads as a dark, banded halo.
+pub fn popup_shadow(cx: &gpui::App) -> Vec<gpui::BoxShadow> {
+    use moonglass::theme::ActiveTheme as _;
+    if cx.theme().dark {
+        vec![gpui_base::box_shadow(
+            0.,
+            4.,
+            14.,
+            0.,
+            gpui::hsla(0., 0., 0., 0.22),
+        )]
+    } else {
+        vec![gpui_base::box_shadow(
+            0.,
+            20.,
+            50.,
+            0.,
+            gpui::hsla(0., 0., 0., 0.5),
+        )]
+    }
 }

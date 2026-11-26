@@ -1,4 +1,5 @@
 pub mod accounts;
+pub mod agent;
 pub mod crash;
 pub mod game;
 pub mod instances;
@@ -10,7 +11,7 @@ pub mod mods;
 pub mod own;
 pub mod prism;
 pub mod update;
-mod vault;
+pub mod vault;
 pub mod worlds;
 
 use std::path::{Path, PathBuf};
@@ -41,6 +42,10 @@ pub enum LaunchError {
     Hook { command: String, code: Option<i32> },
     #[error("Microsoft sign-in failed: {0}")]
     SignIn(String),
+    #[error("Microsoft sign-in failed: {0}")]
+    SignInRefused(accounts::Refusal),
+    #[error("cannot reach Microsoft: {0}")]
+    SignInOffline(String),
     #[error("{0} needs to sign in with Microsoft again")]
     SignInAgain(String),
     #[error("cannot keep the sign-in: {0}")]

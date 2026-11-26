@@ -22,11 +22,16 @@ mod memory_slider;
 mod mods;
 mod new_instance;
 mod pick;
+mod play;
+mod problem;
+mod quick_play;
 mod runtime;
 mod screenshots;
 mod session;
 mod settings;
 mod sharp;
+mod skin;
+mod sound;
 mod state;
 mod time;
 mod updater;
@@ -67,6 +72,7 @@ pub fn run(arg: Option<String>) -> ExitCode {
         dev::init(cx);
         app::init(cx);
         let state = AppState::init(cx);
+        play::PlayState::init(cx);
         let settings = state.read(cx).settings.clone();
         set_language(settings.language.as_deref(), cx);
         apply_theme(&settings.appearance, None, cx);
@@ -185,9 +191,10 @@ mod tests {
             missing.is_empty(),
             "keys missing from the locales: {missing:?}"
         );
+        // `errors.*` are looked up by the code a BX Team answer carries, never by a literal.
         let unused: Vec<_> = en
             .iter()
-            .filter(|k| !src.contains(&format!("\"{k}\"")))
+            .filter(|k| !k.starts_with("errors.") && !src.contains(&format!("\"{k}\"")))
             .collect();
         assert!(unused.is_empty(), "keys no code uses: {unused:?}");
     }

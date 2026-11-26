@@ -136,3 +136,16 @@ fn write_private(path: &Path, bytes: &[u8]) -> Result<(), LaunchError> {
     }
     std::fs::rename(&tmp, path).map_err(io(path))
 }
+
+/// A secret Riven keeps for another service it signs in to, such as the BX ID session.
+pub fn secret(key: &str) -> Result<Option<String>, LaunchError> {
+    Ok(Vault::open()?.get(key))
+}
+
+pub fn set_secret(key: &str, value: &str) -> Result<(), LaunchError> {
+    Vault::open()?.set(key, value)
+}
+
+pub fn forget_secret(key: &str) -> Result<(), LaunchError> {
+    Vault::open()?.remove(key)
+}

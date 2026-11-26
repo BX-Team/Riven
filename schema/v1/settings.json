@@ -70,6 +70,18 @@
       "description": "Riven looks for a new version only when asked, not at startup.",
       "type": "boolean"
     },
+    "bxid_off": {
+      "description": "BX ID, friends and playing together are off: the launcher only plays.",
+      "type": "boolean"
+    },
+    "alert_sound_off": {
+      "description": "Friend requests and invites come without the launcher's sound.",
+      "type": "boolean"
+    },
+    "skins_agent_off": {
+      "description": "The game starts without Riven's agent: only Mojang's skins, and offline accounts cannot join LAN worlds.",
+      "type": "boolean"
+    },
     "onboarded": {
       "description": "The first-run setup was finished or skipped.",
       "type": "boolean"

@@ -15,6 +15,7 @@ riven-build = { path = "crates/riven-build" }
 riven-format = { path = "crates/riven-format" }
 riven-game = { path = "crates/riven-game" }
 riven-launch = { path = "crates/riven-launch" }
+riven-play = { path = "crates/riven-play" }
 riven-resolve = { path = "crates/riven-resolve" }
 riven-sources = { path = "crates/riven-sources" }
 riven-sync = { path = "crates/riven-sync" }
@@ -71,7 +72,7 @@ crate-type = ["rlib"]
 
 [features]
 default = ["gui", "cli"]
-gui = ["dep:gpui", "dep:gpui-base", "dep:moonglass", "dep:image", "dep:notify", "dep:rfd", "dep:rust-i18n", "dep:sys-locale"]
+gui = ["dep:riven-play", "dep:gpui", "dep:gpui-base", "dep:moonglass", "dep:image", "dep:notify", "dep:rfd", "dep:rodio", "dep:rust-i18n", "dep:sys-locale"]
 cli = ["dep:clap", "dep:clap_complete", "dep:indicatif", "dep:console"]
 
 [dependencies]
@@ -83,20 +84,24 @@ dirs.workspace = true
 futures-util.workspace = true
 gpui = { package = "gpui-pre", version = "=0.3.12", optional = true }
 gpui-base = { version = "0.9.1", optional = true }
+hex.workspace = true
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"], optional = true }
 indicatif = { version = "0.18", optional = true }
 moonglass = { version = "0.2.2", optional = true }
 notify = { version = "8", optional = true }
 reqwest.workspace = true
 rfd = { version = "0.18", default-features = false, features = ["xdg-portal"], optional = true }
+rodio = { version = "0.23", default-features = false, features = ["playback"], optional = true }
 rust-i18n = { version = "4", optional = true }
 riven-build.workspace = true
 riven-format.workspace = true
 riven-launch.workspace = true
+riven-play = { workspace = true, optional = true }
 riven-resolve.workspace = true
 riven-sources.workspace = true
 riven-sync.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 sys-locale = { version = "0.3", optional = true }
 tokio.workspace = true
 tracing.workspace = true
@@ -153,6 +158,7 @@ assets = [
 ]
 
 [package.metadata.generate-rpm.requires]
+alsa-lib = "*"
 libxcb = "*"
 libxkbcommon = "*"
 libxkbcommon-x11 = "*"
