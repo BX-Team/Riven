@@ -122,7 +122,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Nix
-        uses: cachix/install-nix-action@v31
+        uses: cachix/install-nix-action@v32
 
       - name: Check the flake and build the mini-pack checks
         run: nix flake check -L
