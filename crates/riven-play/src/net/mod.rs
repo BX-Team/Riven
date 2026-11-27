@@ -362,6 +362,7 @@ impl Peer {
             while let Some(attempt) = attempts.next().await {
                 match attempt {
                     Ok(connection) => return Ok(connection),
+                    Err(e) if e.kind() == io::ErrorKind::ConnectionRefused => return Err(e),
                     Err(e) => last = e,
                 }
             }
@@ -401,13 +402,13 @@ async fn admit(incoming: quinn::Incoming) -> Option<(quinn::Connection, Fingerpr
 /// A client's handshake ends before the host checks its certificate, so a path counts
 /// only once the host says it let this side in.
 async fn welcomed(connecting: quinn::Connecting) -> io::Result<quinn::Connection> {
-    let connection = connecting.await.map_err(io::Error::other)?;
-    let mut welcome = connection.accept_uni().await.map_err(io::Error::other)?;
+    let connection = connecting.await.map_err(lost)?;
+    let mut welcome = connection.accept_uni().await.map_err(lost)?;
     let mut byte = [0];
-    welcome
-        .read_exact(&mut byte)
-        .await
-        .map_err(io::Error::other)?;
+    welcome.read_exact(&mut byte).await.map_err(|e| match e {
+        quinn::ReadExactError::ReadError(quinn::ReadError::ConnectionLost(e)) => lost(e),
+        e => io::Error::other(e),
+    })?;
     if byte[0] != WELCOME {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
@@ -415,6 +416,16 @@ async fn welcomed(connecting: quinn::Connecting) -> io::Result<quinn::Connection
         ));
     }
     Ok(connection)
+}
+
+/// A close the host sent itself is its refusal; timeouts and resets only say this path is bad.
+fn lost(e: quinn::ConnectionError) -> io::Error {
+    let kind = match e {
+        quinn::ConnectionError::ConnectionClosed(_)
+        | quinn::ConnectionError::ApplicationClosed(_) => io::ErrorKind::ConnectionRefused,
+        _ => io::ErrorKind::Other,
+    };
+    io::Error::new(kind, e)
 }
 
 /// One UDP relay and one over TLS: the second gets through networks that only allow HTTPS.
@@ -491,7 +502,11 @@ mod tests {
         let host = Peer::bind(&IceServers::default(), true).await.unwrap();
         let guest = Peer::bind(&IceServers::default(), false).await.unwrap();
         let stranger = Peer::bind(&IceServers::default(), false).await.unwrap();
-        let host_offer = host.offer();
+        let mut host_offer = host.offer();
+        host_offer.candidates.push(Candidate {
+            kind: Kind::Host,
+            addr: "192.0.2.1:9".parse().unwrap(),
+        });
         let expected = host.expect(&guest.offer()).unwrap();
         assert_eq!(expected, guest.fingerprint());
 
