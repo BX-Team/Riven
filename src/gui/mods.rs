@@ -263,6 +263,11 @@ fn thumbnail(bytes: &[u8], out: &Path) -> Option<()> {
     small.save_with_format(out, image::ImageFormat::Png).ok()
 }
 
+/// A profile picture scaled down for the largest place it is drawn, as PNG bytes.
+pub fn picture(bytes: &[u8]) -> Option<Vec<u8>> {
+    png_thumbnail(bytes, 96)
+}
+
 /// Side of an instance icon as stored.
 const INSTANCE_ICON_PX: u32 = 128;
 

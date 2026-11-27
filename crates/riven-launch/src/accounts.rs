@@ -67,6 +67,27 @@ pub fn offline(name: &str) -> Result<Account, LaunchError> {
     })
 }
 
+/// Why a Microsoft sign-in ended without an account, in terms the player can act on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum Refusal {
+    #[error("sign-in was declined")]
+    Declined,
+    #[error("the code expired; try again")]
+    Expired,
+    #[error("this Microsoft account has no Xbox profile; sign in at xbox.com once")]
+    NoXbox,
+    #[error("Xbox Live is not available in this account's country")]
+    Region,
+    #[error("this account needs adult verification on xbox.com")]
+    Adult,
+    #[error("this is a child account; an adult has to add it to a Microsoft family")]
+    Child,
+    #[error("Microsoft has not approved this launcher for Minecraft yet")]
+    NotApproved,
+    #[error("this Microsoft account has no Minecraft: Java Edition profile")]
+    NoMinecraft,
+}
+
 /// Signs in with a Microsoft account through a device code and remembers it for later launches.
 pub async fn sign_in(
     on_code: impl Fn(DeviceCode) + Send + Sync + 'static,
@@ -196,6 +217,92 @@ pub async fn skin(uuid: &str) -> Result<Vec<u8>, LaunchError> {
     Ok(bytes.to_vec())
 }
 
+const PROFILE_API: &str = "https://api.minecraftservices.com/minecraft/profile";
+
+/// The skin a Microsoft account wears: its URL and whether it has Alex's slim arms.
+pub async fn current_skin(session: &Session) -> Result<Option<(String, bool)>, LaunchError> {
+    #[derive(serde::Deserialize)]
+    struct Profile {
+        #[serde(default)]
+        skins: Vec<Worn>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Worn {
+        state: String,
+        url: String,
+        variant: String,
+    }
+    let response = riven_sources::client()
+        .get(PROFILE_API)
+        .bearer_auth(&session.access_token)
+        .send()
+        .await
+        .map_err(network)?;
+    let profile: Profile = json(response).await?;
+    Ok(profile
+        .skins
+        .into_iter()
+        .find(|s| s.state == "ACTIVE")
+        .map(|s| {
+            (
+                s.url.replace("http://", "https://"),
+                s.variant.eq_ignore_ascii_case("slim"),
+            )
+        }))
+}
+
+/// Uploads a PNG as a Microsoft account's skin through Minecraft services.
+pub async fn set_skin(session: &Session, png: Vec<u8>, slim: bool) -> Result<(), LaunchError> {
+    use sha2::Digest as _;
+    // reqwest's multipart feature is not built in; the form has two fields, so it is written by hand.
+    let boundary = format!("riven-{}", &hex::encode(sha2::Sha256::digest(&png))[..32]);
+    let variant = if slim { "slim" } else { "classic" };
+    let mut body = format!(
+        "--{boundary}\r\nContent-Disposition: form-data; name=\"variant\"\r\n\r\n{variant}\r\n\
+         --{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"skin.png\"\r\n\
+         Content-Type: image/png\r\n\r\n"
+    )
+    .into_bytes();
+    body.extend_from_slice(&png);
+    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+    let response = riven_sources::client()
+        .post(format!("{PROFILE_API}/skins"))
+        .bearer_auth(&session.access_token)
+        .header(
+            reqwest::header::CONTENT_TYPE,
+            format!("multipart/form-data; boundary={boundary}"),
+        )
+        .body(body)
+        .send()
+        .await
+        .map_err(network)?;
+    accepted(response).await
+}
+
+/// Puts a Microsoft account back to the default skin.
+pub async fn reset_skin(session: &Session) -> Result<(), LaunchError> {
+    let response = riven_sources::client()
+        .delete(format!("{PROFILE_API}/skins/active"))
+        .bearer_auth(&session.access_token)
+        .send()
+        .await
+        .map_err(network)?;
+    accepted(response).await
+}
+
+async fn accepted(response: reqwest::Response) -> Result<(), LaunchError> {
+    if response.status().is_success() {
+        return Ok(());
+    }
+    let status = response.status();
+    let text = response.text().await.unwrap_or_default();
+    Err(LaunchError::Download(format!(
+        "Minecraft services answered HTTP {}: {}",
+        status.as_u16(),
+        text.chars().take(200).collect::<String>()
+    )))
+}
+
 /// Keeps the newest refresh token: Microsoft hands out a new one with every refresh.
 async fn remember(id: &str, refresh: Option<String>) -> Result<(), LaunchError> {
     let Some(token) = refresh else {
@@ -282,7 +389,7 @@ async fn poll(http: &reqwest::Client, code: &DeviceCodeResponse) -> Result<MsTok
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
         if std::time::Instant::now() > deadline {
-            return Err(LaunchError::SignIn("the code expired; try again".into()));
+            return Err(LaunchError::SignInRefused(Refusal::Expired));
         }
         let response = http
             .post(format!("{MS_OAUTH}/token"))
@@ -303,10 +410,10 @@ async fn poll(http: &reqwest::Client, code: &DeviceCodeResponse) -> Result<MsTok
             "authorization_pending" => {}
             "slow_down" => interval += 5,
             "authorization_declined" => {
-                return Err(LaunchError::SignIn("sign-in was declined".into()));
+                return Err(LaunchError::SignInRefused(Refusal::Declined));
             }
             "expired_token" => {
-                return Err(LaunchError::SignIn("the code expired; try again".into()));
+                return Err(LaunchError::SignInRefused(Refusal::Expired));
             }
             _ => {
                 return Err(LaunchError::SignIn(
@@ -348,7 +455,7 @@ async fn minecraft(
         .map_err(network)?;
     if response.status() == reqwest::StatusCode::UNAUTHORIZED {
         let error: XboxError = json(response).await?;
-        return Err(LaunchError::SignIn(xbox_error(error.code)));
+        return Err(xbox_error(error.code));
     }
     let xsts: XboxToken = json(response).await?;
     let uhs = xsts
@@ -365,13 +472,11 @@ async fn minecraft(
         .map_err(network)?;
     if response.status() == reqwest::StatusCode::FORBIDDEN {
         let body = response.text().await.unwrap_or_default();
-        return Err(LaunchError::SignIn(
-            if body.contains("Invalid app registration") {
-                "Microsoft has not approved this launcher for Minecraft yet".into()
-            } else {
-                "Minecraft refused the sign-in".into()
-            },
-        ));
+        return Err(if body.contains("Invalid app registration") {
+            LaunchError::SignInRefused(Refusal::NotApproved)
+        } else {
+            LaunchError::SignIn("Minecraft refused the sign-in".into())
+        });
     }
     let mc: MinecraftToken = json(response).await?;
     let response = http
@@ -381,9 +486,7 @@ async fn minecraft(
         .await
         .map_err(network)?;
     if response.status() == reqwest::StatusCode::NOT_FOUND {
-        return Err(LaunchError::SignIn(
-            "this Microsoft account has no Minecraft: Java Edition profile".into(),
-        ));
+        return Err(LaunchError::SignInRefused(Refusal::NoMinecraft));
     }
     let profile: Profile = json(response).await?;
     let session = Session {
@@ -397,18 +500,14 @@ async fn minecraft(
     Ok((session, ms.refresh_token))
 }
 
-fn xbox_error(code: u64) -> String {
-    match code {
-        2_148_916_233 => {
-            "this Microsoft account has no Xbox profile; sign in at xbox.com once".into()
-        }
-        2_148_916_235 => "Xbox Live is not available in this account's country".into(),
-        2_148_916_236 | 2_148_916_237 => "this account needs adult verification on xbox.com".into(),
-        2_148_916_238 => {
-            "this is a child account; an adult has to add it to a Microsoft family".into()
-        }
-        code => format!("Xbox Live refused the sign-in ({code})"),
-    }
+fn xbox_error(code: u64) -> LaunchError {
+    LaunchError::SignInRefused(match code {
+        2_148_916_233 => Refusal::NoXbox,
+        2_148_916_235 => Refusal::Region,
+        2_148_916_236 | 2_148_916_237 => Refusal::Adult,
+        2_148_916_238 => Refusal::Child,
+        code => return LaunchError::SignIn(format!("Xbox Live refused the sign-in ({code})")),
+    })
 }
 
 /// The Xbox user id inside the Minecraft token, a JWT; only for telemetry, so missing is fine.
@@ -482,7 +581,7 @@ async fn json<T: serde::de::DeserializeOwned>(
 }
 
 fn network(e: reqwest::Error) -> LaunchError {
-    LaunchError::SignIn(e.without_url().to_string())
+    LaunchError::SignInOffline(e.without_url().to_string())
 }
 
 #[cfg(test)]
