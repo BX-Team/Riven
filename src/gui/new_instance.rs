@@ -1103,7 +1103,6 @@ impl NewInstance {
                 .text_color(c.muted)
                 .when(self.searching, |h| {
                     h.child(motion::spinner(
-                        "packs-spinner",
                         icon(IconName::Loader, c.muted).size(px(14.)),
                         cx,
                     ))
@@ -1222,7 +1221,6 @@ impl NewInstance {
                 .gap(px(8.))
                 .text_color(c.muted)
                 .child(motion::spinner(
-                    "versions-spinner",
                     icon(IconName::Loader, c.muted).size(px(14.)),
                     cx,
                 ))
@@ -2155,7 +2153,6 @@ impl Render for NewInstance {
                 .gap(px(8.))
                 .text_color(c.muted)
                 .child(motion::spinner(
-                    "new-instance-busy",
                     icon(IconName::Loader, c.muted).size(px(14.)),
                     cx,
                 ))

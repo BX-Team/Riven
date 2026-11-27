@@ -390,7 +390,6 @@ impl Render for JavaPicker {
                             .text_color(c.muted)
                             .when(scanning, |row| {
                                 row.child(motion::spinner(
-                                    "java-scan",
                                     icon(IconName::Loader, c.muted).size(px(13.)),
                                     cx,
                                 ))

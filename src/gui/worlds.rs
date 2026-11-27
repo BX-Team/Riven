@@ -463,11 +463,7 @@ impl WorldsView {
             Button::new(("world-busy", ix))
                 .outline()
                 .disabled(true)
-                .child(motion::spinner(
-                    SharedString::from(format!("world-spin-{ix}")),
-                    icon(IconName::Loader, c.muted),
-                    cx,
-                ))
+                .child(motion::spinner(icon(IconName::Loader, c.muted), cx))
                 .label(t!("worlds.working"))
         } else {
             Button::new(("world-backup", ix))

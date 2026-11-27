@@ -1005,7 +1005,6 @@ impl AddMods {
                 .text_color(c.muted)
                 .when(self.searching, |h| {
                     h.child(motion::spinner(
-                        "hits-spinner",
                         icon(IconName::Loader, c.muted).size(px(14.)),
                         cx,
                     ))
@@ -1254,7 +1253,6 @@ impl AddMods {
                 .gap(px(8.))
                 .text_color(c.muted)
                 .child(motion::spinner(
-                    "install-spinner",
                     icon(IconName::Loader, c.muted).size(px(14.)),
                     cx,
                 ))
@@ -1516,7 +1514,6 @@ impl Render for Details {
                         .gap(px(8.))
                         .text_color(c.muted)
                         .child(motion::spinner(
-                            "page-spinner",
                             icon(IconName::Loader, c.muted).size(px(14.)),
                             cx,
                         ))

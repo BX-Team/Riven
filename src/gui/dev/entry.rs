@@ -299,7 +299,6 @@ impl DevView {
                 .gap(px(8.))
                 .text_color(c.muted)
                 .child(motion::spinner(
-                    "entry-versions",
                     icon(IconName::Loader, c.muted).size(px(13.)),
                     cx,
                 ))

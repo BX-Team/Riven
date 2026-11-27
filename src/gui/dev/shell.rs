@@ -217,7 +217,6 @@ impl DevView {
                         .max_w(px(260.))
                         .text_color(c.muted)
                         .child(motion::spinner(
-                            "dev-busy",
                             icon(IconName::Loader, c.muted).size(px(14.)),
                             cx,
                         ))

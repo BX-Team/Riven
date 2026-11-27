@@ -26,5 +26,5 @@ hex.workspace = true
 sha1.workspace = true
 sha2.workspace = true
 similar = "3"
-gix = { version = "0.90", default-features = false, features = ["sha1", "status", "revision"] }
+gix = { version = "0.91", default-features = false, features = ["sha1", "status", "revision"] }
 toml = { version = "1", default-features = false, features = ["std", "serde", "parse"] }

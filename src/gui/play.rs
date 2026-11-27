@@ -1996,7 +1996,7 @@ fn pill(
     let spins = glyph == IconName::Loader;
     let glyph = icon(glyph, color).size(px(14.));
     let glyph = if spins {
-        moonglass::motion::spinner("session-pill-spin", glyph, cx)
+        moonglass::motion::spinner(glyph, cx)
     } else {
         glyph.into_any_element()
     };
@@ -2278,7 +2278,6 @@ pub fn session_status(instance: &str, cx: &App) -> Option<AnyElement> {
                 .gap(px(8.))
                 .min_w_0()
                 .child(moonglass::motion::spinner(
-                    "session-connecting",
                     icon(IconName::Loader, c.muted).size(px(14.)),
                     cx,
                 ))
@@ -2972,7 +2971,6 @@ impl Render for SignIn {
                 .gap(px(10.))
                 .text_color(c.muted)
                 .child(moonglass::motion::spinner(
-                    "bxid-wait",
                     moonglass::icon(IconName::Loader, c.muted),
                     cx,
                 ))

@@ -156,7 +156,7 @@
             RIVEN_REV = self.shortRev or self.dirtyShortRev or "unknown";
             meta = {
               description = cargoToml.package.description;
-              homepage = cargoToml.workspace.package.homepage;
+              homepage = cargoToml.workspace.package.repository;
               license = lib.licenses.gpl3Plus;
               mainProgram = "riven";
             };

@@ -507,7 +507,6 @@ impl Render for AddMicrosoft {
                 .gap(px(10.))
                 .text_color(c.muted)
                 .child(moonglass::motion::spinner(
-                    "ms-wait",
                     moonglass::icon(moonglass::IconName::Loader, c.muted),
                     cx,
                 ))
@@ -530,7 +529,6 @@ impl Render for AddMicrosoft {
                             .gap(px(10.))
                             .text_color(c.muted)
                             .child(moonglass::motion::spinner(
-                                "ms-wait",
                                 moonglass::icon(moonglass::IconName::Loader, c.muted),
                                 cx,
                             ))

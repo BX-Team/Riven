@@ -104,7 +104,6 @@ impl DevView {
             .text_color(color)
             .when(spin, |row| {
                 row.child(motion::spinner(
-                    "dev-stream-spin",
                     icon(IconName::Loader, c.muted).size(px(12.)),
                     cx,
                 ))

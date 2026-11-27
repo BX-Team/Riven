@@ -302,7 +302,6 @@ pub(super) fn progress_card(id: &str, window: &mut Window, cx: &mut App) -> Opti
                 h_flex()
                     .gap(px(10.))
                     .child(moonglass::motion::spinner(
-                        "install-card-spinner",
                         icon(IconName::Loader, c.accent).size(px(16.)),
                         cx,
                     ))
@@ -492,7 +491,6 @@ fn play_button(
             .size(ButtonSize::Lg)
             .disabled(true)
             .child(moonglass::motion::spinner(
-                "play-spinner",
                 icon(IconName::Loader, c.on_accent),
                 cx,
             ))

@@ -828,11 +828,7 @@ impl InstanceView {
                     )
                     .when(busy, |row| {
                         row.child(h_flex().flex_none().gap(px(8.)).text_color(c.muted).child(
-                            motion::spinner(
-                                "mods-spinner",
-                                icon(IconName::Loader, c.muted).size(px(14.)),
-                                cx,
-                            ),
+                            motion::spinner(icon(IconName::Loader, c.muted).size(px(14.)), cx),
                         ))
                     })
                     .child(div().flex_1().min_w_0().truncate().when_some(

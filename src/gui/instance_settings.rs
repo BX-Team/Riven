@@ -1108,7 +1108,6 @@ impl InstanceSettings {
                 .gap(px(8.))
                 .text_color(c.muted)
                 .child(motion::spinner(
-                    "pack-check",
                     icon(IconName::Loader, c.muted).size(px(13.)),
                     cx,
                 ))
