@@ -12,7 +12,7 @@ use riven_game::{Event, GameVersion, Loader, Step};
 use riven_sync::install;
 use riven_sync::update::{self, Check, Pending, Request};
 
-use crate::agent::SkinsAgent;
+use crate::agent::Agent;
 use crate::instances::Instances;
 use crate::{LaunchError, io};
 
@@ -329,14 +329,14 @@ pub fn adopt_release(
 }
 
 /// Updates a pack instance, installs what the game needs, starts it and reports until it exits.
-/// `quick_play` opens a world or joins a server right away; `agent` shows BX ID skins in the game.
+/// `quick_play` opens a world or joins a server right away; `agent` brings Riven's LAN worlds and skins into the game.
 pub async fn play(
     store: &Instances,
     id: &str,
     account: &Account,
     defaults: &LaunchSettings,
     quick_play: Option<QuickPlay>,
-    agent: Option<SkinsAgent>,
+    agent: Option<Agent>,
     report: impl Fn(Progress) + Send + Sync + 'static,
 ) -> Result<(), LaunchError> {
     let report: Report = Arc::new(report);
@@ -349,13 +349,15 @@ pub async fn play(
     let launcher_jvm_args = match &agent {
         Some(agent) => match agent.jvm_args(&data_dir()?, offline) {
             Ok(args) => {
-                if offline && let Some(token) = &agent.game_token {
+                if offline
+                    && let Some(token) = agent.skins.as_ref().and_then(|s| s.game_token.as_ref())
+                {
                     session.access_token = token.clone();
                 }
                 args
             }
             Err(e) => {
-                tracing::warn!("starting without the skins agent: {e}");
+                tracing::warn!("starting without Riven's agent: {e}");
                 vec![]
             }
         },

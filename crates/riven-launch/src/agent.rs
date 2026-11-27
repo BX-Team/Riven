@@ -7,7 +7,14 @@ use crate::{LaunchError, io};
 /// Built from `agent/` by `./gradlew build`, which writes it here.
 const JAR: &[u8] = include_bytes!("../riven-agent.jar");
 
-/// What Riven's agent needs to show BX ID skins in the game, from the skins service.
+/// Riven's agent in the game: it lets the LAN list hear worlds friends share through Riven, and shows BX ID
+/// skins when `skins` is set.
+#[derive(Clone, Debug, Default)]
+pub struct Agent {
+    pub skins: Option<SkinsAgent>,
+}
+
+/// What the agent needs to show BX ID skins in the game, from the skins service.
 #[derive(Clone)]
 pub struct SkinsAgent {
     /// The skins service, such as `https://api.bxteam.org/v1/skins`.
@@ -30,18 +37,18 @@ impl std::fmt::Debug for SkinsAgent {
     }
 }
 
-impl SkinsAgent {
+impl Agent {
     /// The JVM options that load the agent, after writing its jar under `data` if this build's is not there yet.
     /// `offline` sends the account's `join` to Riven; a Microsoft account's must stay with Mojang, token and all.
     pub fn jvm_args(&self, data: &Path, offline: bool) -> Result<Vec<String>, LaunchError> {
         let jar = write_jar(data)?;
-        let mut args = vec![
-            format!("-javaagent:{}", jar.display()),
-            format!("-Driven.skins.api={}", self.api),
-            format!("-Driven.skins.key={}", self.key),
-        ];
-        if offline && self.game_token.is_some() {
-            args.push("-Driven.skins.join=true".into());
+        let mut args = vec![format!("-javaagent:{}", jar.display())];
+        if let Some(skins) = &self.skins {
+            args.push(format!("-Driven.skins.api={}", skins.api));
+            args.push(format!("-Driven.skins.key={}", skins.key));
+            if offline && skins.game_token.is_some() {
+                args.push("-Driven.skins.join=true".into());
+            }
         }
         Ok(args)
     }
@@ -69,10 +76,12 @@ mod tests {
     #[test]
     fn a_microsoft_join_never_goes_to_riven() {
         let dir = std::env::temp_dir().join(format!("riven-agent-test-{}", std::process::id()));
-        let agent = SkinsAgent {
-            api: "https://api.example.test/v1/skins".into(),
-            key: "KEY".into(),
-            game_token: Some("rgt1.x.y".into()),
+        let agent = Agent {
+            skins: Some(SkinsAgent {
+                api: "https://api.example.test/v1/skins".into(),
+                key: "KEY".into(),
+                game_token: Some("rgt1.x.y".into()),
+            }),
         };
         let microsoft = agent.jvm_args(&dir, false).unwrap();
         assert!(

@@ -35,7 +35,7 @@ pub struct Settings {
     /// Friend requests and invites come without the launcher's sound.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub alert_sound_off: bool,
-    /// The game starts without Riven's agent: only Mojang's skins, and offline accounts cannot join LAN worlds.
+    /// Riven's agent leaves skins alone: only Mojang's skins, and offline accounts cannot join LAN worlds.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub skins_agent_off: bool,
     /// The first-run setup was finished or skipped.

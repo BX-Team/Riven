@@ -312,13 +312,13 @@ impl AppState {
             return;
         };
         let defaults = self.settings.launch.clone();
-        let agent_on = self.skins_agent_on();
+        let agent_on = self.agent_on();
         let instance = id.to_owned();
         self.run_session(
             id,
             (false, true),
             move |tx| async move {
-                let agent = skins_agent(agent_on, &account).await;
+                let agent = agent(agent_on, &account).await;
                 game::play(
                     &store,
                     &instance,
@@ -336,9 +336,10 @@ impl AppState {
         );
     }
 
-    /// The agent needs BX ID, so it is off with it.
-    fn skins_agent_on(&self) -> bool {
-        !self.settings.bxid_off && !self.settings.skins_agent_off
+    /// Whether the game gets Riven's agent, and whether with skins: it serves BX ID, so it is off with it.
+    fn agent_on(&self) -> (bool, bool) {
+        let bxid = !self.settings.bxid_off;
+        (bxid, bxid && !self.settings.skins_agent_off)
     }
 
     /// Picks up the games an earlier launcher started that still run.
@@ -404,7 +405,7 @@ impl AppState {
             return;
         };
         let defaults = self.settings.launch.clone();
-        let agent_on = self.skins_agent_on();
+        let agent_on = self.agent_on();
         let fresh = !riven_launch::own::from_pack(&store.game_dir(id));
         let instance = id.to_owned();
         self.run_session(
@@ -416,7 +417,7 @@ impl AppState {
                     let _ = report.send(p);
                 })
                 .await?;
-                let agent = skins_agent(agent_on, &account).await;
+                let agent = agent(agent_on, &account).await;
                 game::play(
                     &store,
                     &instance,
@@ -511,15 +512,19 @@ impl AppState {
     }
 }
 
-/// The skins agent for this launch; when the skins service cannot be reached, the game starts without it.
-async fn skins_agent(on: bool, account: &Account) -> Option<riven_launch::agent::SkinsAgent> {
+/// Riven's agent for this launch; when the skins service cannot be reached, it comes without skins.
+async fn agent((on, skins): (bool, bool), account: &Account) -> Option<riven_launch::agent::Agent> {
     if !on {
         return None;
     }
     let offline =
         (account.kind == riven_format::AccountKind::Offline).then_some(account.name.as_str());
-    riven_play::skins::agent(offline)
-        .await
-        .inspect_err(|e| tracing::warn!("starting without the skins agent: {e}"))
-        .ok()
+    let skins = match skins {
+        true => riven_play::skins::agent(offline)
+            .await
+            .inspect_err(|e| tracing::warn!("starting without BX ID skins: {e}"))
+            .ok(),
+        false => None,
+    };
+    Some(riven_launch::agent::Agent { skins })
 }

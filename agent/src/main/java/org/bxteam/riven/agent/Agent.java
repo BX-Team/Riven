@@ -7,22 +7,33 @@ import java.security.ProtectionDomain;
 import java.util.EnumSet;
 import java.util.Set;
 
-/** Riven's skins in the game: patches authlib as the game loads it, whatever the version or loader. */
+/**
+ * Riven in the game, whatever the version or loader: LAN worlds announced by Riven always show, and with BX ID
+ * skins on, authlib is patched as the game loads it.
+ */
 public final class Agent {
     private static final Set<Patch.Kind> patched = EnumSet.noneOf(Patch.Kind.class);
 
     private Agent() {}
 
     public static void premain(String args, Instrumentation instrumentation) {
+        boolean skins = !System.getProperty(Hooks.API, "").isEmpty();
         instrumentation.addTransformer(new ClassFileTransformer() {
             @Override
             public byte[] transform(
                     ClassLoader loader, String name, Class<?> redefined, ProtectionDomain domain, byte[] bytes) {
-                if (name == null || !name.startsWith(Patch.AUTHLIB)) return null;
+                if (name == null || name.startsWith("java/") || name.startsWith("jdk/") || name.startsWith("sun/"))
+                    return null;
                 try {
-                    Patch patch = Patch.apply(bytes);
-                    if (!patch.hooks.isEmpty()) found(patch, domain);
-                    return patch.bytes;
+                    if (name.startsWith(Patch.AUTHLIB)) {
+                        if (!skins) return null;
+                        Patch patch = Patch.apply(bytes);
+                        if (!patch.hooks.isEmpty()) found(patch, domain);
+                        return patch.bytes;
+                    }
+                    byte[] lan = Lan.apply(bytes);
+                    if (lan != null) System.err.println("[riven-agent] Riven LAN worlds are on: " + name + " patched");
+                    return lan;
                 } catch (Throwable e) {
                     // A class the agent cannot read stays as it was; the game must still start.
                     System.err.println("[riven-agent] cannot patch " + name + ": " + e);
