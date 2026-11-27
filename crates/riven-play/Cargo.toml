@@ -19,7 +19,6 @@ quinn = { version = "0.11", default-features = false, features = ["runtime-tokio
 rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs"] }
 reqwest.workspace = true
 riven-format.workspace = true
-riven-game.workspace = true
 riven-launch.workspace = true
 riven-sources.workspace = true
 rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std"] }

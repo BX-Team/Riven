@@ -7291,7 +7291,6 @@ dependencies = [
  "rcgen",
  "reqwest",
  "riven-format",
- "riven-game",
  "riven-launch",
  "riven-sources",
  "rustls",
